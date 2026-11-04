@@ -9,6 +9,7 @@ Reference for thread states, configuration, troubleshooting, and known limitatio
 | Approval / Input | The thread is waiting for you to approve an action or answer a question. |
 | Connecting / Working / Goal | The saved run state indicates startup or work in progress. |
 | Failed | The latest visible run failed. |
+| Limited | The latest visible run failed because the provider's usage limit was reached. Shown in amber, as in T3 Code, and not as a failure. |
 | Woke | A snoozed thread has woken and its wake timestamp is newer than the persisted last visit, or no valid visit is available. |
 | Plan Ready | A proposed plan is ready in plan mode. |
 | Done | The latest visible run completed after the last valid visit saved by T3 Code. |

@@ -10,6 +10,8 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
     case woke
     case planReady
     case failed
+    /// The latest run failed because the provider's usage limit was reached.
+    case limited
     case done
     case settled
 
@@ -23,6 +25,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
         case .woke: return "Woke"
         case .planReady: return "Plan Ready"
         case .failed: return "Failed"
+        case .limited: return "Limited"
         case .done: return "Done"
         case .settled: return "Settled"
         }
@@ -31,7 +34,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
     public var color: Color {
         switch self {
         case .connecting, .working, .goal: return T3Theme.statusWorking
-        case .approval, .woke: return T3Theme.statusApproval
+        case .approval, .woke, .limited: return T3Theme.statusApproval
         case .input: return T3Theme.statusInput
         case .planReady: return Color(hex: "#c084fc")
         case .failed: return T3Theme.statusFailed
@@ -42,7 +45,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
 
     public var showsLabelInMenuBar: Bool {
         switch self {
-        case .approval, .input, .woke, .planReady, .failed: return true
+        case .approval, .input, .woke, .planReady, .failed, .limited: return true
         default: return false
         }
     }
@@ -65,7 +68,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
 
     public var isAttention: Bool {
         switch self {
-        case .connecting, .working, .goal, .approval, .input, .planReady, .failed, .woke:
+        case .connecting, .working, .goal, .approval, .input, .planReady, .failed, .limited, .woke:
             return true
         default:
             return false
@@ -78,7 +81,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
         case .input: return 7
         case .goal: return 6
         case .connecting, .working: return 5
-        case .failed: return 4
+        case .failed, .limited: return 4
         case .woke: return 3
         case .planReady: return 2
         case .done: return 1
@@ -121,6 +124,8 @@ public struct ThreadItem: Identifiable, Equatable, Sendable {
     public let workspaceRoot: String?
     public let unsettledAt: Date?
     public let lastVisitedAt: Date?
+    /// `failure.class` of the latest run's root error, such as `usage_limit`.
+    public var latestFailureClass: String? = nil
 
     public var status: ThreadStatus {
         if pendingApprovalCount > 0 {
@@ -139,7 +144,7 @@ public struct ThreadItem: Identifiable, Equatable, Sendable {
             return .working(startedAt: activeRunStartedAt ?? latestRunStartedAt ?? updatedAt)
         }
         if latestRunStatus == "failed" || latestRunStatus == "error" {
-            return .failed
+            return latestFailureClass == "usage_limit" ? .limited : .failed
         }
         if isWoke {
             return .woke

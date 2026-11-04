@@ -132,6 +132,15 @@ public struct ThreadRowView: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: "#f87171"))
                     }
+                case .limited:
+                    HStack(spacing: 3) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(Color(hex: "#fcd34d"))
+                        Text("Limited")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: "#fcd34d"))
+                    }
                 case .planReady:
                     Text("Plan")
                         .font(.system(size: 11, weight: .medium))

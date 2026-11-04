@@ -6,7 +6,7 @@ T3 Code Bar is an independent companion app. It is not affiliated with or endors
 
 Source: <https://github.com/pingdotgg/t3code>
 
-Status/sorting behavior was adapted with reference to T3 Code. The project also uses T3 Code identity artwork in `Sources/Resources/` and provider icon artwork in `Sources/Views/ProviderIconView.swift`. Corresponding upstream references include `apps/web/src/components/Icons.tsx`, `apps/mobile/src/components/ProviderIcon.tsx`, `apps/marketing/public/harnesses/`, and `assets/prod/logo.svg`.
+Status/sorting behavior was adapted with reference to T3 Code. The project also uses T3 Code identity artwork in `Sources/Resources/` and provider icon artwork in `Sources/Views/ProviderIconView.swift` and `Sources/Resources/ProviderLogo-*`. The `ProviderLogo-*` files are copied from the provider icon definitions in the T3 Code app (OpenCode, Cursor, Grok, Kiro, fx, Pi, Muse, and the Antigravity raster logo), with single-color logos recolored to a muted gray for Bar's dark popover. Corresponding upstream references include `apps/web/src/components/Icons.tsx`, `apps/mobile/src/components/ProviderIcon.tsx`, `apps/marketing/public/harnesses/`, and `assets/prod/logo.svg`.
 
 The copyright and permission notice from T3 Code is retained below. Names and brand marks remain the property of their respective owners; the source-code license does not imply endorsement or ownership of those marks.
 

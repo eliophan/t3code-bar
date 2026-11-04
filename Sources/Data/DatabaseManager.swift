@@ -77,11 +77,35 @@ public actor DatabaseManager {
         return validDb
     }
 
+    /// Failure class (for example `usage_limit`) of the latest executed run, when it failed.
+    /// Mirrors T3 Code: the newest failed `error` item on the run's root node.
+    private static let latestFailureClassSQL = """
+    (
+        SELECT CASE WHEN r.status = 'failed' THEN (
+            SELECT json_extract(ti.payload_json, '$.failure.class')
+            FROM orchestration_v2_projection_turn_items ti
+            WHERE ti.thread_id = r.thread_id AND ti.run_id = r.run_id
+              AND ti.type = 'error' AND ti.status = 'failed'
+              AND ti.node_id IS json_extract(r.payload_json, '$.rootNodeId')
+            ORDER BY ti.updated_at DESC, ti.ordinal DESC, ti.turn_item_id DESC
+            LIMIT 1
+        ) END
+        FROM orchestration_v2_projection_runs r
+        WHERE r.thread_id = t.thread_id
+          AND r.status != 'queued'
+          AND NOT (r.status = 'cancelled' AND json_extract(r.payload_json, '$.startedAt') IS NULL)
+          AND COALESCE(json_extract(r.payload_json, '$.silent'), 0) != 1
+        ORDER BY r.completed_at IS NULL DESC, r.completed_at DESC, r.ordinal DESC
+        LIMIT 1
+    )
+    """
+
     public func fetchActiveThreads() throws -> [ThreadItem] {
         let db = try openDatabase()
         defer { sqlite3_close(db) }
 
-        let query = """
+        func buildQuery(failureClass: String) -> String {
+        return """
         SELECT
             t.thread_id,
             t.title,
@@ -164,7 +188,8 @@ public actor DatabaseManager {
             json_extract(t.payload_json, '$.unsettledAt') as unsettled_at,
             json_extract(t.payload_json, '$.lastVisitedAt') as last_visited_at,
             (SELECT json_extract(pt.payload_json, '$.status') FROM orchestration_v2_projection_provider_threads pt WHERE pt.thread_id = t.thread_id ORDER BY pt.last_run_ordinal DESC LIMIT 1) as session_status,
-            (SELECT json_extract(pt.payload_json, '$.updatedAt') FROM orchestration_v2_projection_provider_threads pt WHERE pt.thread_id = t.thread_id ORDER BY pt.last_run_ordinal DESC LIMIT 1) as session_updated_at
+            (SELECT json_extract(pt.payload_json, '$.updatedAt') FROM orchestration_v2_projection_provider_threads pt WHERE pt.thread_id = t.thread_id ORDER BY pt.last_run_ordinal DESC LIMIT 1) as session_updated_at,
+            \(failureClass) as latest_failure_class
         FROM orchestration_v2_projection_threads t
         LEFT JOIN projection_projects p ON t.project_id = p.project_id
         WHERE t.thread_id NOT LIKE 'thread:%' AND t.deleted_at IS NULL AND t.archived_at IS NULL
@@ -172,9 +197,17 @@ public actor DatabaseManager {
           AND COALESCE(json_extract(t.payload_json, '$.lineage.sideChat'), 0) != 1
           AND COALESCE(json_extract(t.payload_json, '$.lineage.relationshipToParent'), '') != 'subagent'
         """
+        }
 
         var statement: OpaquePointer?
-        let result = sqlite3_prepare_v2(db, query, -1, &statement, nil)
+        var result = sqlite3_prepare_v2(db, buildQuery(failureClass: Self.latestFailureClassSQL), -1, &statement, nil)
+        if result == SQLITE_ERROR {
+            // A T3 Code build without turn items can still list threads; only the
+            // Limited label needs them, so retry without that column.
+            sqlite3_finalize(statement)
+            statement = nil
+            result = sqlite3_prepare_v2(db, buildQuery(failureClass: "NULL"), -1, &statement, nil)
+        }
         guard result == SQLITE_OK, let stmt = statement else {
             let error = readError(code: result, db: db)
             throw result == SQLITE_ERROR ? DatabaseReadError.incompatibleSchema : error
@@ -273,6 +306,7 @@ public actor DatabaseManager {
             let workspaceRoot = sqlite3_column_text(stmt, 30).map { String(cString: $0) }
             let unsettledAtStr = sqlite3_column_text(stmt, 31).map { String(cString: $0) }
             let lastVisitedAtStr = text(stmt, 32)
+            let latestFailureClass = text(stmt, 35)
 
             let providers = providerHistoryStr?
                 .split(separator: ",")
@@ -343,7 +377,8 @@ public actor DatabaseManager {
                 projectFaviconPath: projectFaviconPath,
                 workspaceRoot: workspaceRoot,
                 unsettledAt: parseDate(unsettledAtStr),
-                lastVisitedAt: lastVisitedAt
+                lastVisitedAt: lastVisitedAt,
+                latestFailureClass: latestFailureClass
             )
 
             results.append(item)

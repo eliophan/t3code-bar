@@ -20,6 +20,8 @@ The app requires these tables and queries them from `Sources/Data/DatabaseManage
 - `projection_projects`
 - `projection_thread_pull_requests`
 
+Optional: `orchestration_v2_projection_turn_items` is read to tell a usage-limit failure (Limited) from other failures. If it is missing, threads still list and a usage-limit failure shows as Failed.
+
 Inbox properties such as `settledAt`, `snoozedAt`, `snoozedUntil`, `pinnedAt`, `pinOrderKey`, `activeOrderKey`, `lineage`, and `lastVisitedAt` are read from JSON payloads. The app does not change the schema, create indexes, or migrate T3 Code data. If SQL preparation fails because a table or column is missing, the app reports an incompatibility instead of showing an empty inbox.
 
 SQLite is opened read-only. The app does not use `immutable=1`, so changes in the WAL remain visible. Each poll opens and closes its connection and waits up to 250 ms for a lock. Errors while stepping through results are never treated as partial success.

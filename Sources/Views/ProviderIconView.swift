@@ -31,13 +31,6 @@ public struct ProviderIconView: View {
     </svg>
     """
 
-    private static let grokSVG = """
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-    <path fill="#f97316" d="M9.26905 15.284L17.2479 9.36086C17.6391 9.07047 18.1981 9.18374 18.3845 9.63478C19.3655 12.0135 18.9272 14.8721 16.9755 16.8349C15.0238 18.7976 12.3082 19.228 9.8261 18.2477L7.1146 19.5102C11.0037 22.1834 15.7263 21.5223 18.6774 18.5525C21.0182 16.1985 21.7432 12.9897 21.0653 10.0961L21.0714 10.1023C20.0884 5.85143 21.3131 4.15233 23.8218 0.677913C23.8812 0.595532 23.9406 0.513151 24 0.428711L20.6987 3.74866V3.73836L9.267 15.2861" />
-    <path fill="#f97316" d="M7.62249 16.7237C4.83113 14.0422 5.3124 9.89222 7.69417 7.49905C9.45541 5.72786 12.341 5.00497 14.86 6.06768L17.5653 4.81138C17.0779 4.45714 16.4533 4.07613 15.7365 3.80839C12.4966 2.46764 8.6178 3.13492 5.98413 5.78141C3.45081 8.32904 2.65415 12.2463 4.02219 15.5889C5.04412 18.0871 3.36889 19.8541 1.68137 21.6377C1.08337 22.2699 0.483318 22.9022 0 23.5716L7.62045 16.7257" />
-    </svg>
-    """
-
     private static let geminiSVG = """
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 298">
     <path fill="#38bdf8" d="M141.201 4.886c2.282-6.17 11.042-6.071 13.184.148l5.985 17.37a184.004 184.004 0 0 0 111.257 113.049l19.304 6.997c6.143 2.227 6.156 10.91.02 13.155l-19.35 7.082a184.001 184.001 0 0 0-109.495 109.385l-7.573 20.629c-2.241 6.105-10.869 6.121-13.133.025l-7.908-21.296a184 184 0 0 0-109.02-108.658l-19.698-7.239c-6.102-2.243-6.118-10.867-.025-13.132l20.083-7.467A183.998 183.998 0 0 0 133.291 26.28l7.91-21.394Z"/>
@@ -46,77 +39,66 @@ public struct ProviderIconView: View {
 
     private static let openAIImage = NSImage(data: openAISVG.data(using: .utf8)!)
     private static let claudeImage = NSImage(data: claudeSVG.data(using: .utf8)!)
-    private static let grokImage = NSImage(data: grokSVG.data(using: .utf8)!)
     private static let geminiImage = NSImage(data: geminiSVG.data(using: .utf8)!)
 
+    private static var resourceImages: [String: NSImage] = [:]
+
+    /// Logos bundled as files, copied from T3 Code. Mono logos use the muted gray
+    /// of the OpenAI logo above; Antigravity is a PNG in T3 Code itself.
+    private static func resourceImage(for kind: ProviderKind) -> NSImage? {
+        let file: (name: String, ext: String)
+        switch kind {
+        case .grok: file = ("ProviderLogo-grok", "svg")
+        case .cursor: file = ("ProviderLogo-cursor", "svg")
+        case .openCode: file = ("ProviderLogo-opencode", "svg")
+        case .antigravity: file = ("ProviderLogo-antigravity", "png")
+        case .fx: file = ("ProviderLogo-fx", "svg")
+        case .kiro: file = ("ProviderLogo-kiro", "svg")
+        case .pi: file = ("ProviderLogo-pi", "svg")
+        case .muse: file = ("ProviderLogo-muse", "svg")
+        case .openAI, .claude, .gemini, .unknown: return nil
+        }
+        if let cached = resourceImages[file.name] { return cached }
+        guard let image = AppResources.image(named: file.name, withExtension: file.ext) else { return nil }
+        resourceImages[file.name] = image
+        return image
+    }
+
     public var body: some View {
-        let uniqueKinds = resolveUniqueProviderKinds(providers)
         HStack(spacing: 4) {
-            ForEach(uniqueKinds, id: \.self) { kind in
+            ForEach(ProviderKind.resolveUnique(providers), id: \.self) { kind in
                 renderIcon(kind: kind)
             }
         }
     }
 
-    private enum ProviderKind: String, Hashable {
-        case openAI
-        case claude
-        case gemini
-        case grok
-    }
-
-    private func resolveUniqueProviderKinds(_ list: [String]) -> [ProviderKind] {
-        var result: [ProviderKind] = []
-        for raw in list {
-            let name = raw.lowercased()
-            let kind: ProviderKind
-            if name.contains("grok") || name.contains("xai") {
-                kind = .grok
-            } else if name.contains("claude") || name.contains("anthropic") || name.contains("sonnet") || name.contains("opus") || name.contains("haiku") {
-                kind = .claude
-            } else if name.contains("gemini") || name.contains("antigravity") || name.contains("google") {
-                kind = .gemini
-            } else {
-                kind = .openAI
-            }
-            if !result.contains(kind) {
-                result.append(kind)
-            }
-        }
-        return result.isEmpty ? [.openAI] : result
-    }
-
     @ViewBuilder
     private func renderIcon(kind: ProviderKind) -> some View {
         switch kind {
-        case .grok:
-            if let img = Self.grokImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: size, height: size)
-            }
-        case .claude:
-            if let img = Self.claudeImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: size, height: size)
-            }
-        case .gemini:
-            if let img = Self.geminiImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: size, height: size)
-            }
-        case .openAI:
-            if let img = Self.openAIImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: size, height: size)
-            }
+        case .openAI: logo(Self.openAIImage)
+        case .claude: logo(Self.claudeImage)
+        case .gemini: logo(Self.geminiImage)
+        case .unknown: initialsBadge
+        default: logo(Self.resourceImage(for: kind))
         }
+    }
+
+    @ViewBuilder
+    private func logo(_ image: NSImage?) -> some View {
+        if let image {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+        }
+    }
+
+    /// A provider T3 Code knows but Bar has no logo for: show its initials, as T3 Code does.
+    private var initialsBadge: some View {
+        let name = providers.first { ProviderKind.resolve($0) == .unknown } ?? "?"
+        return Text(String(name.prefix(2)).uppercased())
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundColor(Color(hex: "#9ca3af"))
+            .frame(width: size, height: size)
     }
 }
