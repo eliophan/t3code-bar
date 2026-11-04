@@ -74,9 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.layer?.cornerRadius = 12
         view.layer?.masksToBounds = true
 
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 320, height: 160),
-                        styleMask: [.borderless, .nonactivatingPanel],
-                        backing: .buffered, defer: false)
+        panel = PopoverPanel(contentRect: NSRect(x: 0, y: 0, width: 320, height: 160),
+                             styleMask: [.borderless, .nonactivatingPanel],
+                             backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -93,7 +93,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel() {
         positionPanel()
-        panel.orderFrontRegardless()
+        // Cursor rects and pointer styles only apply to the key window, and a
+        // borderless panel is never key unless asked, so the hand cursor over
+        // rows would not appear. A nonactivating panel becomes key without
+        // activating this app or stealing the frontmost app's menu bar.
+        panel.makeKeyAndOrderFront(nil)
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.closePanel()
         }
@@ -156,6 +160,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+
+/// Borderless panels refuse key status by default; see `showPanel()`.
+private final class PopoverPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
 
 private final class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
