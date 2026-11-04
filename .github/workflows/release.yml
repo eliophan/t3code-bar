@@ -34,4 +34,4 @@ jobs:
             --title "$TAG" \
             --verify-tag \
             --generate-notes \
-            --notes "Apple Silicon (arm64) build. Ad hoc signed, no Developer ID signature, not notarized. Install or update with the command in the README."
+            --notes "Universal build (Apple Silicon and Intel; Intel is untested). Ad hoc signed, no Developer ID signature, not notarized. Install or update with the command in the README."

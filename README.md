@@ -19,7 +19,7 @@ Built with SwiftUI. An independent companion app, not affiliated with or endorse
 
 ## Quick start
 
-Requires an Apple Silicon Mac on macOS 14+ and T3 Code opened at least once. In Terminal:
+Requires a Mac on macOS 14+ (Apple Silicon is the tested architecture) and T3 Code opened at least once. In Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eliophan/t3code-bar/main/scripts/install-release.sh | bash
@@ -45,7 +45,7 @@ This downloads the latest prebuilt release, checks its checksum, installs it at 
 - **T3 Code installed and opened at least once**, with a compatible local database.
 - **Only to build from source:** Git and Swift 6.0 or later, available through a compatible Xcode or Xcode Command Line Tools installation.
 
-**Apple Silicon (`arm64`) is the tested architecture.** Prebuilt releases are `arm64` only. Intel (`x86_64`) is untested and must build from source; builds target your local toolchain's architecture, and the scripts do not create a universal binary.
+**Apple Silicon (`arm64`) is the tested architecture.** Prebuilt releases are universal and include an Intel (`x86_64`) build, but Intel has not been tested. Releases before v1.0.2 are `arm64` only. Builds from source target your local toolchain's architecture; the source scripts do not create a universal binary.
 
 T3 Code Bar reads T3 Code's internal projection-v2 schema, which can change between versions, so compatibility with every T3 Code version is not guaranteed. The checked versions are listed in the [compatibility notes](docs/COMPATIBILITY.md).
 
@@ -69,7 +69,7 @@ There is no in-app updater, and the app never checks for updates on its own. Onl
 
 ### From source
 
-On Intel, or if you prefer to build it yourself, you need Git and Swift 6 or later. Run this from a directory that does not already contain `t3code-bar`:
+If you prefer to build it yourself, you need Git and Swift 6 or later. Run this from a directory that does not already contain `t3code-bar`:
 
 ```bash
 git clone --depth 1 https://github.com/eliophan/t3code-bar.git && bash t3code-bar/scripts/install.sh

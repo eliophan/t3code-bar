@@ -85,11 +85,11 @@ main() {
     local os_major
     os_major="$(sw_vers -productVersion | cut -d. -f1)"
     (( os_major >= 14 )) || die "macOS 14 or later is required (found $(sw_vers -productVersion))."
-    local arch
-    arch="$(uname -m)"
-    if [[ "${arch}" != "arm64" ]]; then
-        die "Prebuilt releases are Apple Silicon (arm64) only. On ${arch}, build from source: git clone https://github.com/${REPO}.git && bash t3code-bar/scripts/install.sh"
-    fi
+    local arch="${T3_CODE_BAR_ARCH:-$(uname -m)}" # the override is a test hook
+    case "${arch}" in
+        arm64|x86_64) ;;
+        *) die "Unsupported architecture: ${arch}." ;;
+    esac
 
     local tag="${requested}"
     if [[ -z "${tag}" ]]; then
@@ -110,13 +110,25 @@ main() {
         echo "Note: replacing an existing app at ${DESTINATION} whose version could not be read."
     fi
 
-    local zip_name="T3-Code-Bar-${version}-${arch}.zip"
     WORK="$(mktemp -d "${TMPDIR:-/tmp}/t3-code-bar-release.XXXXXX")"
     trap cleanup EXIT
 
-    echo "==> Downloading ${zip_name}..."
-    curl -fSL --progress-bar --retry 3 -o "${WORK}/${zip_name}" "${DOWNLOAD_BASE}/${tag}/${zip_name}" \
-        || die "Download failed. Check that release ${tag} exists with ${zip_name}."
+    # New releases ship one universal build. Releases before that are named by
+    # architecture and only exist for arm64, so fall back to that name.
+    local zip_name="" candidate
+    for candidate in "T3-Code-Bar-${version}-universal.zip" "T3-Code-Bar-${version}-${arch}.zip"; do
+        echo "==> Downloading ${candidate}..."
+        if curl -fSL --progress-bar --retry 3 -o "${WORK}/${candidate}" "${DOWNLOAD_BASE}/${tag}/${candidate}" 2>/dev/null; then
+            zip_name="${candidate}"
+            break
+        fi
+    done
+    if [[ -z "${zip_name}" ]]; then
+        if [[ "${arch}" == "x86_64" ]]; then
+            die "Release ${tag} has no build for Intel Macs. Try a newer release, or build from source: git clone https://github.com/${REPO}.git && bash t3code-bar/scripts/install.sh"
+        fi
+        die "Download failed. Check that release ${tag} exists."
+    fi
     curl -fsSL --retry 3 -o "${WORK}/${zip_name}.sha256" "${DOWNLOAD_BASE}/${tag}/${zip_name}.sha256" \
         || die "Checksum download failed."
     (cd "${WORK}" && shasum -a 256 -c "${zip_name}.sha256" >/dev/null 2>&1) \

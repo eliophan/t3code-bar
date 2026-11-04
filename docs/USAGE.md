@@ -65,4 +65,4 @@ For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues)
 - Some background activity exists only in T3 Code's memory and cannot be inferred from SQLite. Working/Monitoring indicators after the main run ends may be incomplete.
 - Unread completion and wake indicators depend on visit timestamps persisted by T3 Code; Bar does not read browser localStorage or call the sidebar's acknowledgment API.
 - Server availability uses the runtime PID, not an HTTP health check. After a read error, the last successful list remains visible with live status disabled.
-- Full sidebar parity is not guaranteed. Intel support, Gatekeeper behavior, and notarized distribution have not been verified.
+- Full sidebar parity is not guaranteed. Running on Intel, Gatekeeper behavior, and notarized distribution have not been verified.

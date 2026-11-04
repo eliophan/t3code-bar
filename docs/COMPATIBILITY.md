@@ -44,7 +44,7 @@ Data is read from one fixed local instance. The app does not merge remote enviro
 
 - macOS deployment target: 14.0.
 - Locally tested architecture: arm64.
-- x86_64 and universal binaries: not tested.
+- Prebuilt releases from v1.0.2 are universal (arm64 and x86_64). The universal build and its install path are checked on Apple Silicon only; the x86_64 slice has never been run, because no Intel Mac or Rosetta was available.
 - Local Release binary: linker-signed ad hoc, without Developer ID, and not notarized.
 - Any `.app` under `build/` is local output, may be older than the source, is not a release artifact, and is excluded from Git.
 

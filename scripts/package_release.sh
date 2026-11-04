@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the app at a given version and zip it for a GitHub Release.
 # Usage: bash scripts/package_release.sh v1.2.3
-# Output: build/T3-Code-Bar-<version>-<arch>.zip and a matching .sha256 file.
+# Output: build/T3-Code-Bar-<version>-universal.zip (Apple Silicon and Intel) and a matching .sha256 file.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,18 +14,18 @@ if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
-T3_CODE_BAR_VERSION="${VERSION}" bash "${SCRIPT_DIR}/build_app.sh"
+T3_CODE_BAR_UNIVERSAL=1 T3_CODE_BAR_VERSION="${VERSION}" bash "${SCRIPT_DIR}/build_app.sh"
 
 APP="${PROJECT_DIR}/build/T3 Code Bar.app"
 # Never ship an app that cannot launch away from the build machine.
 bash "${SCRIPT_DIR}/smoke_test_app.sh" "${APP}"
-ARCH="$(lipo -archs "${APP}/Contents/MacOS/T3CodeBar")"
-if [[ "${ARCH}" != "arm64" && "${ARCH}" != "x86_64" ]]; then
-    echo "Expected a single-architecture binary, got: ${ARCH}" >&2
+ARCHS="$(lipo -archs "${APP}/Contents/MacOS/T3CodeBar")"
+if [[ " ${ARCHS} " != *" arm64 "* || " ${ARCHS} " != *" x86_64 "* ]]; then
+    echo "Expected a universal binary with arm64 and x86_64, got: ${ARCHS}" >&2
     exit 1
 fi
 
-ZIP_NAME="T3-Code-Bar-${VERSION}-${ARCH}.zip"
+ZIP_NAME="T3-Code-Bar-${VERSION}-universal.zip"
 cd "${PROJECT_DIR}/build"
 rm -f "${ZIP_NAME}" "${ZIP_NAME}.sha256"
 ditto -c -k --keepParent "T3 Code Bar.app" "${ZIP_NAME}"

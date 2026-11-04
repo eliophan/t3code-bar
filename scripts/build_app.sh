@@ -12,11 +12,19 @@ if [[ ! "${VERSION}" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
     exit 1
 fi
 
-echo "==> Building T3CodeBar ${VERSION} in Release mode..."
-cd "${PROJECT_DIR}"
-swift build -c release
+# Local builds target this Mac only. Release packaging sets T3_CODE_BAR_UNIVERSAL=1
+# for one binary that runs on Apple Silicon and Intel.
+ARCH_FLAGS=()
+if [[ "${T3_CODE_BAR_UNIVERSAL:-0}" == "1" ]]; then
+    ARCH_FLAGS=(--arch arm64 --arch x86_64)
+fi
 
-BIN_PATH="$(swift build -c release --show-bin-path)/T3CodeBar"
+echo "==> Building T3CodeBar ${VERSION} in Release mode${ARCH_FLAGS[*]:+ (${ARCH_FLAGS[*]})}..."
+cd "${PROJECT_DIR}"
+# "${arr[@]+...}" keeps an empty array from tripping `set -u` on the bash 3.2 macOS ships.
+swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+
+BIN_PATH="$(swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)/T3CodeBar"
 APP_DIR="${PROJECT_DIR}/build/T3 Code Bar.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
