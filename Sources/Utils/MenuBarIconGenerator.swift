@@ -6,15 +6,7 @@ public enum MenuBarIconGenerator {
     private static var iconCache: [String: NSImage] = [:]
 
     private static var baseLogoImage: NSImage? = {
-        // 1. Try Bundle.module (Swift Package Manager resource bundle)
-        #if SWIFT_PACKAGE
-        if let url = Bundle.module.url(forResource: "T3Logo", withExtension: "png"),
-           let img = NSImage(contentsOf: url) {
-            return img
-        }
-        #endif
-
-        // 2. Try Bundle.main resource url / image(forResource:)
+        // 1. The packaged app: build_app.sh copies T3Logo.png into Contents/Resources.
         if let img = Bundle.main.image(forResource: "T3Logo") {
             return img
         }
@@ -23,6 +15,18 @@ public enum MenuBarIconGenerator {
            let img = NSImage(contentsOf: resURL) {
             return img
         }
+
+        // 2. `swift run`: the SwiftPM resource bundle. Never touch Bundle.module
+        // inside an .app. Older toolchains generate an accessor that only looks
+        // at the .app root and the build machine's absolute path, and it
+        // fatalErrors, so a CI-built release crashed on launch everywhere else.
+        #if SWIFT_PACKAGE
+        if Bundle.main.bundleURL.pathExtension != "app",
+           let url = Bundle.module.url(forResource: "T3Logo", withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        #endif
 
         // 3. Fallback: check relative path from executable or working directory
         let localPath = "Sources/Resources/T3Logo.png"
