@@ -10,6 +10,29 @@
 - `Sources/Utils/AppLauncher.swift`: opens applications and links through macOS and reports failures.
 - `Tests/`: isolated SQLite fixtures in temporary directories; no personal database or real server is used.
 
+## Run and package locally
+
+From the repository root, run the app from source:
+
+```bash
+swift run T3CodeBar
+```
+
+Install the tracked pre-push hook once per clone so the automated checks below run before every push (`git push --no-verify` skips it):
+
+```bash
+bash scripts/setup_hooks.sh
+```
+
+To package a local app without installing it:
+
+```bash
+bash scripts/build_app.sh
+open "build/T3 Code Bar.app"
+```
+
+Build output is written to `build/` and excluded from Git. The package has no external Swift dependencies.
+
 ## Automated checks
 
 Run from the repository root:
