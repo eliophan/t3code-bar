@@ -12,4 +12,4 @@ echo "pre-push: swift test -c release"
 swift test -c release
 
 echo "pre-push: scripts syntax"
-bash -n scripts/build_app.sh scripts/install.sh
+bash -n scripts/build_app.sh scripts/install.sh scripts/install-release.sh scripts/package_release.sh

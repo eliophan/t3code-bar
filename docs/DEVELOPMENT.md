@@ -33,6 +33,16 @@ open "build/T3 Code Bar.app"
 
 Build output is written to `build/` and excluded from Git. The package has no external Swift dependencies.
 
+## Releasing
+
+Releases are built by `.github/workflows/release.yml` when a tag like `v1.2.3` is pushed. The workflow runs the tests, packages an `arm64` zip with `scripts/package_release.sh`, and attaches the zip and its `.sha256` to a GitHub Release. The tag sets the app's `CFBundleShortVersionString`, which `scripts/install-release.sh` compares to decide whether an update is needed.
+
+```bash
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+To try a package without publishing, run `bash scripts/package_release.sh v1.2.3`, which writes the zip to `build/`. The install script accepts `T3_CODE_BAR_RELEASE_BASE_URL` (a directory laid out as `<tag>/<zip>`), `T3_CODE_BAR_API_URL`, `T3_CODE_BAR_INSTALL_DIR`, and `T3_CODE_BAR_SKIP_OPEN=1`, so it can be tested against `file://` URLs and a temporary directory without touching an installed app.
+
 ## Automated checks
 
 Run from the repository root:

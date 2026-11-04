@@ -19,13 +19,15 @@ Built with SwiftUI. An independent companion app, not affiliated with or endorse
 
 ## Quick start
 
-Requires macOS 14+, Swift 6, and T3 Code opened at least once. In Terminal, from a directory that does not already contain `t3code-bar`:
+Requires an Apple Silicon Mac on macOS 14+ and T3 Code opened at least once. In Terminal:
 
 ```bash
-git clone https://github.com/eliophan/t3code-bar.git && bash t3code-bar/scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/eliophan/t3code-bar/main/scripts/install-release.sh | bash
 ```
 
-This builds the app on your Mac, installs it at `~/Applications/T3 Code Bar.app`, and opens it. No `sudo` is needed. Click the menu bar icon to see your inbox. [Details below](#install).
+This downloads the latest prebuilt release, checks its checksum, installs it at `~/Applications/T3 Code Bar.app`, and opens it. No Swift, build step, or `sudo` is needed. Click the menu bar icon to see your inbox.
+
+**To update, run the same command again.** It installs a newer release if there is one, restarts the app, and keeps your current version if anything fails. [Details below](#install-and-update).
 
 ## Features
 
@@ -40,24 +42,42 @@ This builds the app on your Mac, installs it at `~/Applications/T3 Code Bar.app`
 ## Requirements
 
 - **macOS 14 or later.**
-- **Git and Swift 6.0 or later**, available through a compatible Xcode or Xcode Command Line Tools installation.
 - **T3 Code installed and opened at least once**, with a compatible local database.
+- **Only to build from source:** Git and Swift 6.0 or later, available through a compatible Xcode or Xcode Command Line Tools installation.
 
-**Apple Silicon (`arm64`) is the tested architecture.** Intel (`x86_64`) is untested. Builds target your local toolchain's architecture; the scripts do not create a universal binary.
+**Apple Silicon (`arm64`) is the tested architecture.** Prebuilt releases are `arm64` only. Intel (`x86_64`) is untested and must build from source; builds target your local toolchain's architecture, and the scripts do not create a universal binary.
 
 T3 Code Bar reads T3 Code's internal projection-v2 schema, which can change between versions, so compatibility with every T3 Code version is not guaranteed. The checked versions are listed in the [compatibility notes](docs/COMPATIBILITY.md).
 
-## Install
+## Install and update
 
-The [quick start](#quick-start) command downloads the source, builds a Release version, installs it, and opens it. If you already downloaded or cloned the source, run this from the project directory instead:
+### From a prebuilt release
+
+The [quick start](#quick-start) command installs the latest [release](https://github.com/eliophan/t3code-bar/releases). Run it again at any time to update. If the app is running, the script quits it, swaps in the new version, and reopens it. If the download, checksum, or swap fails, your installed version stays in place.
+
+Options go after `bash -s --`:
 
 ```bash
-bash scripts/install.sh
+# Install a specific version, including an older one
+curl -fsSL https://raw.githubusercontent.com/eliophan/t3code-bar/main/scripts/install-release.sh | bash -s -- --version v1.2.3
+
+# Reinstall even when already up to date
+curl -fsSL https://raw.githubusercontent.com/eliophan/t3code-bar/main/scripts/install-release.sh | bash -s -- --force
 ```
 
-The installer stops if an app already exists at the destination. To reinstall, quit the app and move the old copy aside first. There is no automatic updater. After installation, you can remove the source directory; keep the installed app in `~/Applications`.
+There is no in-app updater, and the app never checks for updates on its own. Only this script contacts GitHub, and only when you run it.
 
-**Distribution status:** there is no prebuilt `.app` download. The locally built app is ad hoc signed, has no Developer ID signature, and is not notarized. The scripts do not perform Developer ID signing or notarization.
+### From source
+
+On Intel, or if you prefer to build it yourself, you need Git and Swift 6 or later. Run this from a directory that does not already contain `t3code-bar`:
+
+```bash
+git clone --depth 1 https://github.com/eliophan/t3code-bar.git && bash t3code-bar/scripts/install.sh
+```
+
+If you already downloaded or cloned the source, run `bash scripts/install.sh` from the project directory. The source installer stops if an app already exists at the destination, so to reinstall, quit the app and move the old copy aside first. After installing, you can remove the source directory.
+
+**Distribution status:** prebuilt releases and local builds are ad hoc signed, have no Developer ID signature, and are not notarized. The scripts do not perform Developer ID signing or notarization. See [known limitations](docs/USAGE.md#known-limitations).
 
 ## Usage
 
@@ -70,7 +90,7 @@ See the [usage guide](docs/USAGE.md) for thread states, launching at login, cust
 
 ## Privacy
 
-T3 Code Bar reads local data and does not require an API key.
+T3 Code Bar reads local data and does not require an API key. The app itself makes no network requests; only the optional [install script](#from-a-prebuilt-release) downloads a release from GitHub when you run it.
 
 - Opens T3 Code's SQLite database in **read-only** mode to read thread, project, run, request, and visit metadata.
 - Reads `server-runtime.json` and `environment-id` to identify the local instance and construct links.

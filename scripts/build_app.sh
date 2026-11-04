@@ -4,7 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "==> Building T3CodeBar in Release mode..."
+# Local builds keep 1.0.0. Release packaging passes the tag's version so the
+# installed app reports it and install-release.sh can compare versions.
+VERSION="${T3_CODE_BAR_VERSION:-1.0.0}"
+if [[ ! "${VERSION}" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+    echo "T3_CODE_BAR_VERSION must look like 1.2.3, got: ${VERSION}" >&2
+    exit 1
+fi
+
+echo "==> Building T3CodeBar ${VERSION} in Release mode..."
 cd "${PROJECT_DIR}"
 swift build -c release
 
@@ -29,7 +37,7 @@ cp "${PROJECT_DIR}/LICENSE" "${PROJECT_DIR}/THIRD_PARTY_NOTICES.md" "${RESOURCES
 cp -r "${PROJECT_DIR}/Sources/Resources/"* "${RESOURCES_DIR}/"
 cp -r "${RESOURCE_BUNDLE}" "${RESOURCES_DIR}/"
 
-cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
+cat << EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -43,9 +51,9 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>${VERSION}</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>

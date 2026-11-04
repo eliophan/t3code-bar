@@ -46,4 +46,4 @@ jobs:
       - name: Release build and tests
         run: swift test -c release
       - name: Script syntax
-        run: bash -n scripts/build_app.sh scripts/install.sh scripts/setup_hooks.sh
+        run: bash -n scripts/build_app.sh scripts/install.sh scripts/install-release.sh scripts/package_release.sh scripts/setup_hooks.sh
