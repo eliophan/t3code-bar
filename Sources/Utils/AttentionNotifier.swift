@@ -44,14 +44,19 @@ public final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate
         UserDefaults.standard.set(isMuted, forKey: Self.mutedKey)
     }
 
+    /// UserNotifications aborts the process unless it runs from an `.app`
+    /// bundle, which `swift run` does not provide. Skip notifications then.
+    private static let canNotify = Bundle.main.bundleURL.pathExtension == "app"
+
     public override init() {
         super.init()
+        guard Self.canNotify else { return }
         UNUserNotificationCenter.current().delegate = self
     }
 
     public func process(_ threads: [ThreadItem]) {
         let alerts = tracker.update(with: threads)
-        guard !alerts.isEmpty, !isMuted else { return }
+        guard !alerts.isEmpty, !isMuted, Self.canNotify else { return }
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
             guard granted else { return }
