@@ -17,6 +17,8 @@ fi
 T3_CODE_BAR_VERSION="${VERSION}" bash "${SCRIPT_DIR}/build_app.sh"
 
 APP="${PROJECT_DIR}/build/T3 Code Bar.app"
+# Never ship an app that cannot launch away from the build machine.
+bash "${SCRIPT_DIR}/smoke_test_app.sh" "${APP}"
 ARCH="$(lipo -archs "${APP}/Contents/MacOS/T3CodeBar")"
 if [[ "${ARCH}" != "arm64" && "${ARCH}" != "x86_64" ]]; then
     echo "Expected a single-architecture binary, got: ${ARCH}" >&2

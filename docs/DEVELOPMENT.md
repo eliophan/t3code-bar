@@ -41,6 +41,8 @@ Releases are built by `.github/workflows/release.yml` when a tag like `v1.2.3` i
 git tag v1.2.3 && git push origin v1.2.3
 ```
 
+Packaging runs `scripts/smoke_test_app.sh` first, and CI runs it on every push. It launches a copy of the app with the SwiftPM resource bundle and `.build` removed and fails if the app exits, which is how v1.0.0 crashed everywhere except the CI runner. Run it by hand after `bash scripts/build_app.sh`.
+
 To try a package without publishing, run `bash scripts/package_release.sh v1.2.3`, which writes the zip to `build/`. The install script accepts `T3_CODE_BAR_RELEASE_BASE_URL` (a directory laid out as `<tag>/<zip>`), `T3_CODE_BAR_API_URL`, `T3_CODE_BAR_INSTALL_DIR`, and `T3_CODE_BAR_SKIP_OPEN=1`, so it can be tested against `file://` URLs and a temporary directory without touching an installed app.
 
 ## Automated checks

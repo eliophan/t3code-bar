@@ -45,5 +45,10 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-swift-
       - name: Release build and tests
         run: swift test -c release
+      - name: Packaged app launches
+        # Catches resources that only resolve on the build machine, as in v1.0.0.
+        run: |
+          bash scripts/build_app.sh
+          bash scripts/smoke_test_app.sh
       - name: Script syntax
-        run: bash -n scripts/build_app.sh scripts/install.sh scripts/install-release.sh scripts/package_release.sh scripts/setup_hooks.sh
+        run: bash -n scripts/build_app.sh scripts/install.sh scripts/install-release.sh scripts/package_release.sh scripts/smoke_test_app.sh scripts/setup_hooks.sh
