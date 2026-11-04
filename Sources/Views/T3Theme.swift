@@ -39,6 +39,7 @@ public enum T3Theme {
     public static let statusInput = Color(hex: "#a5b4fc") // Indigo-300
     public static let statusDone = Color(hex: "#6ee7b7") // Emerald-300
     public static let statusFailed = Color(hex: "#f87171") // Red-400
+    public static let statusRequest = Color(hex: "#f0abfc") // Fuchsia-300, T3 Code's guest color
     public static let statusSettled = Color(hex: "#71717a")
 }
 

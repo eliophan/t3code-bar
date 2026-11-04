@@ -7,9 +7,13 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
     case goal(startedAt: Date?)
     case approval
     case input
+    /// A guest on a shared link has a message waiting for the owner.
+    case request
     case woke
     case planReady
     case failed
+    /// The thread is idle or is blocked waiting on another thread, so nothing is running here.
+    case waiting
     /// The latest run failed because the provider's usage limit was reached.
     case limited
     case done
@@ -22,10 +26,12 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
         case .goal: return "Goal"
         case .approval: return "Approval"
         case .input: return "Input"
+        case .request: return "Request"
         case .woke: return "Woke"
         case .planReady: return "Plan Ready"
         case .failed: return "Failed"
         case .limited: return "Limited"
+        case .waiting: return "Waiting"
         case .done: return "Done"
         case .settled: return "Settled"
         }
@@ -36,16 +42,17 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
         case .connecting, .working, .goal: return T3Theme.statusWorking
         case .approval, .woke, .limited: return T3Theme.statusApproval
         case .input: return T3Theme.statusInput
+        case .request: return T3Theme.statusRequest
         case .planReady: return Color(hex: "#c084fc")
         case .failed: return T3Theme.statusFailed
         case .done: return T3Theme.statusDone
-        case .settled: return T3Theme.statusSettled
+        case .settled, .waiting: return T3Theme.statusSettled
         }
     }
 
     public var showsLabelInMenuBar: Bool {
         switch self {
-        case .approval, .input, .woke, .planReady, .failed, .limited: return true
+        case .approval, .input, .request, .woke, .planReady, .failed, .limited: return true
         default: return false
         }
     }
@@ -68,7 +75,7 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
 
     public var isAttention: Bool {
         switch self {
-        case .connecting, .working, .goal, .approval, .input, .planReady, .failed, .limited, .woke:
+        case .connecting, .working, .goal, .approval, .input, .request, .planReady, .failed, .limited, .woke:
             return true
         default:
             return false
@@ -78,14 +85,14 @@ public enum ThreadStatus: Equatable, Hashable, Sendable {
     public var priority: Int {
         switch self {
         case .approval: return 8
-        case .input: return 7
+        case .input, .request: return 7
         case .goal: return 6
         case .connecting, .working: return 5
         case .failed, .limited: return 4
         case .woke: return 3
         case .planReady: return 2
         case .done: return 1
-        case .settled: return 0
+        case .settled, .waiting: return 0
         }
     }
 }
@@ -126,6 +133,14 @@ public struct ThreadItem: Identifiable, Equatable, Sendable {
     public let lastVisitedAt: Date?
     /// `failure.class` of the latest run's root error, such as `usage_limit`.
     public var latestFailureClass: String? = nil
+    /// When the provider's usage limit resets, if the failure says.
+    public var usageLimitResetAt: Date? = nil
+    /// Guest messages the owner has not sent or dismissed yet.
+    public var pendingGuestMessageCount: Int = 0
+    /// The active run is only waiting on other threads (`t3_thread_wait`).
+    public var isBlockedOnThreadWait: Bool = false
+    /// False for a thread that has never run anything.
+    public var hasRuns: Bool = true
 
     public var status: ThreadStatus {
         if pendingApprovalCount > 0 {
@@ -134,8 +149,14 @@ public struct ThreadItem: Identifiable, Equatable, Sendable {
         if pendingUserInputCount > 0 {
             return .input
         }
+        if pendingGuestMessageCount > 0 {
+            return .request
+        }
         if activeRunStatus == "starting" || activeRunStatus == "preparing" {
             return .connecting
+        }
+        if activeRunStatus == "running" && isBlockedOnThreadWait {
+            return .waiting
         }
         if activeRunStatus == "running" || activeRunStatus == "waiting" {
             if hasGoal {
@@ -151,6 +172,9 @@ public struct ThreadItem: Identifiable, Equatable, Sendable {
         }
         if interactionMode == "plan" && hasActionableProposedPlan {
             return .planReady
+        }
+        if !hasRuns {
+            return .waiting
         }
         // Like the sidebar: a completion is unseen only after a known last visit.
         if latestRunStatus == "completed", let completedAt = latestRunCompletedAt,

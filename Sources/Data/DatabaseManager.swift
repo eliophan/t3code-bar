@@ -41,6 +41,15 @@ public actor DatabaseManager {
         ThreadSnapshot(threads: try fetchActiveThreads(), isServerOnline: config.isServerOnline)
     }
 
+    /// Reads `class` and `resetAt` from a `failure` object. Anything else is ignored.
+    private func parseFailure(_ json: String?) -> (failureClass: String?, resetAt: Date?) {
+        guard let data = json?.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (nil, nil)
+        }
+        return (object["class"] as? String, parseDate(object["resetAt"] as? String))
+    }
+
     private func parseDate(_ value: String?) -> Date? {
         guard let value, !value.isEmpty else { return nil }
         return isoFormatterFractional.date(from: value) ?? isoFormatter.date(from: value)
@@ -77,12 +86,13 @@ public actor DatabaseManager {
         return validDb
     }
 
-    /// Failure class (for example `usage_limit`) of the latest executed run, when it failed.
-    /// Mirrors T3 Code: the newest failed `error` item on the run's root node.
-    private static let latestFailureClassSQL = """
+    /// The `failure` object (class such as `usage_limit`, and `resetAt`) of the latest
+    /// executed run, when it failed. Mirrors T3 Code: the newest failed `error` item on
+    /// the run's root node.
+    private static let latestFailureSQL = """
     (
         SELECT CASE WHEN r.status = 'failed' THEN (
-            SELECT json_extract(ti.payload_json, '$.failure.class')
+            SELECT json_extract(ti.payload_json, '$.failure')
             FROM orchestration_v2_projection_turn_items ti
             WHERE ti.thread_id = r.thread_id AND ti.run_id = r.run_id
               AND ti.type = 'error' AND ti.status = 'failed'
@@ -100,11 +110,45 @@ public actor DatabaseManager {
     )
     """
 
+    /// A tool call that only waits for another thread. Mirrors T3 Code's `deriveBlockedOnThreadWait`.
+    private static let threadWaitToolSQL = """
+    ti.type = 'dynamic_tool' AND (
+        json_extract(ti.payload_json, '$.toolName') GLOB '*t3_thread_wait'
+        OR (json_extract(ti.payload_json, '$.toolName') GLOB '*delegate_task'
+            AND json_extract(ti.payload_json, '$.input.mode') = 'wait')
+    )
+    """
+
+    /// 1 when the active run is running and everything it is executing is a thread wait.
+    private static let blockedOnThreadWaitSQL = """
+    (
+        SELECT CASE WHEN r.status = 'running'
+            AND EXISTS (
+                SELECT 1 FROM orchestration_v2_projection_turn_items ti
+                WHERE ti.thread_id = r.thread_id AND ti.run_id = r.run_id
+                  AND ti.status IN ('running', 'waiting') AND \(threadWaitToolSQL))
+            AND NOT EXISTS (
+                SELECT 1 FROM orchestration_v2_projection_turn_items ti
+                WHERE ti.thread_id = r.thread_id AND ti.run_id = r.run_id
+                  AND ti.type IN ('command_execution', 'dynamic_tool', 'subagent', 'file_change', 'file_search', 'web_search', 'compaction')
+                  AND ti.status IN ('running', 'waiting')
+                  AND NOT (ti.type = 'subagent' AND json_extract(ti.payload_json, '$.origin') = 'app_owned')
+                  AND NOT (\(threadWaitToolSQL)))
+            THEN 1 ELSE 0 END
+        FROM orchestration_v2_projection_runs r
+        WHERE r.thread_id = t.thread_id
+          AND r.status IN ('preparing', 'starting', 'running', 'waiting')
+          AND COALESCE(json_extract(r.payload_json, '$.silent'), 0) != 1
+        ORDER BY r.ordinal DESC, r.run_id DESC
+        LIMIT 1
+    )
+    """
+
     public func fetchActiveThreads() throws -> [ThreadItem] {
         let db = try openDatabase()
         defer { sqlite3_close(db) }
 
-        func buildQuery(failureClass: String) -> String {
+        func buildQuery(failure: String, blockedOnThreadWait: String) -> String {
         return """
         SELECT
             t.thread_id,
@@ -189,7 +233,10 @@ public actor DatabaseManager {
             json_extract(t.payload_json, '$.lastVisitedAt') as last_visited_at,
             (SELECT json_extract(pt.payload_json, '$.status') FROM orchestration_v2_projection_provider_threads pt WHERE pt.thread_id = t.thread_id ORDER BY pt.last_run_ordinal DESC LIMIT 1) as session_status,
             (SELECT json_extract(pt.payload_json, '$.updatedAt') FROM orchestration_v2_projection_provider_threads pt WHERE pt.thread_id = t.thread_id ORDER BY pt.last_run_ordinal DESC LIMIT 1) as session_updated_at,
-            \(failureClass) as latest_failure_class
+            \(failure) as latest_failure,
+            (SELECT COUNT(*) FROM json_each(t.payload_json, '$.guestShare.messages') g WHERE json_extract(g.value, '$.status') = 'pending') as pending_guest_messages,
+            EXISTS (SELECT 1 FROM orchestration_v2_projection_runs r WHERE r.thread_id = t.thread_id) as has_runs,
+            COALESCE(\(blockedOnThreadWait), 0) as blocked_on_thread_wait
         FROM orchestration_v2_projection_threads t
         LEFT JOIN projection_projects p ON t.project_id = p.project_id
         WHERE t.thread_id NOT LIKE 'thread:%' AND t.deleted_at IS NULL AND t.archived_at IS NULL
@@ -200,13 +247,14 @@ public actor DatabaseManager {
         }
 
         var statement: OpaquePointer?
-        var result = sqlite3_prepare_v2(db, buildQuery(failureClass: Self.latestFailureClassSQL), -1, &statement, nil)
+        var result = sqlite3_prepare_v2(
+            db, buildQuery(failure: Self.latestFailureSQL, blockedOnThreadWait: Self.blockedOnThreadWaitSQL), -1, &statement, nil)
         if result == SQLITE_ERROR {
             // A T3 Code build without turn items can still list threads; only the
-            // Limited label needs them, so retry without that column.
+            // Limited and Waiting labels need them, so retry without those columns.
             sqlite3_finalize(statement)
             statement = nil
-            result = sqlite3_prepare_v2(db, buildQuery(failureClass: "NULL"), -1, &statement, nil)
+            result = sqlite3_prepare_v2(db, buildQuery(failure: "NULL", blockedOnThreadWait: "NULL"), -1, &statement, nil)
         }
         guard result == SQLITE_OK, let stmt = statement else {
             let error = readError(code: result, db: db)
@@ -306,7 +354,10 @@ public actor DatabaseManager {
             let workspaceRoot = sqlite3_column_text(stmt, 30).map { String(cString: $0) }
             let unsettledAtStr = sqlite3_column_text(stmt, 31).map { String(cString: $0) }
             let lastVisitedAtStr = text(stmt, 32)
-            let latestFailureClass = text(stmt, 35)
+            let failure = parseFailure(text(stmt, 35))
+            let pendingGuestMessages = Int(sqlite3_column_int(stmt, 36))
+            let hasRuns = sqlite3_column_int(stmt, 37) > 0
+            let blockedOnThreadWait = sqlite3_column_int(stmt, 38) > 0
 
             let providers = providerHistoryStr?
                 .split(separator: ",")
@@ -378,7 +429,11 @@ public actor DatabaseManager {
                 workspaceRoot: workspaceRoot,
                 unsettledAt: parseDate(unsettledAtStr),
                 lastVisitedAt: lastVisitedAt,
-                latestFailureClass: latestFailureClass
+                latestFailureClass: failure.failureClass,
+                usageLimitResetAt: failure.failureClass == "usage_limit" ? failure.resetAt : nil,
+                pendingGuestMessageCount: pendingGuestMessages,
+                isBlockedOnThreadWait: blockedOnThreadWait,
+                hasRuns: hasRuns
             )
 
             results.append(item)

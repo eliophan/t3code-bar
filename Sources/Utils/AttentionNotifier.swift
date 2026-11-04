@@ -14,7 +14,7 @@ public struct AttentionTracker: Sendable {
 
     public static func needsAlert(_ status: ThreadStatus) -> Bool {
         switch status {
-        case .approval, .input, .failed, .limited: return true
+        case .approval, .input, .request, .failed, .limited: return true
         default: return false
         }
     }
@@ -64,9 +64,18 @@ public final class AttentionNotifier: NSObject, UNUserNotificationCenterDelegate
         }
     }
 
+    /// T3 Code's wording for each alert.
+    nonisolated static func title(for status: ThreadStatus) -> String {
+        switch status {
+        case .limited: return "Usage limit reached"
+        case .request: return "Guest request"
+        default: return "\(status.label) needed"
+        }
+    }
+
     nonisolated private static func request(for alert: AttentionAlert) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = alert.status == .limited ? "Usage limit reached" : "\(alert.status.label) needed"
+        content.title = Self.title(for: alert.status)
         content.body = alert.title
         content.sound = .default
         content.userInfo = ["threadId": alert.threadId]

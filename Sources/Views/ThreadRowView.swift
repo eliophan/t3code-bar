@@ -29,6 +29,25 @@ public struct ThreadRowView: View {
         return "\(days)d"
     }
 
+    /// How long until a future time, such as a usage limit reset: "45m", "2h", "3d".
+    /// Nil once the time has passed, because then there is nothing left to wait for.
+    static func timeUntil(_ date: Date, now: Date = Date()) -> String? {
+        let seconds = Int(date.timeIntervalSince(now).rounded(.up))
+        guard seconds > 0 else { return nil }
+        let minutes = max(1, (seconds + 59) / 60)
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = (minutes + 59) / 60
+        if hours < 24 { return "\(hours)h" }
+        return "\((hours + 23) / 24)d"
+    }
+
+    private var limitHelp: String {
+        if let reset = thread.usageLimitResetAt, let until = Self.timeUntil(reset) {
+            return "Usage limit reached. Resets in \(until)."
+        }
+        return "Usage limit reached"
+    }
+
     private func formatDuration(_ date: Date) -> String {
         let elapsed = max(0, Int(Date().timeIntervalSince(date)))
         if elapsed < 60 {
@@ -140,7 +159,22 @@ public struct ThreadRowView: View {
                         Text("Limited")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: "#fcd34d"))
+                        if let reset = thread.usageLimitResetAt, let until = Self.timeUntil(reset) {
+                            Text("· \(until)")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(Color(hex: "#fcd34d").opacity(0.75))
+                        }
                     }
+                    .help(limitHelp)
+                case .request:
+                    Text("Request")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(T3Theme.statusRequest)
+                        .help("A guest has a message waiting for you")
+                case .waiting:
+                    Text("Waiting")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(hex: "#71717a"))
                 case .planReady:
                     Text("Plan")
                         .font(.system(size: 11, weight: .medium))
