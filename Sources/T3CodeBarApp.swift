@@ -99,7 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // activating this app or stealing the frontmost app's menu bar.
         panel.makeKeyAndOrderFront(nil)
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.closePanel()
+            // A click on the status icon is left to togglePopover. Closing here
+            // too would hide the panel first, and the toggle would reopen it.
+            guard let self, !(self.buttonScreenFrame()?.contains(NSEvent.mouseLocation) ?? false) else { return }
+            self.closePanel()
         }
     }
 
@@ -114,9 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible { positionPanel() } else { panel.setContentSize(NSSize(width: 320, height: panelHeight)) }
     }
 
+    private func buttonScreenFrame() -> NSRect? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
     private func positionPanel() {
-        guard let button = statusItem.button, let window = button.window else { return }
-        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        guard let button = statusItem.button, let window = button.window, let anchor = buttonScreenFrame() else { return }
         let size = NSSize(width: 320, height: panelHeight)
         var x = anchor.midX - size.width / 2
         if let screen = window.screen ?? NSScreen.main {
