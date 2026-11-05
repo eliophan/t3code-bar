@@ -38,13 +38,3 @@ The reference `ThreadBackgroundLivenessService` uses an in-memory registry rathe
 The reference client uses `lastVisitedAt` in client state. The installed nightly also persists this field in `orchestration_v2_projection_threads.payload_json`, so Bar reads it directly. Done appears only when the latest visible run has status `completed` and a valid `completedAt > lastVisitedAt`. After a visit, or when the visit timestamp is missing/invalid, the row shows time. When T3 Code persists a newer visit, Bar updates on its next poll; clicking a link in Bar does not write the visit timestamp. Versions that keep visits only in browser localStorage cannot provide this Done indicator. T3 Code Bar retains its own Goal, Failed, and Woke labels and does not claim complete sidebar parity.
 
 Data is read from one fixed local instance. The app does not merge remote environments, discover every local instance, or access tokens or credential stores.
-
-## Architecture and distribution
-
-- macOS deployment target: 14.0.
-- Locally tested architecture: arm64.
-- Prebuilt releases from v1.0.2 are universal (arm64 and x86_64). The universal build and its install path are checked on Apple Silicon only; the x86_64 slice has never been run, because no Intel Mac or Rosetta was available.
-- Local Release binary: linker-signed ad hoc, without Developer ID, and not notarized.
-- Any `.app` under `build/` is local output, may be older than the source, is not a release artifact, and is excluded from Git.
-
-A successful build does not replace user-acceptance testing, Gatekeeper testing, or validation on another Mac.
