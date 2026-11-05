@@ -15,8 +15,12 @@ fi
 # Local builds target this Mac only. Release packaging sets T3_CODE_BAR_UNIVERSAL=1
 # for one binary that runs on Apple Silicon and Intel.
 ARCH_FLAGS=()
+RELEASE_BUILD_PLIST=""
 if [[ "${T3_CODE_BAR_UNIVERSAL:-0}" == "1" ]]; then
     ARCH_FLAGS=(--arch arm64 --arch x86_64)
+    # Only release builds may replace themselves with a newer release.
+    RELEASE_BUILD_PLIST="    <key>T3CodeBarReleaseBuild</key>
+    <true/>"
 fi
 
 echo "==> Building T3CodeBar ${VERSION} in Release mode${ARCH_FLAGS[*]:+ (${ARCH_FLAGS[*]})}..."
@@ -68,6 +72,7 @@ cat << EOF > "${CONTENTS_DIR}/Info.plist"
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+${RELEASE_BUILD_PLIST}
 </dict>
 </plist>
 EOF

@@ -29,6 +29,8 @@ This downloads the latest prebuilt release, checks its checksum, installs it at 
 
 **To update, run the same command again.** It installs a newer release if there is one, restarts the app, and keeps your current version if anything fails. [Details below](#install-and-update).
 
+**From the first release that includes the updater, the app updates itself.** It checks for a new release at launch and every 6 hours, installs it with the same script, and reopens. Turn it off with **Update Automatically** in the right-click menu. Builds from source never update themselves. Older installs need to run the command above once.
+
 ## Features
 
 - View your local T3 Code inbox without switching windows.

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clickMonitor: Any?
     private var widthObserver: AnyCancellable?
     private let notifier = AttentionNotifier()
+    private let updater = AppUpdater()
     private var refreshObserver: AnyCancellable?
     private var hostingController: NSHostingController<PopoverView>!
 
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStatusItem()
         configurePopover()
         installContextMenuMonitor()
+        updater.start()
         refreshObserver = monitor.$lastRefreshedAt.compactMap { $0 }.sink { [weak self] _ in
             guard let self else { return }
             self.notifier.process(self.monitor.activeThreads)
@@ -142,8 +144,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         previews.target = self
         previews.state = PreviewSettings.isEnabled ? .on : .off
         menu.addItem(previews)
+
+        let updates = NSMenuItem(title: "Update Automatically", action: #selector(toggleAutoUpdate), keyEquivalent: "")
+        updates.target = self
+        updates.state = UpdateSettings.isEnabled ? .on : .off
+        menu.addItem(updates)
         menu.addItem(.separator())
     }
+
+    @objc private func toggleAutoUpdate() { UpdateSettings.isEnabled.toggle() }
 
     @objc private func toggleMuteNotifications() { notifier.toggleMute() }
 
