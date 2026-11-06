@@ -76,6 +76,61 @@ public actor DatabaseManager {
         }
     }
 
+    /// Per-turn token totals since the start of `period`, summed in SQL so Swift never decodes the payloads.
+    ///
+    /// A turn counts as having usage when `turnTokenUsage.inputTokens` is present. Partial turns carry
+    /// real, lower-bound counts, so they stay in the sums and are only counted for the footnote.
+    /// `started_at` is ISO-8601 with milliseconds and a `Z`, which sorts as text.
+    public func usage(period: UsagePeriod, now: Date = Date()) throws -> UsageSnapshot {
+        let db = try openDatabase()
+        defer { sqlite3_close(db) }
+
+        var statement: OpaquePointer?
+        let sql = """
+        SELECT driver,
+               COUNT(input), COUNT(*) - COUNT(input), COALESCE(SUM(input IS NOT NULL AND status = 'partial'), 0),
+               COALESCE(SUM(input), 0), COALESCE(SUM(cached), 0), COALESCE(SUM(creation), 0), COALESCE(SUM(output), 0)
+        FROM (
+            SELECT json_extract(payload_json, '$.nativeTurnRef.driver') AS driver,
+                   json_extract(payload_json, '$.turnTokenUsage.usageStatus') AS status,
+                   json_extract(payload_json, '$.turnTokenUsage.inputTokens') AS input,
+                   json_extract(payload_json, '$.turnTokenUsage.cachedInputTokens') AS cached,
+                   json_extract(payload_json, '$.turnTokenUsage.cacheCreationTokens') AS creation,
+                   json_extract(payload_json, '$.turnTokenUsage.outputTokens') AS output
+            FROM orchestration_v2_projection_provider_turns
+            WHERE started_at >= ?1
+        )
+        GROUP BY driver
+        """
+        let prepared = sqlite3_prepare_v2(db, sql, -1, &statement, nil)
+        guard prepared == SQLITE_OK, let statement else {
+            throw prepared == SQLITE_ERROR ? DatabaseReadError.incompatibleSchema : readError(code: prepared, db: db)
+        }
+        defer { sqlite3_finalize(statement) }
+        let cutoff = isoFormatterFractional.string(from: period.start(before: now))
+        sqlite3_bind_text(statement, 1, cutoff, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+
+        var drivers: [DriverUsage] = []
+        while true {
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW:
+                drivers.append(DriverUsage(
+                    driver: text(statement, 0),
+                    tokens: TokenBreakdown(input: count(statement, 4), cachedInput: count(statement, 5),
+                                           cacheCreation: count(statement, 6), output: count(statement, 7)),
+                    turns: count(statement, 1), turnsWithoutUsage: count(statement, 2), partialTurns: count(statement, 3)))
+            case SQLITE_DONE:
+                return UsageSnapshot(period: period, drivers: drivers)
+            case let code:
+                throw readError(code: code, db: db)
+            }
+        }
+    }
+
+    private func count(_ statement: OpaquePointer, _ column: Int32) -> Int {
+        Int(sqlite3_column_int64(statement, column))
+    }
+
     /// Reads `class` and `resetAt` from a `failure` object. Anything else is ignored.
     private func parseFailure(_ json: String?) -> (failureClass: String?, resetAt: Date?) {
         guard let data = json?.data(using: .utf8),
