@@ -49,6 +49,9 @@ public struct UsageWindow: Sendable {
                            sinceDay: today - (max(count, 1) - 1), untilDay: today, offsets: offsets)
     }
 
+    /// The local calendar day of an instant, as days since 1970-01-01.
+    public func localDay(ofMs timestampMs: Double) -> Int { offsets.day(ofMs: timestampMs) }
+
     static func milliseconds(_ date: Date) -> Double { (date.timeIntervalSince1970 * 1000).rounded(.down) }
 
     /// The slot a record at `timestampMs` falls into, or nil when it is outside the window.

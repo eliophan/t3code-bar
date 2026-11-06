@@ -61,6 +61,8 @@ public struct UsageReport: Equatable, Sendable {
     public var providers: [Provider] = []
     /// Largest cost first, then tokens.
     public var models: [Model] = []
+    /// Cost and tokens per provider for each hour or day of the window, for the chart.
+    public var timeline = UsageTimeline.empty
     public var sessions = 0
     public var records = 0
     public var unpricedRecords = 0
@@ -104,6 +106,7 @@ enum UsageReportBuilder {
     }
 
     static func build(dataset: UsageDataset, window: UsageWindow, prices: PriceBook) -> UsageReport {
+        var timeline = UsageTimeline(window: window)
         var buckets: [Bucket] = []
         var indexes: [BucketKey: Int] = [:]
         var rates: [String: ModelRate?] = [:]
@@ -130,6 +133,8 @@ enum UsageReportBuilder {
                 buckets.append(Bucket(kind: counted.kind, model: record.model))
             }
             let priced = prices.price(record, lookup: rate)
+            timeline.add(.init(costUsd: priced.costUsd, tokens: record.processed), provider: counted.kind,
+                         slot: counted.slot, firstDay: window.sinceDay)
             buckets[index].tokens.uncachedInput += record.uncachedInput
             buckets[index].tokens.cachedInput += record.cachedInput
             buckets[index].tokens.cacheCreation += record.cacheCreation
@@ -195,6 +200,7 @@ enum UsageReportBuilder {
             if $0.tokens.processed != $1.tokens.processed { return $0.tokens.processed > $1.tokens.processed }
             return ($0.kind.raw, $0.name) < ($1.kind.raw, $1.name)
         }
+        report.timeline = timeline
         report.sessions = selection.sessions
         report.duplicatesDropped = selection.duplicatesDropped
         report.rejectedFiles = dataset.rejectedFiles

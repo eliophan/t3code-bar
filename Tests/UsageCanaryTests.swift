@@ -96,6 +96,36 @@ struct UsageCanaryTests {
         }
     }
 
+    @Test(arguments: ["Past 24h", "7 days", "30 days", "90 days"])
+    func theChartColumnsMatchTheOracleAndAddUpToTheTotals(label: String) throws {
+        let periods = try #require(try Self.golden()["periods"] as? JSON)
+        let series = try #require((periods[label] as? JSON)?["series"] as? JSON)
+        let expected = try #require(series["columns"] as? [String: [String: JSON]])
+        let report = try Self.report(label)
+        let timeline = report.timeline
+
+        #expect(timeline.resolution == (series["resolution"] as? String == "hour" ? .hour : .day), "\(label) resolution")
+        #expect(timeline.columns.count == (timeline.resolution == .hour ? 24 : Int(label.prefix { $0.isNumber }) ?? 0),
+                "\(label) draws every slot of the window")
+
+        for (index, column) in timeline.columns.enumerated() {
+            let key = timeline.resolution == .hour ? String(index) : UsageTimeline.isoDay(column.day)
+            let golden = expected[key] ?? [:]
+            let seen = Set(column.byProvider.filter { $0.value.tokens > 0 || $0.value.costUsd > 0 }.map(\.key.raw))
+            #expect(seen == Set(golden.keys), "\(label) \(key) providers")
+            for (provider, amounts) in golden {
+                let ours = column.byProvider[UsageProviderKind(raw: provider)] ?? .init()
+                #expect(ours.tokens == Int(try number(amounts, "tokens")), "\(label) \(key) \(provider) tokens")
+                expectCents(ours.costUsd, try number(amounts, "cost"), "\(key) \(provider) cost", label)
+            }
+        }
+
+        let tokens = timeline.columns.reduce(0.0) { $0 + $1.total(.tokens) }
+        let cost = timeline.columns.reduce(0.0) { $0 + $1.total(.cost) }
+        #expect(Int(tokens) == report.processedTokens, "\(label) chart tokens add up to the headline")
+        expectCents(cost, report.costUsd, "chart cost against the headline", label)
+    }
+
     @Test func providersAppearInT3CodesOrder() throws {
         let report = try Self.report("90 days")
         #expect(report.providers.map(\.kind) == [.codex, .claude, .grok, .pi, .muse])

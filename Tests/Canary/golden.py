@@ -29,6 +29,20 @@ for model in raw_aliases:
     if target not in raw_aliases:
         aliases[model] = target
 
+
+
+def series(summary, window):
+    """Cost and processed tokens per provider for each hour slot or local day, as T3's chart columns hold them."""
+    hourly = window["resolution"] == "hour"
+    columns = {}
+    for b in summary["buckets"]:
+        key = str(b["hour"]) if hourly else b["day"]
+        entry = columns.setdefault(key, {}).setdefault(b["provider"], {"cost": 0.0, "tokens": 0})
+        entry["cost"] += b["costUsd"]
+        entry["tokens"] += sum(b["totals"][:4])
+    return {"resolution": "hour" if hourly else "day", "columns": columns}
+
+
 golden = {"now": NOW, "timeZone": ZONE, "periods": {}}
 for days, label in LABELS.items():
     repro._resolved.clear()
@@ -45,6 +59,7 @@ for days, label in LABELS.items():
         "models": {f"{provider}/{model}": {"tokens": v["tokens"], "cost": v["cost"], "records": v["records"], "unpriced": v["unpriced"]}
                    for (provider, model), v in m["models"].items()},
         "duplicatesDropped": summary["duplicatesDropped"],
+        "series": series(summary, window),
     }
 json.dump(golden, sys.stdout, indent=1, sort_keys=True)
 print()
