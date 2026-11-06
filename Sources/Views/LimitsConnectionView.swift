@@ -8,6 +8,7 @@ struct LimitsConnectionView: View {
     @State private var port = ""
     @State private var credential = ""
     @State private var remember = false
+    @State private var useToken = false
 
     init(connection: LimitsLiveConnection, required: Bool = false) {
         self.connection = connection
@@ -29,17 +30,30 @@ struct LimitsConnectionView: View {
                     }
                 }
                 if expanded {
-                    Text("In T3 Code: Settings → Connections → Authorized clients → Create link. Select only View environment, then copy the code.")
-                        .fixedSize(horizontal: false, vertical: true)
+                    Picker("Credential", selection: $useToken) {
+                        Text("Pairing code (1 hour)").tag(false)
+                        Text("Access token").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: useToken) { credential = "" }
+                    if useToken {
+                        Text("Run in a terminal: t3 auth session issue --scope orchestration:read --ttl 3650d --token-only")
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("In T3 Code: Settings → Connections → Authorized clients → Create link. Select only View environment, then copy the code.")
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     HStack {
                         Text("Local port")
                         TextField("T3 Code port", text: $port).textFieldStyle(.roundedBorder)
                             .accessibilityLabel("Local T3 Code port")
                     }
                     HStack(spacing: 6) {
-                        SecureField("New T3 Code pairing code", text: $credential)
+                        SecureField(useToken ? "T3 Code access token" : "New T3 Code pairing code", text: $credential)
                             .textFieldStyle(.roundedBorder)
-                            .accessibilityLabel("Read-only T3 Code pairing credential")
+                            .accessibilityLabel(useToken ? "Read-only T3 Code access token" : "Read-only T3 Code pairing credential")
                         Button("Paste") {
                             if let pasted = NSPasteboard.general.string(forType: .string) {
                                 credential = pasted
@@ -47,15 +61,19 @@ struct LimitsConnectionView: View {
                         }
                         .buttonStyle(.bordered)
                         .keyboardShortcut("v", modifiers: .command)
-                        .accessibilityLabel("Paste pairing code")
+                        .accessibilityLabel(useToken ? "Paste access token" : "Paste pairing code")
                     }
                     Toggle("Remember in Keychain", isOn: $remember)
                         .toggleStyle(.checkbox)
                     HStack {
-                        Button("Pair & connect") {
+                        Button(useToken ? "Connect" : "Pair & connect") {
                             let input = credential
                             credential = ""
-                            connection.pair(port: Int(port) ?? 0, pairingCredential: input, remember: remember)
+                            if useToken {
+                                connection.connect(port: Int(port) ?? 0, bearerToken: input, remember: remember)
+                            } else {
+                                connection.pair(port: Int(port) ?? 0, pairingCredential: input, remember: remember)
+                            }
                         }
                         .disabled(credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         Button("Reconnect saved") { connection.reconnectSaved(port: Int(port) ?? 0) }
