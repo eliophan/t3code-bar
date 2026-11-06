@@ -96,7 +96,30 @@ struct UsageView: View {
     private var content: some View {
         switch screen.tab {
         case .cost, .tokens: scanContent
-        case .limits: UsageStateView(symbol: "gauge.with.dots.needle.50percent", title: "Limits are not built yet")
+        case .limits: limitsContent
+        }
+    }
+
+    @ViewBuilder
+    private var limitsContent: some View {
+        switch UsageContentState.limits(snapshot: limits.snapshot, error: limits.readError) {
+        case .loading:
+            ProgressView("Reading limits…")
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+        case .missing:
+            UsageStateView(symbol: "gauge.with.dots.needle.50percent", title: "No limits data yet",
+                           detail: "Open T3 Code once so it can save the status of its providers.")
+        case .unreadable, .unsupported:
+            UsageStateView(symbol: "exclamationmark.triangle", title: "Could not read limits",
+                           detail: "T3 Code's provider status files could not be read. Trying again.")
+        case .empty:
+            UsageStateView(symbol: "gauge.with.dots.needle.50percent", title: "No provider reports subscription limits.")
+        case .content:
+            if let snapshot = limits.snapshot {
+                UsageLimitsTab(snapshot: snapshot, now: limits.now, readFailed: limits.readError != nil)
+            }
         }
     }
 
