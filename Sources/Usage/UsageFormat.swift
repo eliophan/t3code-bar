@@ -23,12 +23,18 @@ public enum TokenFormat {
 
     /// `$1,234.57`, two decimals always.
     public static func currency(_ value: Double) -> String {
-        (value < 0 ? "-$" : "$") + grouped(fixed(abs(value), 2))
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.roundingMode = .halfUp
+        return (value < 0 ? "-$" : "$") + (formatter.string(from: NSNumber(value: abs(value))) ?? "0.00")
     }
 
     /// For VoiceOver, where "$2,927.93" would be read symbol by symbol: `2,927 dollars and 93 cents`.
     public static func spokenCurrency(_ value: Double) -> String {
-        let parts = fixed(abs(value), 2).split(separator: ".")
+        let parts = currency(abs(value)).dropFirst().replacingOccurrences(of: ",", with: "").split(separator: ".")
         let dollars = Int(parts[0]) ?? 0
         let cents = Int(parts.count > 1 ? parts[1] : "0") ?? 0
         let sign = value < 0 ? "minus " : ""

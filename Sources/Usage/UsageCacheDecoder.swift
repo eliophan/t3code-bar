@@ -84,19 +84,35 @@ enum UsageCacheDecoder {
         var rows = RowDecoder(models: models, sessions: sessions, version: version)
         var files: [UsageDataset.File] = []
         var rejected = 0
+        var tokenBudget = 0
         var scanner2 = JSONScanner(bytes, at: filesStart)
         try scanner2.openObject()
         if !scanner2.closesObject() {
             repeat {
                 let path = try scanner2.objectKey()
-                if let file = try decodeFile(&scanner2, path: path, rows: &rows) {
+                if let file = try decodeFile(&scanner2, path: path, rows: &rows),
+                   let total = tokenTotal(file.records, addingTo: tokenBudget) {
                     files.append(file)
+                    tokenBudget = total
                 } else {
                     rejected += 1
                 }
             } while try scanner2.nextMember()
         }
         return UsageDataset(version: version, sources: sources, files: files, rejectedFiles: rejected)
+    }
+
+    private static func tokenTotal(_ records: [UsageRecord], addingTo initial: Int) -> Int? {
+        var total = initial
+        for record in records {
+            for value in [record.uncachedInput, record.cachedInput, record.cacheCreation, record.output, record.reasoning] {
+                guard value >= 0 else { return nil }
+                let (sum, overflow) = total.addingReportingOverflow(value)
+                guard !overflow else { return nil }
+                total = sum
+            }
+        }
+        return total
     }
 
     private static func decodeSources(_ scanner: inout JSONScanner) throws -> [UsageDataset.Source] {

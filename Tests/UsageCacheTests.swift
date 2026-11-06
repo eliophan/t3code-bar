@@ -35,6 +35,16 @@ struct UsageCacheDecodeTests {
         #expect(dataset.rejectedFiles == 1)
     }
 
+    @Test func overflowingTokenTotalsRejectTheFileAndKeepOtherFiles() throws {
+        let large = CacheFixture.Row(timestampMs: t0, uncached: 8_999_999_999_999_999).json
+        var cache = fixture([CacheFixture.Row(timestampMs: t0, uncached: 7).json])
+        cache.files.append(.init(path: "/h/claude/large.jsonl", kind: "claude", rows: Array(repeating: large, count: 1_025)))
+        let dataset = try cache.decoded()
+        #expect(dataset.files.count == 1)
+        #expect(dataset.files[0].records[0].processed == 7)
+        #expect(dataset.rejectedFiles == 1)
+    }
+
     @Test(arguments: [
         "[1,5,0,1,1,1,1,1,null,null,0,null]",
         "[1,0,0,1,1,1,1,1,null,null,3,null]",

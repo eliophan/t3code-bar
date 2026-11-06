@@ -88,12 +88,13 @@ struct UsageFootnotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Text("OpenCode, Antigravity and Cursor usage is not included.")
             if let range = UsagePresentation.rangeText(report.timeline) {
                 Text(range).monospacedDigit()
             }
             if let partial = UsageView.partialText(report) {
                 Text(partial)
-                    .help("These are left out of the totals, as T3 Code leaves them out of its own.")
+                    .help("These records are left out of the totals.")
             }
             Text(UsageView.updatedText(modified: report.cacheModified, now: Date()))
                 .help(UsageView.updatedHelp)

@@ -47,6 +47,8 @@ struct TokenFormatTests {
         #expect(TokenFormat.currency(1_234.5) == "$1,234.50")
         #expect(TokenFormat.currency(1_234_567.891) == "$1,234,567.89")
         #expect(TokenFormat.currency(0.005) == "$0.01")
+        #expect(TokenFormat.currency(1.005) == "$1.01")
+        #expect(TokenFormat.spokenCurrency(1.005) == "1 dollar and 1 cent")
         #expect(TokenFormat.currency(-3.2) == "-$3.20")
     }
 
