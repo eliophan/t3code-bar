@@ -61,16 +61,11 @@ public struct PopoverView: View {
             if !connection.isConnected && connection.data == nil {
                 requiredConnectionScreen
             } else {
-                if !connection.isConnected {
-                    Label(connection.lastUpdatedAt.map { "Disconnected · updated \(LimitsFormat.ago($0, now: Date()))" } ?? "Disconnected · showing saved data", systemImage: "wifi.slash")
-                        .font(.system(size: 11))
-                        .foregroundColor(T3Theme.statusApproval)
-                        .help(connection.status.text)
-                        .padding(8)
-                }
                 switch navigation.screen {
                 case .threads: threadsScreen
-                case .usage: UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
+                case .usage:
+                    if !connection.isConnected { disconnectedBanner }
+                    UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
                 }
             }
         }
@@ -88,6 +83,19 @@ public struct PopoverView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(T3Theme.canvas)
         .preferredColorScheme(.dark)
+    }
+
+    private var disconnectedBanner: some View {
+        let text: String
+        if case .failed(let message) = connection.status { text = message }
+        else if let updated = connection.lastUpdatedAt { text = "Disconnected · updated \(LimitsFormat.ago(updated, now: Date()))" }
+        else { text = "Disconnected · showing saved data" }
+        return Label(text, systemImage: "wifi.slash")
+            .font(.system(size: 11))
+            .foregroundColor(T3Theme.statusApproval)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(connection.status.text)
+            .padding(8)
     }
 
     private var requiredConnectionScreen: some View {
