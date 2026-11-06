@@ -98,11 +98,9 @@ struct UsageMonitorTests {
 }
 
 struct UsageScreenTextTests {
-    private let en = Locale(identifier: "en_US")
-
     @Test func theSummaryLineNamesTurnsAndCacheHit() {
-        #expect(UsageView.summary(turns: 1_091, cacheHit: 0.962, locale: en) == "1,091 turns · 96% cache hit")
-        #expect(UsageView.summary(turns: 1, cacheHit: nil, locale: en) == "1 turn")
+        #expect(UsageView.summary(turns: 1_091, cacheHit: 0.962) == "1,091 turns · 96.2% cache hit")
+        #expect(UsageView.summary(turns: 1, cacheHit: nil) == "1 turn")
     }
 
     @Test func theFootnoteAppearsOnlyWhenSomeTurnsAreIncomplete() throws {
@@ -120,8 +118,8 @@ struct UsageScreenTextTests {
     }
 
     @Test func turnsAreSingularForOneAndGroupedForMany() {
-        #expect(TokenFormat.turns(1, locale: en) == "1 turn")
-        #expect(TokenFormat.turns(0, locale: en) == "0 turns")
-        #expect(TokenFormat.turns(5_701, locale: en) == "5,701 turns")
+        #expect(TokenFormat.turns(1) == "1 turn")
+        #expect(TokenFormat.turns(0) == "0 turns")
+        #expect(TokenFormat.turns(5_701) == "5,701 turns")
     }
 }

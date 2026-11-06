@@ -220,8 +220,8 @@ struct UsageView: View {
         error == .incompatibleSchema ? "This T3 Code version does not record token usage." : error.localizedDescription
     }
 
-    nonisolated static func summary(turns: Int, cacheHit: Double?, locale: Locale = .current) -> String {
-        var parts = [TokenFormat.turns(turns, locale: locale)]
+    nonisolated static func summary(turns: Int, cacheHit: Double?) -> String {
+        var parts = [TokenFormat.turns(turns)]
         if let cacheHit { parts.append("\(TokenFormat.percent(cacheHit)) cache hit") }
         return parts.joined(separator: " · ")
     }
