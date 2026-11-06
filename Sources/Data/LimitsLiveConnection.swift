@@ -32,6 +32,8 @@ final class LimitsLiveConnection: ObservableObject {
     private var lastFrame = Date.distantPast
     private var hasSnapshot = false
 
+    var isConnected: Bool { status == .live }
+
     init(transport: any LimitsTransport = LimitsURLTransport(), store: any LimitsCredentialStore = LimitsKeychainStore(),
          clock: @escaping @Sendable () -> Date = { Date() }, retryDelay: Duration = .seconds(3)) {
         self.transport = transport
@@ -86,6 +88,23 @@ final class LimitsLiveConnection: ObservableObject {
             resume()
         } catch {
             status = .failed((error as? LimitsConnectionError)?.message ?? LimitsConnectionError.storage.message)
+        }
+    }
+
+    /// Called by the app at launch. Missing credentials keep the onboarding state instead of
+    /// showing an error; an expired or revoked credential must be explained to the user.
+    func reconnectSavedIfAvailable(port: Int) {
+        guard status != .live, status != .connecting else { return }
+        do {
+            _ = try LimitsEndpoint(port: port)
+            guard let saved = try store.load() else { return }
+            guard saved.port == port else { throw LimitsConnectionError.destination }
+            guard saved.expiresAt > clock() else { throw LimitsConnectionError.expired }
+            credential = saved
+            resume()
+        } catch {
+            status = .failed((error as? LimitsConnectionError)?.message ?? LimitsConnectionError.storage.message)
+            onChange?()
         }
     }
 

@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
         configurePopover()
+        limits.start()
         installContextMenuMonitor()
         updater.start()
         refreshObserver = monitor.$lastRefreshedAt.compactMap { $0 }.sink { [weak self] _ in

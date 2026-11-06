@@ -123,6 +123,20 @@ struct LimitsLiveTests {
         #expect(connection.status == .cacheOnly)
     }
 
+    @Test func appLaunchReconnectsARememberedBarToken() async throws {
+        let server = try MockLimitsServer()
+        let store = MemoryLimitsStore()
+        let first = LimitsLiveConnection(transport: server, store: store)
+        first.pair(port: 43111, pairingCredential: "test", remember: true)
+        try await waitUntil { await server.sockets.count == 1 }
+        let second = LimitsLiveConnection(transport: server, store: store)
+        second.reconnectSavedIfAvailable(port: 43111)
+        try await waitUntil { await server.sockets.count == 2 }
+        #expect(second.status == .connecting)
+        first.disconnect()
+        second.disconnect()
+    }
+
     @Test func pairRequestsOnlyReadScopeAndUsesTicketedLoopbackRPC() async throws {
         let server = try MockLimitsServer()
         let store = MemoryLimitsStore()

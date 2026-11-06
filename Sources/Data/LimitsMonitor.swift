@@ -23,6 +23,7 @@ public final class LimitsMonitor: ObservableObject {
     private let clock: @Sendable () -> Date
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
+    private var didAttemptSavedReconnect = false
 
     public convenience init(reader: LimitsReader = LimitsReader(cachesDirectory: EnvironmentConfig.shared.cachesDirectory),
                             clock: @escaping @Sendable () -> Date = { Date() }) {
@@ -38,6 +39,12 @@ public final class LimitsMonitor: ObservableObject {
     }
 
     public func start() {
+        if !didAttemptSavedReconnect {
+            didAttemptSavedReconnect = true
+            if let port = EnvironmentConfig.shared.serverRuntime?.port {
+                live.reconnectSavedIfAvailable(port: port)
+            }
+        }
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refresh() }
@@ -46,12 +53,18 @@ public final class LimitsMonitor: ObservableObject {
         refresh()
     }
 
+    /// Stops cache polling when Usage leaves the screen. The app-level live connection stays up
+    /// so the mandatory pairing remains valid while the popover is closed.
     public func stop() {
-        live.stop()
         timer?.invalidate()
         timer = nil
         refreshTask?.cancel()
         refreshTask = nil
+    }
+
+    public func shutdown() {
+        live.stop()
+        stop()
     }
 
     func refresh() {

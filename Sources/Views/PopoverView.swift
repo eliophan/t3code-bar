@@ -56,9 +56,13 @@ public struct PopoverView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            switch navigation.screen {
-            case .threads: threadsScreen
-            case .usage: UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
+            if !limits.live.isConnected {
+                requiredConnectionScreen
+            } else {
+                switch navigation.screen {
+                case .threads: threadsScreen
+                case .usage: UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
+                }
             }
         }
         .onPreferenceChange(ContentHeightPreferenceKey.self) { height in
@@ -75,6 +79,26 @@ public struct PopoverView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(T3Theme.canvas)
         .preferredColorScheme(.dark)
+    }
+
+    private var requiredConnectionScreen: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Connect T3 Code")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(T3Theme.textPrimary)
+            Text("T3 Code Bar requires a read-only T3 connection so its provider and account data are complete.")
+                .font(.system(size: 12))
+                .foregroundColor(T3Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LimitsConnectionView(connection: limits.live, required: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: ContentHeightPreferenceKey.self, value: proxy.size.height)
+            }
+        )
     }
 
     private var threadsScreen: some View {

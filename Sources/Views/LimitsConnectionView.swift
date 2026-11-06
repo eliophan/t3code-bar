@@ -2,10 +2,17 @@ import SwiftUI
 
 struct LimitsConnectionView: View {
     @ObservedObject var connection: LimitsLiveConnection
-    @State private var expanded = false
+    let required: Bool
+    @State private var expanded: Bool
     @State private var port = ""
     @State private var credential = ""
     @State private var remember = false
+
+    init(connection: LimitsLiveConnection, required: Bool = false) {
+        self.connection = connection
+        self.required = required
+        _expanded = State(initialValue: required)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -14,9 +21,11 @@ struct LimitsConnectionView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button(expanded ? "Hide connection" : "Connect T3 Code…") {
+                if !required {
+                    Button(expanded ? "Hide connection" : "Connect T3 Code…") {
                     expanded.toggle()
                     if !expanded { credential = "" }
+                    }
                 }
                 if connection.status != .cacheOnly {
                     Button("Disconnect & forget") {
@@ -48,7 +57,7 @@ struct LimitsConnectionView: View {
                     .disabled(credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("Reconnect saved") { connection.reconnectSaved(port: Int(port) ?? 0) }
                 }
-                Text("Only 127.0.0.1 is contacted. Includes this environment’s provider and CLI Proxy limits. Linked environments are excluded. T3 may perform its own discovery when a client connects.")
+                Text(required ? "A read-only T3 connection is required before using T3 Code Bar. Only 127.0.0.1 is contacted. Linked environments are excluded." : "Only 127.0.0.1 is contacted. Includes this environment’s provider and CLI Proxy limits. Linked environments are excluded. T3 may perform its own discovery when a client connects.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
