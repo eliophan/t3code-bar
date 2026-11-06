@@ -42,7 +42,7 @@ actor UsageEngine {
         self.timeZone = timeZone
     }
 
-    func report(for period: UsagePeriod) -> Outcome {
+    func report(for period: UsagePeriod, includeLocal: Bool = true) -> Outcome {
         let now = clock()
         var cacheFile: UsageCacheFile?
         var cacheMissing = false
@@ -67,7 +67,7 @@ actor UsageEngine {
                 }
             }
         }
-        if localScannedAt.map({ now.timeIntervalSince($0) >= Self.localRefreshInterval }) ?? true {
+        if includeLocal && (localScannedAt.map({ now.timeIntervalSince($0) >= Self.localRefreshInterval }) ?? true) {
             localSnapshot = localScanner.scan(paths: source.localPaths, now: now)
             localScannedAt = now
             localRevision += 1
@@ -164,11 +164,31 @@ public final class UsageMonitor: ObservableObject {
         guard timer != nil, refreshTask == nil else { return }
         let requested = period
         refreshTask = Task { [weak self, engine] in
-            let outcome = await engine.report(for: requested)
+            let outcome = await engine.report(for: requested, includeLocal: false)
             guard !Task.isCancelled, let self else { return }
             self.refreshTask = nil
             // The period changed while this ran, so its answer is for a question nobody is asking.
-            if requested == self.period { self.apply(outcome, for: requested) } else { self.refresh() }
+            if requested == self.period {
+                self.apply(outcome, for: requested)
+                if case .missing = outcome, self.report == nil {
+                    // Local providers are still being scanned; keep the compact loading state
+                    // instead of claiming that no usage exists yet.
+                    self.notice = nil
+                }
+                self.refreshLocal(for: requested)
+            } else { self.refresh() }
+        }
+    }
+
+    /// Local OpenCode and Antigravity discovery can take seconds on a large home directory.
+    /// Publish the cache report first, then replace it with the complete local report.
+    private func refreshLocal(for requested: UsagePeriod) {
+        guard timer != nil, refreshTask == nil else { return }
+        refreshTask = Task { [weak self, engine] in
+            let outcome = await engine.report(for: requested, includeLocal: true)
+            guard !Task.isCancelled, let self else { return }
+            self.refreshTask = nil
+            if requested == self.period { self.apply(outcome, for: requested) }
         }
     }
 

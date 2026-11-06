@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct LimitsConnectionView: View {
     @ObservedObject var connection: LimitsLiveConnection
@@ -43,9 +44,19 @@ struct LimitsConnectionView: View {
                     TextField("T3 Code port", text: $port).textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Local T3 Code port")
                 }
-                SecureField("New T3 Code pairing code", text: $credential)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Read-only T3 Code pairing credential")
+                HStack(spacing: 6) {
+                    SecureField("New T3 Code pairing code", text: $credential)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Read-only T3 Code pairing credential")
+                    Button("Paste") {
+                        if let pasted = NSPasteboard.general.string(forType: .string) {
+                            credential = pasted
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut("v", modifiers: .command)
+                    .accessibilityLabel("Paste pairing code")
+                }
                 Toggle("Remember Bar token in Keychain", isOn: $remember)
                     .toggleStyle(.checkbox)
                 HStack {

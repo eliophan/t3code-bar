@@ -88,22 +88,15 @@ struct UsageFootnotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("This Mac only. Other providers appear when T3 Code has cached their usage.")
-            ForEach(report.localSources, id: \.kind) { source in
-                Text(UsageView.localSourceText(source))
-            }
-            if report.scanCacheMissing {
-                Text("Transcript usage is missing. Open T3 Code's Usage page once to include Claude, Codex and other transcript providers.")
-            }
-            if let range = UsagePresentation.rangeText(report.timeline) {
-                Text(range).monospacedDigit()
-            }
             if let partial = UsageView.partialText(report) {
                 Text(partial)
                     .help("These records are left out of the totals.")
             }
+            if report.localSources.contains(where: { $0.state == .partial || $0.state == .unreadable }) {
+                Text("Some local usage sources could not be read.")
+            }
             if !report.scanCacheMissing {
-                Text("Transcript cache · " + UsageView.updatedText(modified: report.cacheModified, now: Date()))
+                Text(UsageView.updatedText(modified: report.cacheModified, now: Date()))
                     .help(UsageView.updatedHelp)
             }
         }

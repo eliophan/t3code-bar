@@ -44,7 +44,7 @@ The period control on Cost and Tokens offers Past 24h, 7 days, 30 days and 90 da
 - **Tokens by type** splits the total into input, cache read, cache write and output.
 - **Totals**, **By provider**, the chart and the **Breakdown** follow the same rules as on Cost. Models rank by tokens here.
 
-The last lines show the period, transcript cache age, local check times, and Cursor account fetch time. OpenCode and Antigravity refresh locally every 30 seconds while this tab is open. Transcript providers update when T3 Code's Usage page scans. If their cache is old, open that page once. Cursor uses only its saved account cache, which Bar never fetches. Costs are API estimates from T3 Code's price list. They are not what a plan bills.
+The small footer shows only warnings and the transcript cache age. OpenCode and Antigravity refresh locally in the background while this tab is open. Transcript providers update when T3 Code's Usage page scans. Cursor uses only its saved account cache, which Bar never fetches. Costs are API estimates from T3 Code's price list. They are not what a plan bills.
 
 ### Limits
 
