@@ -128,7 +128,7 @@ struct UsageView: View {
                     if screen.tab == .tokens {
                         UsageTokensTab(report: report)
                     } else {
-                        UsageStateView(symbol: "dollarsign.circle", title: "Cost is not built yet")
+                        UsageCostTab(report: report)
                     }
                 }
             }

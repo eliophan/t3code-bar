@@ -126,7 +126,7 @@ struct UsageBreakdown: View {
                 }
                 UsageSegmentedBar(segments: visible.map { .init(id: $0.label, value: $0.amount, color: $0.color) })
                     .accessibilityHidden(true)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                UsageFlowLayout(spacing: 16, lineSpacing: 6) {
                     ForEach(visible) { slice in
                         HStack(spacing: 6) {
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -134,18 +134,52 @@ struct UsageBreakdown: View {
                                 .frame(width: 8, height: 8)
                             Text(slice.label)
                                 .foregroundColor(T3Theme.textMuted)
-                                .lineLimit(1)
-                            Spacer(minLength: 4)
                             Text(slice.text)
                                 .monospacedDigit()
                                 .foregroundColor(T3Theme.textPrimary)
                         }
                         .font(.system(size: 11.5))
+                        .lineLimit(1)
+                        .fixedSize()
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("\(slice.label), \(slice.spoken)")
                     }
                 }
             }
+        }
+    }
+}
+
+/// Items in a row that wraps, as T3 Code's `flex flex-wrap` legends do.
+struct UsageFlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    private func rows(_ subviews: Subviews, width: CGFloat) -> (frames: [CGRect], height: CGFloat) {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+            }
+            frames.append(CGRect(x: x, y: y, width: size.width, height: size.height))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (frames, y + rowHeight)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        CGSize(width: proposal.width ?? 0, height: rows(subviews, width: proposal.width ?? .infinity).height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = rows(subviews, width: bounds.width)
+        for (subview, frame) in zip(subviews, layout.frames) {
+            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: .unspecified)
         }
     }
 }
@@ -252,5 +286,36 @@ enum UsageOptions {
 
     static var tabs: [UsageSegmentedControl<UsageTab>.Option] {
         UsageTab.allCases.map { .init(value: $0, title: $0.label, fullTitle: $0.label) }
+    }
+}
+
+extension UsageProviderKind {
+    /// The line color T3 Code gives the provider in its chart and rows.
+    var color: Color {
+        switch self {
+        case .codex: return T3Theme.textPrimary
+        case .grok: return T3Theme.textPrimary.opacity(0.72)
+        default: return Color(hex: style.accentHex ?? "#8b8b8b")
+        }
+    }
+}
+
+extension UsageCostSlice {
+    var color: Color {
+        switch kind {
+        case .input: return T3Theme.tokenInput
+        case .cacheRead: return T3Theme.tokenCacheRead
+        case .cacheWrite: return T3Theme.tokenCacheWrite
+        case .output: return T3Theme.tokenOutput
+        case .other: return T3Theme.costOther
+        case .standard: return T3Theme.speedStandard
+        case .fast: return T3Theme.speedFast
+        case .ultrafast: return T3Theme.speedUltrafast
+        }
+    }
+
+    var asSlice: UsageSlice {
+        UsageSlice(label: label, amount: amount, text: TokenFormat.currency(amount),
+                   spoken: TokenFormat.spokenCurrency(amount), color: color)
     }
 }

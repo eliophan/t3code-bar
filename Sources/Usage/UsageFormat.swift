@@ -26,6 +26,17 @@ public enum TokenFormat {
         (value < 0 ? "-$" : "$") + grouped(fixed(abs(value), 2))
     }
 
+    /// For VoiceOver, where "$2,927.93" would be read symbol by symbol: `2,927 dollars and 93 cents`.
+    public static func spokenCurrency(_ value: Double) -> String {
+        let parts = fixed(abs(value), 2).split(separator: ".")
+        let dollars = Int(parts[0]) ?? 0
+        let cents = Int(parts.count > 1 ? parts[1] : "0") ?? 0
+        let sign = value < 0 ? "minus " : ""
+        let dollarText = "\(grouped(String(dollars))) \(dollars == 1 ? "dollar" : "dollars")"
+        guard cents > 0 else { return sign + dollarText }
+        return sign + dollarText + " and \(cents) \(cents == 1 ? "cent" : "cents")"
+    }
+
     /// A share between 0 and 1 as `12.3%`, with `<0.1%` for anything above zero and below that.
     public static func percent(_ share: Double) -> String {
         let percent = share * 100

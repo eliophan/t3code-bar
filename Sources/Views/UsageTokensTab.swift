@@ -8,8 +8,9 @@ struct UsageTokensTab: View {
         VStack(alignment: .leading, spacing: 20) {
             hero
             UsageBreakdown(title: "Tokens by type", slices: Self.tokenSlices(report.tokens))
-            totals
+            UsageTotalsSection(report: report)
             providers
+            UsageModelsSection(report: report, metric: .tokens)
             UsageFootnotes(report: report)
         }
     }
@@ -32,20 +33,6 @@ struct UsageTokensTab: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Processed tokens, \(TokenFormat.spoken(report.processedTokens))")
         .accessibilityValue(sessions)
-    }
-
-    private var totals: some View {
-        let tokens = report.tokens
-        return VStack(alignment: .leading, spacing: 12) {
-            UsageSectionHeading("Totals")
-            VStack(spacing: 8) {
-                UsageStatRow(label: "Cached input", value: TokenFormat.compact(tokens.cachedInput), spoken: TokenFormat.spoken(tokens.cachedInput))
-                UsageStatRow(label: "Uncached input", value: TokenFormat.compact(tokens.uncachedInput), spoken: TokenFormat.spoken(tokens.uncachedInput))
-                UsageStatRow(label: "Output", value: TokenFormat.compact(tokens.output), spoken: TokenFormat.spoken(tokens.output))
-                UsageStatRow(label: "Cache savings", value: TokenFormat.currency(report.cacheSavingsUsd),
-                             spoken: TokenFormat.currency(report.cacheSavingsUsd))
-            }
-        }
     }
 
     private var providers: some View {
@@ -100,6 +87,9 @@ struct UsageFootnotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if let range = UsagePresentation.rangeText(report.timeline) {
+                Text(range).monospacedDigit()
+            }
             if let partial = UsageView.partialText(report) {
                 Text(partial)
                     .help("These are left out of the totals, as T3 Code leaves them out of its own.")

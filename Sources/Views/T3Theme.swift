@@ -24,6 +24,11 @@ public enum T3Theme {
     public static let tokenCacheRead = textPrimary.opacity(0.30)
     public static let tokenCacheWrite = textPrimary.opacity(0.72)
     public static let tokenOutput = textPrimary
+    // Cost bars use the same mix at 44 percent for what has no split, and 34, 66 and 100 for the speeds.
+    public static let costOther = textPrimary.opacity(0.44)
+    public static let speedStandard = textPrimary.opacity(0.34)
+    public static let speedFast = textPrimary.opacity(0.66)
+    public static let speedUltrafast = textPrimary
 
     // Status colors: T3 Code's dark-mode foreground tokens
     public static let statusWorking = Color(hex: "#60a5fa") // blue-400, T3 Code info-foreground
