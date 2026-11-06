@@ -19,6 +19,6 @@ let package = Package(
                 .process("Resources")
             ]
         ),
-        .testTarget(name: "T3CodeBarTests", dependencies: ["T3CodeBar"], path: "Tests")
+        .testTarget(name: "T3CodeBarTests", dependencies: ["T3CodeBar"], path: "Tests", exclude: ["Canary"])
     ]
 )

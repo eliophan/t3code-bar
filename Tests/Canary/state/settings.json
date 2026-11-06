@@ -1,0 +1,23 @@
+{
+ "usagePriceOverrides": {
+  "custom-model": {
+   "inputCostPerMillionTokens": 5,
+   "outputCostPerMillionTokens": 20,
+   "cacheReadCostPerMillionTokens": 0.5
+  }
+ },
+ "usageModelAliases": {
+  "old-name": "claude-sonnet-5-5",
+  "chain-a": "chain-b",
+  "chain-b": "gpt-6.1-sol",
+  "loop-x": "loop-y",
+  "loop-y": "loop-x"
+ },
+ "providerInstances": {
+  "example": {
+   "environment": {
+    "API_TOKEN": "not-a-real-secret"
+   }
+  }
+ }
+}

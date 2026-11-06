@@ -1,0 +1,562 @@
+{
+ "now": "2026-11-06T09:08:00Z",
+ "periods": {
+  "30 days": {
+   "cacheCreation": 1243110,
+   "cacheSavingsUsd": 12.9306839,
+   "cachedInput": 7232386,
+   "costBySpeed": {
+    "fast": 1.99368,
+    "premium": 1.493239,
+    "standard": 10.425297450000002,
+    "ultrafast": 2.441185
+   },
+   "costByType": {
+    "cacheRead": 3.7244519999999994,
+    "cacheWrite": 3.4172179999999996,
+    "input": 4.227858999999999,
+    "other": 0.32999545000000197,
+    "output": 3.160638000000001
+   },
+   "costUsd": 14.86016245,
+   "duplicatesDropped": 16,
+   "models": {
+    "claude/bar-model": {
+     "cost": 0.05399999999999999,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/claude-haiku-4-5": {
+     "cost": 0.2526876,
+     "records": 3,
+     "tokens": 370767,
+     "unpriced": 0
+    },
+    "claude/claude-sonnet-5-5": {
+     "cost": 4.79183055,
+     "records": 26,
+     "tokens": 2445954,
+     "unpriced": 0
+    },
+    "claude/custom-model": {
+     "cost": 1.452801,
+     "records": 3,
+     "tokens": 536439,
+     "unpriced": 0
+    },
+    "claude/dual-model": {
+     "cost": 0.212,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/foo-model": {
+     "cost": 0.0,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 1
+    },
+    "claude/gpt-6.1-sol": {
+     "cost": 0.08621799999999999,
+     "records": 2,
+     "tokens": 39665,
+     "unpriced": 0
+    },
+    "claude/loop-x": {
+     "cost": 0.0,
+     "records": 3,
+     "tokens": 454979,
+     "unpriced": 3
+    },
+    "claude/opus": {
+     "cost": 0.0,
+     "records": 2,
+     "tokens": 312647,
+     "unpriced": 2
+    },
+    "codex/gpt-6-luna": {
+     "cost": 0.2684330999999999,
+     "records": 13,
+     "tokens": 1811144,
+     "unpriced": 0
+    },
+    "codex/gpt-6-stella": {
+     "cost": 2.3111487,
+     "records": 11,
+     "tokens": 2466052,
+     "unpriced": 0
+    },
+    "codex/gpt-6.1-sol": {
+     "cost": 2.5297799999999997,
+     "records": 20,
+     "tokens": 1128370,
+     "unpriced": 0
+    },
+    "grok/grok-5": {
+     "cost": 2.1465375,
+     "records": 6,
+     "tokens": 799551,
+     "unpriced": 0
+    },
+    "muse/gpt-6.1-sol": {
+     "cost": 0.31272600000000006,
+     "records": 1,
+     "tokens": 150047,
+     "unpriced": 0
+    },
+    "muse/muse-unpriced-x": {
+     "cost": 0.33,
+     "records": 1,
+     "tokens": 5500,
+     "unpriced": 0
+    },
+    "pi/anthropic/claude-sonnet-5-5": {
+     "cost": 0.11,
+     "records": 2,
+     "tokens": 13000,
+     "unpriced": 0
+    },
+    "pi/grok-5": {
+     "cost": 0.002,
+     "records": 1,
+     "tokens": 1750,
+     "unpriced": 0
+    }
+   },
+   "output": 289366,
+   "providers": {
+    "claude": {
+     "cost": 6.8495371500000015,
+     "records": 42,
+     "sessions": 5,
+     "tokens": 4316451
+    },
+    "codex": {
+     "cost": 5.1093618,
+     "records": 44,
+     "sessions": 3,
+     "tokens": 5405566
+    },
+    "grok": {
+     "cost": 2.1465375,
+     "records": 6,
+     "sessions": 1,
+     "tokens": 799551
+    },
+    "muse": {
+     "cost": 0.6427260000000001,
+     "records": 2,
+     "sessions": 2,
+     "tokens": 155547
+    },
+    "pi": {
+     "cost": 0.112,
+     "records": 3,
+     "sessions": 2,
+     "tokens": 14750
+    }
+   },
+   "reasoning": 18948,
+   "records": 97,
+   "sessions": 13,
+   "totalTokens": 10691865,
+   "uncachedInput": 1927003,
+   "unpricedRecords": 6
+  },
+  "7 days": {
+   "cacheCreation": 238095,
+   "cacheSavingsUsd": 5.44305605,
+   "cachedInput": 2359037,
+   "costBySpeed": {
+    "fast": 1.428429,
+    "premium": 0.785618,
+    "standard": 4.072894,
+    "ultrafast": 0.894976
+   },
+   "costByType": {
+    "cacheRead": 1.4104990000000002,
+    "cacheWrite": 0.9079189999999998,
+    "input": 2.604796,
+    "other": 0.32999899999999993,
+    "output": 1.143086
+   },
+   "costUsd": 6.396299,
+   "duplicatesDropped": 16,
+   "models": {
+    "claude/bar-model": {
+     "cost": 0.05399999999999999,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/claude-sonnet-5-5": {
+     "cost": 1.6385170500000001,
+     "records": 11,
+     "tokens": 537669,
+     "unpriced": 0
+    },
+    "claude/custom-model": {
+     "cost": 0.8200000000000002,
+     "records": 1,
+     "tokens": 164000,
+     "unpriced": 0
+    },
+    "claude/dual-model": {
+     "cost": 0.212,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/foo-model": {
+     "cost": 0.0,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 1
+    },
+    "claude/gpt-6.1-sol": {
+     "cost": 0.08621799999999999,
+     "records": 2,
+     "tokens": 39665,
+     "unpriced": 0
+    },
+    "claude/loop-x": {
+     "cost": 0.0,
+     "records": 1,
+     "tokens": 151842,
+     "unpriced": 1
+    },
+    "codex/gpt-6-luna": {
+     "cost": 0.05807079999999999,
+     "records": 2,
+     "tokens": 282954,
+     "unpriced": 0
+    },
+    "codex/gpt-6-stella": {
+     "cost": 1.2009759,
+     "records": 5,
+     "tokens": 1709576,
+     "unpriced": 0
+    },
+    "codex/gpt-6.1-sol": {
+     "cost": 1.1288459999999998,
+     "records": 14,
+     "tokens": 509615,
+     "unpriced": 0
+    },
+    "grok/grok-5": {
+     "cost": 0.75567125,
+     "records": 2,
+     "tokens": 286662,
+     "unpriced": 0
+    },
+    "muse/muse-unpriced-x": {
+     "cost": 0.33,
+     "records": 1,
+     "tokens": 5500,
+     "unpriced": 0
+    },
+    "pi/anthropic/claude-sonnet-5-5": {
+     "cost": 0.11,
+     "records": 2,
+     "tokens": 13000,
+     "unpriced": 0
+    },
+    "pi/grok-5": {
+     "cost": 0.002,
+     "records": 1,
+     "tokens": 1750,
+     "unpriced": 0
+    }
+   },
+   "output": 77099,
+   "providers": {
+    "claude": {
+     "cost": 2.81073505,
+     "records": 18,
+     "sessions": 5,
+     "tokens": 1049176
+    },
+    "codex": {
+     "cost": 2.3878926999999996,
+     "records": 21,
+     "sessions": 3,
+     "tokens": 2502145
+    },
+    "grok": {
+     "cost": 0.75567125,
+     "records": 2,
+     "sessions": 1,
+     "tokens": 286662
+    },
+    "muse": {
+     "cost": 0.33,
+     "records": 1,
+     "sessions": 1,
+     "tokens": 5500
+    },
+    "pi": {
+     "cost": 0.112,
+     "records": 3,
+     "sessions": 2,
+     "tokens": 14750
+    }
+   },
+   "reasoning": 7581,
+   "records": 45,
+   "sessions": 12,
+   "totalTokens": 3858233,
+   "uncachedInput": 1184002,
+   "unpricedRecords": 2
+  },
+  "90 days": {
+   "cacheCreation": 3881403,
+   "cacheSavingsUsd": 31.92333374999999,
+   "cachedInput": 18766954,
+   "costBySpeed": {
+    "fast": 4.437340000000001,
+    "premium": 3.0375739999999998,
+    "standard": 55.9470734,
+    "ultrafast": 4.445685
+   },
+   "costByType": {
+    "cacheRead": 24.13684300000001,
+    "cacheWrite": 11.325339,
+    "input": 17.044410000000017,
+    "other": 0.3299853999999698,
+    "output": 11.993520999999994
+   },
+   "costUsd": 64.8300984,
+   "duplicatesDropped": 16,
+   "models": {
+    "claude/bar-model": {
+     "cost": 0.05399999999999999,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/claude-haiku-4-5": {
+     "cost": 0.5896968,
+     "records": 8,
+     "tokens": 1139410,
+     "unpriced": 0
+    },
+    "claude/claude-opus-9[1m]": {
+     "cost": 20.30475,
+     "records": 9,
+     "tokens": 1217374,
+     "unpriced": 0
+    },
+    "claude/claude-sonnet-5-5": {
+     "cost": 18.608538449999998,
+     "records": 60,
+     "tokens": 8703015,
+     "unpriced": 0
+    },
+    "claude/custom-model": {
+     "cost": 2.5401870000000004,
+     "records": 7,
+     "tokens": 1076430,
+     "unpriced": 0
+    },
+    "claude/dual-model": {
+     "cost": 0.212,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 0
+    },
+    "claude/foo-model": {
+     "cost": 0.0,
+     "records": 1,
+     "tokens": 52000,
+     "unpriced": 1
+    },
+    "claude/gpt-6.1-sol": {
+     "cost": 0.08621799999999999,
+     "records": 2,
+     "tokens": 39665,
+     "unpriced": 0
+    },
+    "claude/loop-x": {
+     "cost": 0.0,
+     "records": 5,
+     "tokens": 640670,
+     "unpriced": 5
+    },
+    "claude/opus": {
+     "cost": 0.0,
+     "records": 7,
+     "tokens": 950038,
+     "unpriced": 7
+    },
+    "codex/gpt-6-luna": {
+     "cost": 0.5124724,
+     "records": 28,
+     "tokens": 3569777,
+     "unpriced": 0
+    },
+    "codex/gpt-6-stella": {
+     "cost": 4.904885500000001,
+     "records": 28,
+     "tokens": 4843454,
+     "unpriced": 0
+    },
+    "codex/gpt-6.1-sol": {
+     "cost": 7.079228000000001,
+     "records": 37,
+     "tokens": 3104634,
+     "unpriced": 0
+    },
+    "grok/grok-5": {
+     "cost": 7.15731625,
+     "records": 20,
+     "tokens": 2672050,
+     "unpriced": 0
+    },
+    "muse/gpt-6.1-sol": {
+     "cost": 2.338806,
+     "records": 9,
+     "tokens": 1023339,
+     "unpriced": 0
+    },
+    "muse/muse-unpriced-x": {
+     "cost": 0.33,
+     "records": 3,
+     "tokens": 154168,
+     "unpriced": 2
+    },
+    "pi/anthropic/claude-sonnet-5-5": {
+     "cost": 0.11,
+     "records": 2,
+     "tokens": 13000,
+     "unpriced": 0
+    },
+    "pi/grok-5": {
+     "cost": 0.002,
+     "records": 1,
+     "tokens": 1750,
+     "unpriced": 0
+    }
+   },
+   "output": 896074,
+   "providers": {
+    "claude": {
+     "cost": 42.39539025000001,
+     "records": 101,
+     "sessions": 5,
+     "tokens": 13922602
+    },
+    "codex": {
+     "cost": 12.496585899999994,
+     "records": 93,
+     "sessions": 3,
+     "tokens": 11517865
+    },
+    "grok": {
+     "cost": 7.15731625,
+     "records": 20,
+     "sessions": 1,
+     "tokens": 2672050
+    },
+    "muse": {
+     "cost": 2.668806,
+     "records": 12,
+     "sessions": 2,
+     "tokens": 1177507
+    },
+    "pi": {
+     "cost": 0.112,
+     "records": 3,
+     "sessions": 2,
+     "tokens": 14750
+    }
+   },
+   "reasoning": 52357,
+   "records": 229,
+   "sessions": 13,
+   "totalTokens": 29304774,
+   "uncachedInput": 5760343,
+   "unpricedRecords": 15
+  },
+  "Past 24h": {
+   "cacheCreation": 63935,
+   "cacheSavingsUsd": 3.2104134,
+   "cachedInput": 1502226,
+   "costBySpeed": {
+    "fast": 0.47035799999999994,
+    "premium": 0.516146,
+    "standard": 1.4864975999999999,
+    "ultrafast": 0.570075
+   },
+   "costByType": {
+    "cacheRead": 0.5608029999999999,
+    "cacheWrite": 0.16237800000000002,
+    "input": 1.055706,
+    "other": 0.32999959999999984,
+    "output": 0.41804399999999997
+   },
+   "costUsd": 2.5269306,
+   "duplicatesDropped": 16,
+   "models": {
+    "claude/claude-sonnet-5-5": {
+     "cost": 0.02163,
+     "records": 3,
+     "tokens": 7420,
+     "unpriced": 0
+    },
+    "claude/custom-model": {
+     "cost": 0.8200000000000002,
+     "records": 1,
+     "tokens": 164000,
+     "unpriced": 0
+    },
+    "codex/gpt-6-stella": {
+     "cost": 0.8760745999999999,
+     "records": 4,
+     "tokens": 1521005,
+     "unpriced": 0
+    },
+    "codex/gpt-6.1-sol": {
+     "cost": 0.47922599999999993,
+     "records": 2,
+     "tokens": 214145,
+     "unpriced": 0
+    },
+    "muse/muse-unpriced-x": {
+     "cost": 0.33,
+     "records": 1,
+     "tokens": 5500,
+     "unpriced": 0
+    }
+   },
+   "output": 30566,
+   "providers": {
+    "claude": {
+     "cost": 0.8416300000000001,
+     "records": 4,
+     "sessions": 3,
+     "tokens": 171420
+    },
+    "codex": {
+     "cost": 1.3553005999999996,
+     "records": 6,
+     "sessions": 3,
+     "tokens": 1735150
+    },
+    "muse": {
+     "cost": 0.33,
+     "records": 1,
+     "sessions": 1,
+     "tokens": 5500
+    }
+   },
+   "reasoning": 3320,
+   "records": 11,
+   "sessions": 7,
+   "totalTokens": 1912070,
+   "uncachedInput": 315343,
+   "unpricedRecords": 0
+  }
+ },
+ "timeZone": "Asia/Ho_Chi_Minh"
+}

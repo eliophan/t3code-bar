@@ -1,0 +1,78 @@
+{
+ "fetchedAtMs": 1793952480000,
+ "document": {
+  "claude-sonnet-5-5": {
+   "input_cost_per_token": 3e-06,
+   "output_cost_per_token": 1.5e-05,
+   "cache_read_input_token_cost": 3e-07,
+   "cache_creation_input_token_cost": 3.75e-06
+  },
+  "claude-opus-9": {
+   "input_cost_per_token": 1.5e-05,
+   "output_cost_per_token": 7.5e-05
+  },
+  "gpt-6.1-sol": {
+   "input_cost_per_token": 2e-06,
+   "output_cost_per_token": 1e-05
+  },
+  "gpt-6-luna": {
+   "input_cost_per_token": 1e-07,
+   "output_cost_per_token": 5e-07,
+   "provider_specific_entry": {
+    "fast": 2
+   }
+  },
+  "gpt-6-stella": {
+   "input_cost_per_token": 1e-06,
+   "output_cost_per_token": 4e-06,
+   "cache_read_input_token_cost": 1e-07,
+   "input_cost_per_token_priority": 2e-06,
+   "output_cost_per_token_priority": 8e-06,
+   "input_cost_per_token_ultrafast": 4e-06,
+   "output_cost_per_token_ultrafast": 1.6e-05,
+   "cache_read_input_token_cost_ultrafast": 3e-07
+  },
+  "grok-5": {
+   "input_cost_per_token": 5e-06,
+   "output_cost_per_token": 1.5e-05,
+   "cache_read_input_token_cost": 1.25e-06
+  },
+  "anthropic/claude-haiku-4-5": {
+   "input_cost_per_token": 1e-06,
+   "output_cost_per_token": 5e-06,
+   "cache_read_input_token_cost": 1e-07,
+   "cache_creation_input_token_cost": 1.25e-06
+  },
+  "openrouter/foo-model": {
+   "input_cost_per_token": 1e-06,
+   "output_cost_per_token": 2e-06
+  },
+  "azure/foo-model": {
+   "input_cost_per_token": 2e-06,
+   "output_cost_per_token": 3e-06
+  },
+  "openrouter/bar-model": {
+   "input_cost_per_token": 1e-06,
+   "output_cost_per_token": 2e-06
+  },
+  "azure/bar-model": {
+   "input_cost_per_token": 1e-06,
+   "output_cost_per_token": 2e-06
+  },
+  "openrouter/dual-model": {
+   "input_cost_per_token": 9e-06,
+   "output_cost_per_token": 9e-06
+  },
+  "anthropic/dual-model": {
+   "input_cost_per_token": 4e-06,
+   "output_cost_per_token": 6e-06
+  },
+  "broken-model": {
+   "input_cost_per_token": 1e-06
+  },
+  "sample_spec": {
+   "max_tokens": "set to max_output_tokens if provider specifies it",
+   "mode": "one of chat"
+  }
+ }
+}

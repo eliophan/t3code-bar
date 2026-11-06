@@ -81,6 +81,8 @@ struct JSONScanner {
 
     mutating func isString() -> Bool { peek() == Byte.quote }
 
+    mutating func isObject() -> Bool { peek() == Byte.openBrace }
+
     mutating func isNumber() -> Bool {
         guard let byte = peek() else { return false }
         return byte == Byte.minus || (Byte.zero...Byte.nine).contains(byte)

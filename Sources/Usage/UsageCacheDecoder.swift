@@ -12,12 +12,12 @@ public struct UsageDataset: Sendable {
         public let kind: UsageProviderKind
         public let modifiedMs: Double
         public let malformed: Int
-        public let records: [UsageRecord]
+        public internal(set) var records: [UsageRecord]
     }
 
     public let version: Int
     public let sources: [Source]
-    public let files: [File]
+    public internal(set) var files: [File]
     /// File entries dropped because one of their rows could not be decoded.
     public let rejectedFiles: Int
     public var size = 0
