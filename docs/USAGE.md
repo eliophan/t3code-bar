@@ -22,17 +22,24 @@ Archived, deleted, and settled threads, side chats, and separate subagent thread
 
 ## Token usage
 
-Click **Usage** at the bottom of the thread list to see how many tokens T3 Code has processed. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
+Click **Usage** at the bottom of the thread list to see the usage T3 Code's own Usage page shows. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
 
-The period control sets a rolling window of 24 hours, 7 days, 30 days, or 90 days. Bar remembers your choice. Hover a period for its full name.
+The period control offers Past 24h, 7 days, 30 days and 90 days, and opens on 30 days like T3 Code. Past 24h is a sliding window. The other periods are whole calendar days in your time zone, with today counted in full. Bar remembers your choice. Hover a period for its full name.
 
-- **Processed tokens** is input plus output, as on T3 Code's Usage page. Below it you see the number of turns and the cache hit rate.
-- **Tokens by type** splits the total into input, cache read, cache write, and output. Input here is the part that was not served from cache.
-- **By provider** lists each provider with its processed tokens and turns, largest first.
+- **Processed tokens** is uncached input, cached input, cache writes and output added together, with the number of sessions below it.
+- **Tokens by type** splits the total into input, cache read, cache write and output.
+- **Totals** lists cached input, uncached input, output and cache savings, using T3 Code's names. Cache savings is what the cached reads would have cost at the full input price.
+- **By provider** lists each provider with its tokens, its share of the tokens and its estimated cost. Providers follow T3 Code's order, and only providers with usage in the period appear.
 
-A footnote appears when some turns reported partial usage, or none. Partial turns are included in the numbers, which can then read slightly low. Turns with no usage are left out.
+The last line says how old the data is. Bar reads T3 Code's usage cache, and T3 Code updates it only when its Usage page scans. If the line is old, open T3 Code's Usage page once and the numbers catch up within a few seconds.
 
-The numbers refresh every 5 seconds while the screen is open. Bar reads nothing extra while it is closed. Cost and limits are not shown, because T3 Code does not store them where Bar can read them.
+Costs are API estimates from T3 Code's price list. They are not what a plan bills.
+
+Bar checks the cache about every 5 seconds while the screen is open, and decodes it again only when it changes. Switching periods does not read the file again. Bar reads nothing while the screen is closed and frees the decoded data when you leave it.
+
+If T3 Code has never scanned, the screen asks you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, the screen says so and shows no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low.
+
+These numbers do not include OpenCode, Antigravity or Cursor, because T3 Code scans those live and does not put them in the cache. They also exclude remote environments. Limits are not shown.
 
 ## Opening threads
 
@@ -54,7 +61,7 @@ By default, the app reads `~/.t3/userdata`. Override it using one of these envir
 
 | Variable | Expected directory |
 | --- | --- |
-| `T3_CODE_BAR_STATE_DIR` | Contains `statev2.sqlite`, `server-runtime.json`, and `environment-id` directly. |
+| `T3_CODE_BAR_STATE_DIR` | Contains `statev2.sqlite`, `server-runtime.json`, `environment-id`, and the usage files directly. |
 | `T3CODE_HOME` | T3 Code's root directory; Bar appends `/userdata`. |
 
 For example, from the source directory:
@@ -70,6 +77,9 @@ Apps opened from Finder or Login Items do not automatically inherit your termina
 | Problem | What to check |
 | --- | --- |
 | Data not found | Open T3 Code at least once and check the configured data directory. |
+| Usage says "Open T3 Code's Usage page once" | T3 Code has not written `usage-scan-cache-vN.json` in the data directory yet. Open its Usage page. |
+| Usage says "T3 Code changed its usage format" | T3 Code writes a cache version newer than 11. Update T3 Code Bar. |
+| Usage numbers differ from T3 Code's page | The page rescans on open and also counts OpenCode, Antigravity and Cursor. Open T3 Code's Usage page, wait for the next refresh, and compare again. |
 | Unsupported schema | Your T3 Code version may use a different database structure. See the [compatibility notes](COMPATIBILITY.md). Bar does not repair the database. |
 | Offline | Reopen T3 Code. Saved threads remain visible, but live activity indicators are disabled. |
 | Busy/read error | The app retries every second. Use **Retry** to retry immediately when no read is in progress. |
@@ -80,7 +90,7 @@ For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues)
 
 ## Known limitations
 
-- Monitors one local T3 Code instance, not remote machines.
+- Monitors one local T3 Code instance, not remote machines. Usage excludes remote environments, OpenCode, Antigravity and Cursor, and is only as fresh as T3 Code's last Usage page scan.
 - Some background activity exists only in T3 Code's memory and cannot be inferred from SQLite. Working/Monitoring indicators after the main run ends may be incomplete.
 - Unread completion and wake indicators depend on visit timestamps persisted by T3 Code; Bar does not read browser localStorage or call the sidebar's acknowledgment API.
 - Server availability uses the runtime PID, not an HTTP health check. After a read error, the last successful list remains visible with live status disabled.

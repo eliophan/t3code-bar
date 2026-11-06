@@ -21,8 +21,6 @@ The app requires these tables and queries them from `Sources/Data/DatabaseManage
 
 Optional: `orchestration_v2_projection_turn_items` is read to tell a usage-limit failure (Limited, with its reset time) from other failures, and to tell a run that is only waiting on other threads (Waiting) from one that is working. If it is missing, threads still list, a usage-limit failure shows as Failed, and a thread wait shows as Working. Guest messages (Request) come from `guestShare` in the thread payload.
 
-Optional: `orchestration_v2_projection_provider_turns` feeds the Usage screen. If it is missing, the Usage screen shows a notice and the thread list is not affected.
-
 Inbox properties such as `settledAt`, `snoozedAt`, `snoozedUntil`, `pinnedAt`, `pinOrderKey`, `activeOrderKey`, `lineage`, and `lastVisitedAt` are read from JSON payloads. The app does not change the schema, create indexes, or migrate T3 Code data. If SQL preparation fails because a table or column is missing, the app reports an incompatibility instead of showing an empty inbox.
 
 SQLite is opened read-only. The app does not use `immutable=1`, so changes in the WAL remain visible. Each poll opens and closes its connection and waits up to 250 ms for a lock. Errors while stepping through results are never treated as partial success.
@@ -33,29 +31,60 @@ Snooze is classified after the row is read; a thread is not filtered in SQL sole
 
 Woke uses the completion timestamp for an early completion wake, the session/snooze event timestamp for another attention event, or the scheduled time for a timer wake. It compares that timestamp with persisted `lastVisitedAt` to determine whether the wake is still unread. Invalid snooze dates never hide a thread. Bar does not change snooze or visit fields and does not call the sidebar's separate acknowledgment API; it reflects persisted data.
 
-## Token usage
+## Usage data
 
-The Usage screen reads one row per provider turn from `orchestration_v2_projection_provider_turns` with a single aggregate query.
+The Usage screen no longer reads token counts from SQLite. It reads the files T3 Code's own Usage page reads, so the numbers can match that page.
 
-- `started_at` is ISO-8601 with milliseconds and a `Z`, so it is compared as text against a cutoff. The periods are rolling windows of 1, 7, 30, and 90 days back from now. A turn without `started_at` belongs to no period.
-- `payload_json.nativeTurnRef.driver` names the provider. It maps to a provider the same way thread rows do, and an unknown or missing driver counts as Other.
-- `payload_json.turnTokenUsage` holds the per-turn totals `inputTokens`, `cachedInputTokens`, `cacheCreationTokens`, `outputTokens`, and `usageStatus`. The sibling `tokenUsage` object is a context-window gauge and is ignored.
+Checked on 2026-11-06 against T3 Code Nightly `0.1.8-nightly.20261105.4205` (commit `935818e422f9`). Every file is opened read-only, and Bar makes no network call.
 
-`inputTokens` already includes cached reads and cache writes. Checked against about 7,000 turns from five drivers, `cachedInputTokens` never exceeded `inputTokens`. For Claude, `inputTokens` minus `cachedInputTokens` matched `cacheCreationTokens` within 0.003 percent. Three numbers follow from that, and they are T3 Code's own.
+| File | What Bar takes from it |
+| --- | --- |
+| `usage-scan-cache-vN.json` | Per-transcript usage records for Claude, Codex, Grok, Pi and Muse. Bar reads the highest `N` whose `version` field is 4 to 11. |
+| `usage-model-rates.json` | The price list T3 Code fetched. Without it, only provider-reported costs are priced. |
+| `settings.json` | Two keys, `usagePriceOverrides` and `usageModelAliases`. The file also holds provider credentials, so Bar skips every other key without decoding it. |
+| `statev2.sqlite` | The Codex service tier of turns the cache has not resolved yet. This reads `orchestration_events`, `orchestration_v2_projection_provider_turns` and `orchestration_v2_projection_run_attempts`. If the database is missing, those turns count at standard speed. |
 
-- Uncached input is `max(0, input - cached - cacheCreation)`.
-- Processed tokens is `input + output`.
-- Cache hit is `cached / (uncachedInput + cached + cacheCreation)`, and is not shown when that denominator is 0.
+### Freshness and coverage
 
-A turn counts as having usage when `inputTokens` is present. Other turns are left out of the sums and counted as turns with no usage. That covers turns with no `turnTokenUsage`, turns with `usageStatus` `unavailable`, and payloads without token fields. A turn with `usageStatus` `partial` carries real but incomplete counts. Bar keeps it in the sums, so totals can read slightly low, and mentions it in a footnote.
+- T3 Code writes the cache only when its Usage page scans. The numbers are as current as the last time that page was open, and the screen says so.
+- OpenCode, Antigravity and Cursor are rescanned live by T3 Code and are never in the cache. This build does not show them.
+- Remote and linked environments are not included. Bar reads this Mac only.
+- T3 Code's per-user list of hidden providers lives in its renderer storage. Bar does not read it.
 
-Reasoning tokens are not shown on their own. T3 Code counts them inside output.
+### Cache format
 
-The query runs about 30 ms on an 8.6 GB database once the pages are cached, and about half a second the first time. It reads only while the Usage screen is open.
+- Old `-vN` files stay on disk next to the current one. Bar picks by generation and by the `version` field, never by modification time. A newer unsupported format that is also newer on disk makes Bar show "T3 Code changed its usage format" instead of stale numbers.
+- A file entry with any row that has fewer than 11 items, a non-number where a number belongs, an unknown model index or an unknown speed index is dropped whole, as T3 Code does. The screen warns when this happens.
+- Claude rows for the model `<synthetic>` are dropped. A provider kind this build does not know is kept under its own name and counts in the totals.
+- A cache that fails to parse is treated as being rewritten. Bar keeps the last good numbers and tries again.
+- The file is 20 MB or more. Bar decodes it off the main actor in about 0.1 to 0.4 seconds, only when its size or modification time changes, and builds each period from the decoded records.
 
-## What SQLite cannot provide
+### Counting rules
 
-Cost needs the model of each turn, which only part of the turns record. Limits are not stored in SQLite. Per-model breakdowns are not available for the same reason as cost. The Usage screen therefore shows the Tokens view of T3 Code's Usage page and nothing else from it.
+These follow T3 Code's code and are checked against a port of it (`repro.py`) on a committed fixture and on a real cache.
+
+- Past 24h ends at the current minute and starts 24 hours earlier. 7, 30 and 90 days are calendar days in the Mac's time zone, today included in full. Daylight saving changes are handled.
+- The first record with a given key wins, in source order and then file order. Codex sessions that appear in more than one file, which forks and subagents cause, use a key built from the session, time, model and token counts.
+- Processed tokens is uncached input plus cached input plus cache writes plus output. Reasoning is part of output and is not added again.
+- A session counts once per source when one of its records was counted. A session in two sources counts twice, as in T3 Code.
+
+### Cost rules
+
+Cost is an API estimate from the price list. It is not what a plan bills.
+
+- A model is priced from an exact, case-insensitive match on its name after cutting at the first `[`. There is no fuzzy matching. The bare names `opus`, `sonnet`, `haiku` and `fable` are never priced.
+- A provider-reported cost replaces the list price and scales the cost split to it. A price override replaces both and switches off the reported cost for that model.
+- Fast and ultrafast turns use their own prices when the list has them, and standard prices otherwise.
+- Category costs, speed costs and the speed premium are rounded to a millionth of a dollar per day, hour slot, provider, model and source before they are added, because T3 Code rounds there.
+- Cache savings are cached tokens times the gap between the input price and the cache read price.
+
+### What can break
+
+The cache is T3 Code's internal format. Bar checks the version and drops entries it cannot decode, but a new T3 Code can change the meaning of a field without changing the version. `Tests/UsageCanaryTests.swift` runs a recorded cache through the code and compares every number with the oracle, so a change in this code that moves a number fails the build. It cannot see a change on T3 Code's side.
+
+## What the data cannot provide
+
+Limits are not part of the scan cache. The Usage screen shows the Tokens view of T3 Code's Usage page and nothing else from it.
 
 The reference `ThreadBackgroundLivenessService` uses an in-memory registry rather than persistence. It distinguishes an active agent/workflow from a watch loop. T3 Code Bar does not connect to that runtime service and does not infer current work from old task history.
 

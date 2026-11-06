@@ -6,9 +6,28 @@
 - `Sources/Data/DatabaseManager.swift`: owns read-only SQLite access and date parsing on an actor; returns `Sendable` data or explicit errors.
 - `Sources/Data/ThreadModel.swift`: derives status from persisted projection data.
 - `Sources/Data/ThreadMonitor.swift`: allows one asynchronous read at a time and aggregates the badge from the full inbox.
+- `Sources/Usage/`: the Usage data layer. It decodes T3 Code's scan cache (`JSONScanner`, `UsageCacheDecoder`, `UsageCacheLocator`), de-duplicates and windows records (`UsageSelection`, `UsageWindow`), prices them (`UsagePricing`, `UsagePriceSources`, `CodexTierResolver`), builds `UsageReport`, and feeds the screen through `UsageMonitor`.
 - `Sources/Views/PopoverView.swift`: renders the list and loading/offline/error states; stale data does not display live labels.
 - `Sources/Utils/AppLauncher.swift`: opens applications and links through macOS and reports failures.
 - `Tests/`: isolated SQLite fixtures in temporary directories; no personal database or real server is used.
+
+## Usage canary
+
+`Tests/Canary/state` is a small T3 Code state directory and `Tests/Canary/golden.json` holds what the oracle `repro.py` computes for it. `UsageCanaryTests` compares every number. Regenerate the golden file after changing the fixture with the commands below.
+
+```bash
+python3 -I Tests/Canary/make_fixture.py
+python3 -I Tests/Canary/golden.py /path/to/repro.py > Tests/Canary/golden.json
+```
+
+To compare a real state directory with the oracle, print the Swift report and the oracle's report in the same format and diff them.
+
+```bash
+T3_CODE_BAR_REAL_STATE_DIR=~/.t3/userdata swift test -c release --filter UsageRealDataTests
+python3 -I Tests/Canary/compare.py /path/to/repro.py ~/.t3/userdata 2026-11-06T09:08:00Z Asia/Ho_Chi_Minh
+```
+
+`UsageRealDataTests` is skipped unless `T3_CODE_BAR_REAL_STATE_DIR` is set. Set `T3_CODE_BAR_REAL_NOW` and `T3_CODE_BAR_REAL_TZ` to change the instant and zone.
 
 ## Install from source
 

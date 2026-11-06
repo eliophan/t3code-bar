@@ -36,13 +36,13 @@ Apple Silicon is the tested architecture. Releases are universal and include an 
 - Keep pinned threads and manual inbox ordering.
 - Bring snoozed threads back when something needs attention.
 - Open threads in T3 Code or your browser, or copy their links.
-- See your token usage by type and provider for the past day, week, month, or quarter.
+- See T3 Code's own token usage and estimated cost by type and provider for the past 24 hours, 7, 30, or 90 days.
 
 ## Usage
 
 Click the menu bar icon to view your inbox, and click a thread to open it in T3 Code. Right-click a thread for **Open in T3 Code**, **Open in Browser**, or **Copy Link**. Right-click the menu bar icon to quit.
 
-See the [usage guide](docs/USAGE.md) for thread states, launching at login, custom data directories, troubleshooting, and known limitations. T3 Code Bar reads T3 Code's internal database schema, which can change between versions. See the [compatibility notes](docs/COMPATIBILITY.md).
+See the [usage guide](docs/USAGE.md) for thread states, launching at login, custom data directories, troubleshooting, and known limitations. T3 Code Bar reads T3 Code's internal database schema and usage cache, which can change between versions. See the [compatibility notes](docs/COMPATIBILITY.md).
 
 ## Privacy
 
