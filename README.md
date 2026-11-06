@@ -36,6 +36,7 @@ Apple Silicon is the tested architecture. Releases are universal and include an 
 - Keep pinned threads and manual inbox ordering.
 - Bring snoozed threads back when something needs attention.
 - Open threads in T3 Code or your browser, or copy their links.
+- See your token usage by type and provider for the past day, week, month, or quarter.
 
 ## Usage
 

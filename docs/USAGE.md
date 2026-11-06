@@ -20,6 +20,20 @@ Done clears when T3 Code saves a newer visit timestamp. If no valid visit timest
 
 Archived, deleted, and settled threads, side chats, and separate subagent threads are excluded. Snoozed threads stay hidden until the timer expires or a new attention event wakes them. An error or completion that already existed when the thread was snoozed does not wake it early.
 
+## Token usage
+
+Click **Usage** at the bottom of the thread list to see how many tokens T3 Code has processed. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
+
+The period control sets a rolling window of 24 hours, 7 days, 30 days, or 90 days. Bar remembers your choice. Hover a period for its full name.
+
+- **Processed tokens** is input plus output, as on T3 Code's Usage page. Below it you see the number of turns and the cache hit rate.
+- **Tokens by type** splits the total into input, cache read, cache write, and output. Input here is the part that was not served from cache.
+- **By provider** lists each provider with its processed tokens and turns, largest first.
+
+A footnote appears when some turns reported partial usage, or none. Partial turns are included in the numbers, which can then read slightly low. Turns with no usage are left out.
+
+The numbers refresh every 5 seconds while the screen is open. Bar reads nothing extra while it is closed. Cost and limits are not shown, because T3 Code does not store them where Bar can read them.
+
 ## Opening threads
 
 Click a thread to open it in T3 Code. Right-click a thread for **Open in T3 Code**, **Open in Browser**, or **Copy Link**.

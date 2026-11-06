@@ -21,6 +21,8 @@ The app requires these tables and queries them from `Sources/Data/DatabaseManage
 
 Optional: `orchestration_v2_projection_turn_items` is read to tell a usage-limit failure (Limited, with its reset time) from other failures, and to tell a run that is only waiting on other threads (Waiting) from one that is working. If it is missing, threads still list, a usage-limit failure shows as Failed, and a thread wait shows as Working. Guest messages (Request) come from `guestShare` in the thread payload.
 
+Optional: `orchestration_v2_projection_provider_turns` feeds the Usage screen. If it is missing, the Usage screen shows a notice and the thread list is not affected.
+
 Inbox properties such as `settledAt`, `snoozedAt`, `snoozedUntil`, `pinnedAt`, `pinOrderKey`, `activeOrderKey`, `lineage`, and `lastVisitedAt` are read from JSON payloads. The app does not change the schema, create indexes, or migrate T3 Code data. If SQL preparation fails because a table or column is missing, the app reports an incompatibility instead of showing an empty inbox.
 
 SQLite is opened read-only. The app does not use `immutable=1`, so changes in the WAL remain visible. Each poll opens and closes its connection and waits up to 250 ms for a lock. Errors while stepping through results are never treated as partial success.
@@ -31,7 +33,29 @@ Snooze is classified after the row is read; a thread is not filtered in SQL sole
 
 Woke uses the completion timestamp for an early completion wake, the session/snooze event timestamp for another attention event, or the scheduled time for a timer wake. It compares that timestamp with persisted `lastVisitedAt` to determine whether the wake is still unread. Invalid snooze dates never hide a thread. Bar does not change snooze or visit fields and does not call the sidebar's separate acknowledgment API; it reflects persisted data.
 
+## Token usage
+
+The Usage screen reads one row per provider turn from `orchestration_v2_projection_provider_turns` with a single aggregate query.
+
+- `started_at` is ISO-8601 with milliseconds and a `Z`, so it is compared as text against a cutoff. The periods are rolling windows of 1, 7, 30, and 90 days back from now. A turn without `started_at` belongs to no period.
+- `payload_json.nativeTurnRef.driver` names the provider. It maps to a provider the same way thread rows do, and an unknown or missing driver counts as Other.
+- `payload_json.turnTokenUsage` holds the per-turn totals `inputTokens`, `cachedInputTokens`, `cacheCreationTokens`, `outputTokens`, and `usageStatus`. The sibling `tokenUsage` object is a context-window gauge and is ignored.
+
+`inputTokens` already includes cached reads and cache writes. Checked against about 7,000 turns from five drivers, `cachedInputTokens` never exceeded `inputTokens`. For Claude, `inputTokens` minus `cachedInputTokens` matched `cacheCreationTokens` within 0.003 percent. Three numbers follow from that, and they are T3 Code's own.
+
+- Uncached input is `max(0, input - cached - cacheCreation)`.
+- Processed tokens is `input + output`.
+- Cache hit is `cached / (uncachedInput + cached + cacheCreation)`, and is not shown when that denominator is 0.
+
+A turn counts as having usage when `inputTokens` is present. Other turns are left out of the sums and counted as turns with no usage. That covers turns with no `turnTokenUsage`, turns with `usageStatus` `unavailable`, and payloads without token fields. A turn with `usageStatus` `partial` carries real but incomplete counts. Bar keeps it in the sums, so totals can read slightly low, and mentions it in a footnote.
+
+Reasoning tokens are not shown on their own. T3 Code counts them inside output.
+
+The query runs about 30 ms on an 8.6 GB database once the pages are cached, and about half a second the first time. It reads only while the Usage screen is open.
+
 ## What SQLite cannot provide
+
+Cost needs the model of each turn, which only part of the turns record. Limits are not stored in SQLite. Per-model breakdowns are not available for the same reason as cost. The Usage screen therefore shows the Tokens view of T3 Code's Usage page and nothing else from it.
 
 The reference `ThreadBackgroundLivenessService` uses an in-memory registry rather than persistence. It distinguishes an active agent/workflow from a watch loop. T3 Code Bar does not connect to that runtime service and does not infer current work from old task history.
 
