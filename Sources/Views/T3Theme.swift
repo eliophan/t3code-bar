@@ -30,6 +30,9 @@ public enum T3Theme {
     public static let speedFast = textPrimary.opacity(0.66)
     public static let speedUltrafast = textPrimary
 
+    // The chart tooltip, T3 Code's glass surface on black.
+    public static let tooltip = Color(hex: "#111113")
+
     // Status colors: T3 Code's dark-mode foreground tokens
     public static let statusWorking = Color(hex: "#60a5fa") // blue-400, T3 Code info-foreground
     public static let statusApproval = Color(hex: "#fbbf24") // amber-400, T3 Code warning-foreground

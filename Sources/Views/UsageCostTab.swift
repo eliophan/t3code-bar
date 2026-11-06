@@ -8,6 +8,7 @@ struct UsageCostTab: View {
         VStack(alignment: .leading, spacing: 20) {
             hero
             providers
+            UsageChartSection(report: report, metric: .cost)
             UsageTotalsSection(report: report)
             UsageBreakdown(title: "Cost by type", slices: UsagePresentation.costBySlices(report).map(\.asSlice))
             UsageBreakdown(title: "Cost by speed", slices: UsagePresentation.speedSlices(report).map(\.asSlice),

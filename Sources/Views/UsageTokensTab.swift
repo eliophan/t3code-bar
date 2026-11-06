@@ -10,6 +10,7 @@ struct UsageTokensTab: View {
             UsageBreakdown(title: "Tokens by type", slices: Self.tokenSlices(report.tokens))
             UsageTotalsSection(report: report)
             providers
+            UsageChartSection(report: report, metric: .tokens)
             UsageModelsSection(report: report, metric: .tokens)
             UsageFootnotes(report: report)
         }
