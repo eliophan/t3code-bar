@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStatusItem()
         configurePopover()
         limits.start()
+        usage.prewarmLocal()
         installContextMenuMonitor()
         updater.start()
         refreshObserver = monitor.$lastRefreshedAt.compactMap { $0 }.sink { [weak self] _ in

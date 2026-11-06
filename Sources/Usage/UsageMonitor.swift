@@ -86,13 +86,20 @@ actor UsageEngine {
         return .report(report)
     }
 
-    /// Drops decoded transcript and local provider records.
+    func prewarmLocal() {
+        guard localScannedAt == nil else { return }
+        let now = clock()
+        localSnapshot = localScanner.scan(paths: source.localPaths, now: now)
+        localScannedAt = now
+        localRevision += 1
+    }
+
+    /// Drops the transcript cache but keeps the last local-provider snapshot.
+    /// Reopening Usage can therefore render the complete report immediately instead of
+    /// regressing to the transcript-only total while OpenCode and Antigravity are rescanned.
     func release() {
         loaded = nil
         lastKey = nil
-        localScanner = LocalUsageScanner()
-        localSnapshot = LocalUsageSnapshot()
-        localScannedAt = nil
     }
 }
 
@@ -150,6 +157,12 @@ public final class UsageMonitor: ObservableObject {
             Task { @MainActor [weak self] in self?.refresh() }
         }
         refresh()
+    }
+
+    /// Starts the local-provider scan before the user opens Usage, so the first visible
+    /// headline already includes OpenCode and Antigravity instead of briefly showing cache-only data.
+    public func prewarmLocal() {
+        Task { [engine] in await engine.prewarmLocal() }
     }
 
     public func stop() {
