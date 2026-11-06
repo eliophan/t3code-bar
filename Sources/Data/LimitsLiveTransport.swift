@@ -69,6 +69,14 @@ struct LimitsCredential: Codable, Sendable {
     let port: Int
     let token: String
     let expiresAt: Date
+    let privateKey: Data?
+
+    init(port: Int, token: String, expiresAt: Date, privateKey: Data? = nil) {
+        self.port = port
+        self.token = token
+        self.expiresAt = expiresAt
+        self.privateKey = privateKey
+    }
 }
 protocol LimitsCredentialStore: Sendable {
     func load() throws -> LimitsCredential?

@@ -258,6 +258,20 @@ struct LocalUsageTests {
         #expect(await engine.report(for: .week) == .unchanged)
     }
 
+    @Test func firstReportIncludesLocalProvidersEvenWithoutPrewarm() async throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let db = try LocalDB(root.appendingPathComponent("opencode.db"), schema: schema)
+        try openMessage(db)
+        try CacheFixture().write(to: root)
+        let source = UsageSource(config: EnvironmentConfig(stateDirectory: root), localPaths: .init(openCode: [root]))
+        let engine = UsageEngine(source: source, clock: { date("2026-11-06T09:08:00Z") }, timeZone: zone)
+        guard case .report(let report) = await engine.report(for: .week, includeLocal: false) else {
+            Issue.record("expected a complete first report"); return
+        }
+        #expect(report.providers.contains { $0.kind == .opencode && $0.tokens.processed == 925 })
+    }
+
     @Test func enginePicksUpWALWritesAfterThirtySecondsWithAnUnchangedTranscriptCache() async throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

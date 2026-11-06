@@ -57,11 +57,11 @@ private actor MockLimitsServer: LimitsTransport {
     private(set) var requests: [URLRequest] = []
     private(set) var sockets: [MockLimitsSocket] = []
     private(set) var socketURLs: [URL] = []
-    init(scope: String = "orchestration:read", status: Int = 200, expires: Double = 3600, grantDelay: Duration = .zero, socketDelay: Duration = .zero) throws {
+    init(scope: String = "orchestration:read", tokenType: String = "DPoP", status: Int = 200, expires: Double = 3600, grantDelay: Duration = .zero, socketDelay: Duration = .zero) throws {
         self.grantDelay = grantDelay
         self.socketDelay = socketDelay
         responses = [(try JSONSerialization.data(withJSONObject: [
-            "access_token": "bar-test-token", "token_type": "Bearer",
+            "access_token": "bar-test-token", "token_type": tokenType,
             "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
             "scope": scope, "expires_in": expires]), status)]
     }
@@ -123,6 +123,17 @@ struct LimitsLiveTests {
         #expect(connection.status == .cacheOnly)
     }
 
+    @Test func bearerDowngradeDoesNotStoreOrUseTheToken() async throws {
+        let server = try MockLimitsServer(tokenType: "Bearer")
+        let store = MemoryLimitsStore()
+        let connection = LimitsLiveConnection(transport: server, store: store)
+        connection.pair(port: 43111, pairingCredential: "test", remember: true)
+        try await waitUntil { if case .failed = connection.status { return true }; return false }
+        #expect(store.saveCount == 0)
+        #expect(await server.requests.count == 1)
+        #expect(await server.sockets.isEmpty)
+    }
+
     @Test func appLaunchReconnectsARememberedBarToken() async throws {
         let server = try MockLimitsServer()
         let store = MemoryLimitsStore()
@@ -154,7 +165,9 @@ struct LimitsLiveTests {
         #expect(form.contains("scope=orchestration:read"))
         #expect(!form.contains("operate"))
         #expect(requests[1].url?.path == "/api/auth/websocket-ticket/rpc")
-        #expect(requests[1].value(forHTTPHeaderField: "Authorization") == "Bearer bar-test-token")
+        #expect(requests[0].value(forHTTPHeaderField: "DPoP") != nil)
+        #expect(requests[1].value(forHTTPHeaderField: "Authorization") == "DPoP bar-test-token")
+        #expect(requests[1].value(forHTTPHeaderField: "DPoP") != nil)
         let url = try #require(await server.socketURLs.first)
         #expect(url.scheme == "ws" && url.path == "/ws")
         #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value == "ticket+&?")

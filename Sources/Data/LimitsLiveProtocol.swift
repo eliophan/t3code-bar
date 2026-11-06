@@ -7,7 +7,7 @@ struct LimitsEndpoint: Equatable, Sendable {
         guard (1...65535).contains(port) else { throw LimitsConnectionError.destination }
         self.port = port
     }
-    func url(_ path: String, ticket: String? = nil) -> URL {
+    func url(_ path: String, ticket: String? = nil, proof: String? = nil) -> URL {
         var parts = URLComponents()
         parts.scheme = ticket == nil ? "http" : "ws"
         parts.host = "127.0.0.1"
@@ -16,6 +16,7 @@ struct LimitsEndpoint: Equatable, Sendable {
         if let ticket {
             parts.queryItems = [URLQueryItem(name: "wsTicket", value: ticket),
                                 URLQueryItem(name: "orchestrationProtocol", value: "2")]
+            if let proof { parts.queryItems?.append(URLQueryItem(name: "dpop", value: proof)) }
         }
         return parts.url!
     }
@@ -26,7 +27,7 @@ enum LimitsConnectionError: Error, Equatable {
     var message: String {
         switch self {
         case .destination: "Enter a local T3 Code port from 1 to 65535."
-        case .authorization: "Pairing was refused. Create a separate T3 Code credential with only orchestration:read."
+        case .authorization: "Pairing failed. Create a new read-only code."
         case .protocolMismatch: "This T3 Code version returned an unsupported Limits stream."
         case .expired: "The Bar access token expired. Pair again in T3 Code."
         case .storage: "Could not save the Bar access token in Keychain. Connect again without Remember."

@@ -17,60 +17,54 @@ struct LimitsConnectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(connection.status.text, systemImage: connection.status == .live ? "checkmark.circle" : "network")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                if !required {
-                    Button(expanded ? "Hide connection" : "Connect T3 Code…") {
-                    expanded.toggle()
-                    if !expanded { credential = "" }
-                    }
-                }
-                if connection.status != .cacheOnly {
-                    Button("Disconnect & forget") {
-                        credential = ""
-                        connection.disconnect()
-                    }
-                }
-            }
-            .font(.system(size: 11))
-            if expanded {
-                Text("In T3 Code → Settings → Connections → Authorized clients, choose Create link. In Permissions, select only View environment (orchestration:read), then Create link → Share → Copy code. Paste that new code below.")
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Text("Local port")
-                    TextField("T3 Code port", text: $port).textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Local T3 Code port")
-                }
-                HStack(spacing: 6) {
-                    SecureField("New T3 Code pairing code", text: $credential)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Read-only T3 Code pairing credential")
-                    Button("Paste") {
-                        if let pasted = NSPasteboard.general.string(forType: .string) {
-                            credential = pasted
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .keyboardShortcut("v", modifiers: .command)
-                    .accessibilityLabel("Paste pairing code")
-                }
-                Toggle("Remember Bar token in Keychain", isOn: $remember)
-                    .toggleStyle(.checkbox)
-                HStack {
-                    Button("Pair & connect") {
-                        let input = credential
-                        credential = ""
-                        connection.pair(port: Int(port) ?? 0, pairingCredential: input, remember: remember)
-                    }
-                    .disabled(credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button("Reconnect saved") { connection.reconnectSaved(port: Int(port) ?? 0) }
-                }
-                Text(required ? "A read-only T3 connection is required before using T3 Code Bar. Only 127.0.0.1 is contacted. Linked environments are excluded." : "Only 127.0.0.1 is contacted. Includes this environment’s provider and CLI Proxy limits. Linked environments are excluded. T3 may perform its own discovery when a client connects.")
+            if !connection.isConnected || required {
+                Label(connection.status.text, systemImage: connection.status == .live ? "checkmark.circle" : "network")
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if !required {
+                    Button(expanded ? "Hide connection" : "Connect T3 Code…") {
+                        expanded.toggle()
+                        if !expanded { credential = "" }
+                    }
+                }
+                if expanded {
+                    Text("In T3 Code: Settings → Connections → Authorized clients → Create link. Select only View environment, then copy the code.")
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Text("Local port")
+                        TextField("T3 Code port", text: $port).textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Local T3 Code port")
+                    }
+                    HStack(spacing: 6) {
+                        SecureField("New T3 Code pairing code", text: $credential)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Read-only T3 Code pairing credential")
+                        Button("Paste") {
+                            if let pasted = NSPasteboard.general.string(forType: .string) {
+                                credential = pasted
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .keyboardShortcut("v", modifiers: .command)
+                        .accessibilityLabel("Paste pairing code")
+                    }
+                    Toggle("Remember in Keychain", isOn: $remember)
+                        .toggleStyle(.checkbox)
+                    HStack {
+                        Button("Pair & connect") {
+                            let input = credential
+                            credential = ""
+                            connection.pair(port: Int(port) ?? 0, pairingCredential: input, remember: remember)
+                        }
+                        .disabled(credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Reconnect saved") { connection.reconnectSaved(port: Int(port) ?? 0) }
+                    }
+                    Text("Read-only · This Mac only")
+                        .foregroundStyle(.secondary)
+                        .help("Bar connects to 127.0.0.1. Linked environments are not included. T3 may perform discovery when a client connects.")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .font(.system(size: 11))

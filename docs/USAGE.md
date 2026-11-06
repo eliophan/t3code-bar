@@ -67,13 +67,15 @@ To include those accounts:
 
 These T3 labels were checked in the `0.1.8-nightly.20261105.4205` client bundle. If your T3 version does not expose a separate scoped pairing code or the RPC ticket endpoint, saved provider data remains available. Live pairing, account counts against a real server, and macOS Keychain prompts still require manual verification; the connection is covered by mock tests.
 
-After pairing, the subscription is maintained while the app is running, including when the popover is closed. Disconnects block the main popover until the connection is restored; the last live accounts remain available only as labeled saved data. Token expiry requires pairing again. **Disconnect & forget** closes the stream, clears its accounts, removes Bar’s saved token, and returns to onboarding. To revoke a Bar session on the server, use T3 Code’s authorized-client controls.
+After pairing, the subscription is maintained while the app is running, including when the popover is closed. If the connection drops after a successful snapshot, Bar keeps the last data and shows when it was received. Token expiry requires pairing again. To revoke a Bar session on the server, use T3 Code’s authorized-client controls.
 
 The connection reads this environment’s providers and configured CLI Proxy sources. Linked environments are excluded. Bar never sends refresh, reset-credit, or settings commands. T3 Code may still perform its own remote/direct-endpoint discovery while building the server-config subscription.
 
+Bar requests a DPoP-bound access token and rejects a plain bearer token. When remembered, the token and its private key are stored together in Keychain. Existing bearer-only sessions must pair again. DPoP reduces reuse of a stolen token but does not authenticate the local server: a process impersonating T3 on the configured port can still receive a pairing code. Only pair when the local T3 server is running and trusted.
+
 ### How Bar reads the data
 
-Bar checks the files about every 5 seconds while the screen is open and decodes the usage cache again only when it changes. Switching periods does not read the file again. Bar reads nothing while the screen is closed and frees the decoded data when you leave it. Each tab starts only its own reader. A paired Limits tab also opens its local read-only subscription while visible; its last snapshot is retained with connection status when paused.
+Bar checks the files about every 5 seconds while the screen is open and decodes the usage cache again only when it changes. It scans local providers at launch and keeps their snapshot between visits. The paired Limits subscription stays open while Bar runs.
 
 If T3 Code has never scanned, Cost and Tokens can still show local provider usage and explain that transcript usage is missing. Without any local sources, they ask you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, they say so and show no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low. A period with no usage says "No usage in this period".
 

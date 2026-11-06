@@ -20,6 +20,7 @@ public struct PopoverView: View {
     @ObservedObject var monitor: ThreadMonitor
     @ObservedObject var usage: UsageMonitor
     @ObservedObject var limits: LimitsMonitor
+    @ObservedObject private var connection: LimitsLiveConnection
     @ObservedObject var usageScreen: UsageScreenModel
     @ObservedObject var navigation: PopoverNavigation
     /// The height the current screen wants, chrome included.
@@ -33,6 +34,7 @@ public struct PopoverView: View {
         self.monitor = monitor
         self.usage = usage
         self.limits = limits
+        self.connection = limits.live
         self.usageScreen = usageScreen
         self.navigation = navigation
         self.onHeightChange = onHeightChange
@@ -56,9 +58,16 @@ public struct PopoverView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            if !limits.live.isConnected {
+            if !connection.isConnected && connection.data == nil {
                 requiredConnectionScreen
             } else {
+                if !connection.isConnected {
+                    Label(connection.lastUpdatedAt.map { "Disconnected · updated \(LimitsFormat.ago($0, now: Date()))" } ?? "Disconnected · showing saved data", systemImage: "wifi.slash")
+                        .font(.system(size: 11))
+                        .foregroundColor(T3Theme.statusApproval)
+                        .help(connection.status.text)
+                        .padding(8)
+                }
                 switch navigation.screen {
                 case .threads: threadsScreen
                 case .usage: UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
@@ -86,10 +95,6 @@ public struct PopoverView: View {
             Text("Connect T3 Code")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(T3Theme.textPrimary)
-            Text("T3 Code Bar requires a read-only T3 connection so its provider and account data are complete.")
-                .font(.system(size: 12))
-                .foregroundColor(T3Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
             LimitsConnectionView(connection: limits.live, required: true)
         }
         .padding(16)

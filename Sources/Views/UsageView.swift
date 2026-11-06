@@ -103,9 +103,7 @@ struct UsageView: View {
     @ViewBuilder
     private var limitsContent: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if !limits.live.isConnected {
-                LimitsConnectionView(connection: limits.live)
-            }
+            LimitsConnectionView(connection: limits.live)
             limitsDataContent
         }
     }

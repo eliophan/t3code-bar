@@ -5,12 +5,12 @@ enum LimitsLiveStatus: Equatable {
     case cacheOnly, connecting, live, paused, retrying, failed(String)
     var text: String {
         switch self {
-        case .cacheOnly: "Saved provider cache · Connect T3 Code to include CLI Proxy accounts."
-        case .connecting: "Connecting to local T3 Code… Showing the last read."
-        case .live: "Connected to local T3 Code · Providers and CLI Proxy accounts."
-        case .paused: "Connection paused while Limits is closed · Showing the last read."
-        case .retrying: "Local T3 Code is unavailable · Showing the last read. Retrying…"
-        case .failed(let message): message + " Showing saved data."
+        case .cacheOnly: "Connect to view usage."
+        case .connecting: "Connecting…"
+        case .live: "Connected"
+        case .paused: "Connection paused."
+        case .retrying: "Disconnected. Reconnecting…"
+        case .failed(let message): message
         }
     }
 }
@@ -20,6 +20,7 @@ enum LimitsLiveStatus: Equatable {
 final class LimitsLiveConnection: ObservableObject {
     @Published private(set) var status: LimitsLiveStatus = .cacheOnly
     @Published private(set) var data: LimitsLiveData?
+    @Published private(set) var lastUpdatedAt: Date?
     var onChange: (() -> Void)?
     private let transport: any LimitsTransport
     private let store: any LimitsCredentialStore
@@ -46,6 +47,7 @@ final class LimitsLiveConnection: ObservableObject {
         stop()
         credential = nil
         data = nil
+        lastUpdatedAt = nil
         generation += 1
         let run = generation
         status = .connecting
@@ -84,6 +86,7 @@ final class LimitsLiveConnection: ObservableObject {
             guard saved.port == port else { throw LimitsConnectionError.destination }
             _ = try LimitsEndpoint(port: saved.port)
             guard saved.expiresAt > clock() else { throw LimitsConnectionError.expired }
+            guard saved.privateKey != nil else { throw LimitsConnectionError.authorization }
             credential = saved
             resume()
         } catch {
@@ -100,6 +103,7 @@ final class LimitsLiveConnection: ObservableObject {
             guard let saved = try store.load() else { return }
             guard saved.port == port else { throw LimitsConnectionError.destination }
             guard saved.expiresAt > clock() else { throw LimitsConnectionError.expired }
+            guard saved.privateKey != nil else { throw LimitsConnectionError.authorization }
             credential = saved
             resume()
         } catch {
@@ -141,15 +145,18 @@ final class LimitsLiveConnection: ObservableObject {
         stop()
         credential = nil
         data = nil
+        lastUpdatedAt = nil
         do { try store.delete(); status = .cacheOnly }
         catch { status = .failed(LimitsConnectionError.storage.message) }
         onChange?()
     }
 
     private func exchange(_ input: String, endpoint: LimitsEndpoint) async throws -> LimitsCredential {
+        let signer = LimitsDPoP()
         var request = URLRequest(url: endpoint.url("/oauth/token"))
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(try signer.proof(method: "POST", url: request.url!, now: clock()), forHTTPHeaderField: "DPoP")
         // URLComponents percent-encodes separators; '+' must be escaped for form encoding as well.
         var form = URLComponents()
         form.queryItems = [
@@ -162,7 +169,7 @@ final class LimitsLiveConnection: ObservableObject {
             URLQueryItem(name: "client_device_type", value: "desktop"), URLQueryItem(name: "client_os", value: "macOS")]
         request.httpBody = Data((form.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B").utf8)
         let object = try await http(request)
-        guard object["token_type"] as? String == "Bearer",
+        guard object["token_type"] as? String == "DPoP",
               object["issued_token_type"] as? String == "urn:ietf:params:oauth:token-type:access_token",
               let scopes = object["scope"] as? String,
               scopes.split(whereSeparator: { $0.isWhitespace }).map(String.init) == ["orchestration:read"],
@@ -170,7 +177,8 @@ final class LimitsLiveConnection: ObservableObject {
               let seconds = object["expires_in"] as? Double, seconds.isFinite, seconds > 0 else {
             throw LimitsConnectionError.authorization
         }
-        return LimitsCredential(port: endpoint.port, token: token, expiresAt: clock().addingTimeInterval(seconds))
+        return LimitsCredential(port: endpoint.port, token: token, expiresAt: clock().addingTimeInterval(seconds),
+                                privateKey: signer.key.rawRepresentation)
     }
 
     private func http(_ request: URLRequest) async throws -> [String: Any] {
@@ -193,10 +201,14 @@ final class LimitsLiveConnection: ObservableObject {
             var heartbeat: Task<Void, Never>?
             do {
                 guard credential.expiresAt > clock() else { throw LimitsConnectionError.expired }
+                guard let privateKey = credential.privateKey, let signer = try? LimitsDPoP(raw: privateKey) else {
+                    throw LimitsConnectionError.authorization
+                }
                 let endpoint = try LimitsEndpoint(port: credential.port)
                 var request = URLRequest(url: endpoint.url("/api/auth/websocket-ticket/rpc"))
                 request.httpMethod = "POST"
-                request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
+                request.setValue("DPoP \(credential.token)", forHTTPHeaderField: "Authorization")
+                request.setValue(try signer.proof(method: "POST", url: request.url!, token: credential.token, now: clock()), forHTTPHeaderField: "DPoP")
                 let issued = try await http(request)
                 guard let ticket = issued["ticket"] as? String, !ticket.isEmpty,
                       let expires = issued["expiresAt"] as? String, let expiry = LimitsDate.parse(expires), expiry > clock() else {
@@ -204,7 +216,8 @@ final class LimitsLiveConnection: ObservableObject {
                 }
                 try Task.checkCancellation()
                 guard generation == run else { return }
-                let connected = await transport.socket(endpoint.url("/ws", ticket: ticket))
+                let proof = try signer.proof(method: "GET", url: endpoint.url("/ws"), token: ticket, now: clock())
+                let connected = await transport.socket(endpoint.url("/ws", ticket: ticket, proof: proof))
                 guard !Task.isCancelled, generation == run else { await connected.close(); return }
                 socket = connected
                 activeSocket = connected
@@ -247,6 +260,7 @@ final class LimitsLiveConnection: ObservableObject {
                         guard generation == run else { return }
                         if changed {
                             data = next
+                            lastUpdatedAt = clock()
                             status = .live
                             onChange?()
                         }

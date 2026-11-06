@@ -67,7 +67,7 @@ actor UsageEngine {
                 }
             }
         }
-        if includeLocal && (localScannedAt.map({ now.timeIntervalSince($0) >= Self.localRefreshInterval }) ?? true) {
+        if localScannedAt == nil || (includeLocal && (localScannedAt.map({ now.timeIntervalSince($0) >= Self.localRefreshInterval }) ?? true)) {
             localSnapshot = localScanner.scan(paths: source.localPaths, now: now)
             localScannedAt = now
             localRevision += 1
@@ -183,11 +183,6 @@ public final class UsageMonitor: ObservableObject {
             // The period changed while this ran, so its answer is for a question nobody is asking.
             if requested == self.period {
                 self.apply(outcome, for: requested)
-                if case .missing = outcome, self.report == nil {
-                    // Local providers are still being scanned; keep the compact loading state
-                    // instead of claiming that no usage exists yet.
-                    self.notice = nil
-                }
                 self.refreshLocal(for: requested)
             } else { self.refresh() }
         }
@@ -202,6 +197,7 @@ public final class UsageMonitor: ObservableObject {
             guard !Task.isCancelled, let self else { return }
             self.refreshTask = nil
             if requested == self.period { self.apply(outcome, for: requested) }
+            else { self.refresh() }
         }
     }
 
