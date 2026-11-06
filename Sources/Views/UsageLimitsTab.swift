@@ -8,7 +8,7 @@ struct UsageLimitsTab: View {
     let readFailed: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        LazyVStack(alignment: .leading, spacing: 18) {
             if readFailed {
                 warning("Could not refresh limits. Showing the last read.", symbol: "exclamationmark.triangle")
             }
@@ -31,13 +31,9 @@ struct UsageLimitsTab: View {
                 .font(.system(size: 12))
                 .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(LimitsPresentation.footnote)
-                if let skipped = LimitsPresentation.skippedFilesText(snapshot.skippedFiles) { Text(skipped) }
+            if let skipped = LimitsPresentation.skippedFilesText(snapshot.skippedFiles) {
+                Text(skipped).font(.system(size: 11)).foregroundColor(T3Theme.textMuted)
             }
-            .font(.system(size: 11))
-            .foregroundColor(T3Theme.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -54,22 +50,13 @@ private struct LimitsDriverSection: View {
     let now: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    ProviderIconView(providers: [group.driver], size: 16)
-                    Text(group.label)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(T3Theme.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                ForEach(group.accounts) { account in
-                    Text(LimitsPresentation.accountLine(account, showsName: group.accounts.count > 1, now: now))
-                        .font(.system(size: 11))
-                        .foregroundColor(T3Theme.textMuted)
-                        .lineLimit(1)
-                        .padding(.leading, 24)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProviderIconView(providers: [group.driver], size: 16)
+                Text(group.label)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(T3Theme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
             }
             ForEach(group.rows) { row in
                 LimitCard(row: row, color: UsageProviderKind.color(forDriver: group.driver), now: now)
@@ -84,44 +71,38 @@ private struct LimitCard: View {
     let now: Date
 
     var body: some View {
-        let shared = row.columns.count > 1
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        let members = row.columns.compactMap(\.member)
+        let shared = members.count > 1
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(row.label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(T3Theme.textSecondary)
+                    .lineLimit(2)
+                Spacer(minLength: 4)
+                Text("\(row.remainingPercent)%")
+                    .font(.system(size: 18, weight: .semibold))
+                    .monospacedDigit()
                     .foregroundColor(T3Theme.textPrimary)
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(row.remainingPercent)%")
-                        .font(.system(size: 28, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundColor(T3Theme.textPrimary)
-                    Text("left")
-                        .font(.system(size: 12))
-                        .foregroundColor(T3Theme.textMuted)
-                    if let pace = row.pace {
-                        Image(systemName: pace.symbol)
-                            .font(.system(size: 11))
-                            .foregroundColor(T3Theme.textMuted)
-                            .help(pace.label)
-                            .accessibilityLabel(pace.label)
-                    }
-                    Spacer(minLength: 8)
-                    if shared, let reset = row.resets.first(where: { $0.restoresPercent > 0 }) {
-                        Text("↻ +\(reset.restoresPercent)%")
-                            .font(.system(size: 11.5, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundColor(T3Theme.textPrimary)
-                    }
+                Text("left").font(.system(size: 11)).foregroundColor(T3Theme.textMuted)
+                if let pace = row.pace {
+                    Image(systemName: pace.symbol).font(.system(size: 10)).foregroundColor(T3Theme.textMuted)
+                        .help(pace.label).accessibilityLabel(pace.label)
                 }
             }
-            ForEach(row.columns, id: \.account.id) { column in
-                if let member = column.member {
-                    MemberBlock(member: member, reset: row.reset(for: column.account.id), pace: row.pace,
-                                showsAccount: shared, color: color, now: now)
+            if shared {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    ForEach(members, id: \.account.id) { member in
+                        MemberBlock(member: member, reset: row.reset(for: member.account.id),
+                                    showsAccount: true, color: color, now: now)
+                    }
                 }
+            } else if let member = members.first {
+                MemberBlock(member: member, reset: row.reset(for: member.account.id),
+                            showsAccount: false, color: color, now: now)
             }
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(T3Theme.border, lineWidth: 1))
     }
@@ -130,30 +111,30 @@ private struct LimitCard: View {
 private struct MemberBlock: View {
     let member: LimitMember
     let reset: LimitReset?
-    let pace: LimitPace?
     let showsAccount: Bool
     let color: Color
     let now: Date
 
     var body: some View {
-        let detail = LimitWindowDetail(member: member, reset: reset, now: now)
         let window = member.window
         let left = LimitsLayout.leftPercent(window)
-        VStack(alignment: .leading, spacing: 6) {
-            if showsAccount {
-                HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
+            if showsAccount || window.resetsAt != nil {
+                HStack(spacing: 4) {
+                    if showsAccount {
                     Text(member.account.name)
-                        .font(.system(size: 11.5, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(T3Theme.textPrimary)
                         .lineLimit(1)
                     Text("\(left)%")
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .monospacedDigit()
                         .foregroundColor(T3Theme.textPrimary)
+                    }
                     Spacer(minLength: 8)
                     if let resets = LimitsFormat.resetsIn(window, now: now) {
                         Text(resets.replacingOccurrences(of: "resets in ", with: "↻ "))
-                            .font(.system(size: 10.5))
+                            .font(.system(size: 10))
                             .monospacedDigit()
                             .foregroundColor(T3Theme.textMuted)
                             .lineLimit(1)
@@ -162,39 +143,10 @@ private struct MemberBlock: View {
             }
             LimitBar(left: left, color: color, evenPaceLeft: LimitsLayout.evenPaceLeft(window, now: now),
                      refill: reset != nil && left < 100 ? member.refillPercent : 0)
-            VStack(alignment: .leading, spacing: 3) {
-                detailRow("Resets", detail.resets)
-                detailRow("Even pace", detail.evenPace)
-                detailRow("Restores", detail.restores)
-                detailRow("Reset credits", detail.credits)
-                if let pace {
-                    Text(pace.label)
-                        .font(.system(size: 10.5))
-                        .foregroundColor(T3Theme.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 1)
-                }
-            }
         }
+        .help(LimitsPresentation.spoken(name: member.account.name, member: member, now: now))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LimitsPresentation.spoken(name: member.account.name, member: member, now: now))
-    }
-
-    @ViewBuilder
-    private func detailRow(_ label: String, _ value: String?) -> some View {
-        if let value {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(label)
-                    .foregroundColor(T3Theme.textMuted)
-                    .frame(width: 78, alignment: .leading)
-                Text(value)
-                    .monospacedDigit()
-                    .foregroundColor(T3Theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 11.5))
-        }
     }
 }
 
@@ -231,7 +183,7 @@ private struct LimitBar: View {
                 }
             }
         }
-        .frame(height: 20)
+        .frame(height: 12)
         .accessibilityHidden(true)
     }
 
