@@ -20,26 +20,57 @@ Done clears when T3 Code saves a newer visit timestamp. If no valid visit timest
 
 Archived, deleted, and settled threads, side chats, and separate subagent threads are excluded. Snoozed threads stay hidden until the timer expires or a new attention event wakes them. An error or completion that already existed when the thread was snoozed does not wake it early.
 
-## Token usage
+## Usage
 
-Click **Usage** at the bottom of the thread list to see the usage T3 Code's own Usage page shows. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
+Click **Usage** at the bottom of the thread list to see what T3 Code's own Usage page shows. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
 
-The period control offers Past 24h, 7 days, 30 days and 90 days, and opens on 30 days like T3 Code. Past 24h is a sliding window. The other periods are whole calendar days in your time zone, with today counted in full. Bar remembers your choice. Hover a period for its full name.
+Three tabs sit under the header, in T3 Code's order. **Cost** and **Tokens** read T3 Code's usage cache. **Limits** reads the status files T3 Code keeps for each provider. Bar remembers the tab you left open. On first launch it opens on Limits and 30 days, as T3 Code does.
 
-- **Processed tokens** is uncached input, cached input, cache writes and output added together, with the number of sessions below it.
+The period control on Cost and Tokens offers Past 24h, 7 days, 30 days and 90 days. Limits has no period, so the control is hidden there. Past 24h is a sliding window. The other periods are whole calendar days in your time zone, with today counted in full. Bar remembers your choice. Hover a period for its full name.
+
+### Cost
+
+- The headline is the estimated cost, with the number of sessions and "API estimate" under it. When some records have no price, hover the info icon. It says what share of records the estimate leaves out.
+- Each provider row shows its cost, its sessions, its share of the cost and its tokens.
+- The chart shows daily cost per provider. Past 24h shows hourly cost. Hover it for the numbers of one day or hour.
+- **Totals** lists processed tokens, cached input, uncached input, output and cache savings. Cache savings is what the cached reads would have cost at the full input price.
+- **Cost by type** splits the cost into input, cache read, cache write, output and other. Other is cost that has no split, and it hides below half a cent.
+- **Cost by speed** appears only when something ran fast or ultrafast. It shows what the faster tiers added as the premium.
+- **Breakdown** ranks models by cost. A model whose records all lack a price reads "Unpriced". The list shows the first five models. Click "Show all N models" for the rest.
+
+### Tokens
+
+- The headline is processed tokens, which is uncached input, cached input, cache writes and output added together, with the number of sessions below it.
 - **Tokens by type** splits the total into input, cache read, cache write and output.
-- **Totals** lists cached input, uncached input, output and cache savings, using T3 Code's names. Cache savings is what the cached reads would have cost at the full input price.
-- **By provider** lists each provider with its tokens, its share of the tokens and its estimated cost. Providers follow T3 Code's order, and only providers with usage in the period appear.
+- **Totals**, **By provider**, the chart and the **Breakdown** follow the same rules as on Cost. Models rank by tokens here.
 
-The last line says how old the data is. Bar reads T3 Code's usage cache, and T3 Code updates it only when its Usage page scans. If the line is old, open T3 Code's Usage page once and the numbers catch up within a few seconds.
+The last lines say which days or hours the numbers cover and how old the data is. Bar reads T3 Code's usage cache, and T3 Code updates it only when its Usage page scans. If the line is old, open T3 Code's Usage page once and the numbers catch up within a few seconds. Costs are API estimates from T3 Code's price list. They are not what a plan bills.
 
-Costs are API estimates from T3 Code's price list. They are not what a plan bills.
+### Limits
 
-Bar checks the cache about every 5 seconds while the screen is open, and decodes it again only when it changes. Switching periods does not read the file again. Bar reads nothing while the screen is closed and frees the decoded data when you leave it.
+- Each provider has a section with one line per signed-in account. The line shows the plan and when T3 Code last checked that account.
+- Each window pool has a card with the share left, the pace, and a bar of what is left. The line on the bar is where even spending would be. The hatched stretch is what the reset will restore.
+- Under the bar, Bar writes when the window resets, the share that even pace would leave by now, what the reset restores, and any banked reset credits.
+- When two accounts share a pool, each one gets its own bar.
+- A card for an external usage page, such as ChatGPT, has a **Manage usage** button that opens the page in your browser. Bar itself fetches nothing.
+- If the newest check is more than 30 minutes old, a line above the cards says so. T3 Code probes providers only while it runs, so old numbers usually mean T3 Code is closed.
 
-If T3 Code has never scanned, the screen asks you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, the screen says so and shows no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low.
+Limits do not need the usage cache. They work even if T3 Code has never scanned.
 
-These numbers do not include OpenCode, Antigravity or Cursor, because T3 Code scans those live and does not put them in the cache. They also exclude remote environments. Limits are not shown.
+### How Bar reads the data
+
+Bar checks the files about every 5 seconds while the screen is open and decodes the usage cache again only when it changes. Switching periods does not read the file again. Bar reads nothing while the screen is closed and frees the decoded data when you leave it. Each tab starts only its own reader.
+
+If T3 Code has never scanned, Cost and Tokens ask you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, they say so and show no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low. A period with no usage says "No usage in this period".
+
+### What is missing
+
+- OpenCode, Antigravity and Cursor usage. T3 Code scans those live and does not put them in the cache, so Cost and Tokens leave them out.
+- Remote and linked environments. Bar reads this Mac only.
+- T3 Code's own list of hidden providers. It lives in T3 Code's renderer storage, which Bar does not read.
+- Live freshness. The numbers are as current as T3 Code's last Usage page scan, and the limits are as current as its last provider check.
+- The table of cost by day or hour, and the model dialog with its price per million tokens. The popover has no room for them.
+- Setting a price, refreshing prices or limits, and using a reset credit. Bar never writes to T3 Code and never contacts a provider.
 
 ## Opening threads
 
@@ -80,6 +111,8 @@ Apps opened from Finder or Login Items do not automatically inherit your termina
 | Usage says "Open T3 Code's Usage page once" | T3 Code has not written `usage-scan-cache-vN.json` in the data directory yet. Open its Usage page. |
 | Usage says "T3 Code changed its usage format" | T3 Code writes a cache version newer than 11. Update T3 Code Bar. |
 | Usage numbers differ from T3 Code's page | The page rescans on open and also counts OpenCode, Antigravity and Cursor. Open T3 Code's Usage page, wait for the next refresh, and compare again. |
+| Limits say "No limits data yet" | T3 Code has not written its provider files to `caches` yet. Open T3 Code once. |
+| Limits say T3 Code last checked hours ago | T3 Code probes providers only while it runs. Open T3 Code and the numbers refresh within minutes. |
 | Unsupported schema | Your T3 Code version may use a different database structure. See the [compatibility notes](COMPATIBILITY.md). Bar does not repair the database. |
 | Offline | Reopen T3 Code. Saved threads remain visible, but live activity indicators are disabled. |
 | Busy/read error | The app retries every second. Use **Retry** to retry immediately when no read is in progress. |
@@ -90,7 +123,7 @@ For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues)
 
 ## Known limitations
 
-- Monitors one local T3 Code instance, not remote machines. Usage excludes remote environments, OpenCode, Antigravity and Cursor, and is only as fresh as T3 Code's last Usage page scan.
+- Monitors one local T3 Code instance, not remote machines. Usage excludes remote environments, OpenCode, Antigravity and Cursor, and is only as fresh as T3 Code's last Usage page scan. Limits are only as fresh as T3 Code's last provider check.
 - Some background activity exists only in T3 Code's memory and cannot be inferred from SQLite. Working/Monitoring indicators after the main run ends may be incomplete.
 - Unread completion and wake indicators depend on visit timestamps persisted by T3 Code; Bar does not read browser localStorage or call the sidebar's acknowledgment API.
 - Server availability uses the runtime PID, not an HTTP health check. After a read error, the last successful list remains visible with live status disabled.

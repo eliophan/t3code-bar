@@ -36,7 +36,7 @@ Apple Silicon is the tested architecture. Releases are universal and include an 
 - Keep pinned threads and manual inbox ordering.
 - Bring snoozed threads back when something needs attention.
 - Open threads in T3 Code or your browser, or copy their links.
-- See T3 Code's own token usage and estimated cost by type and provider for the past 24 hours, 7, 30, or 90 days.
+- See what T3 Code's Usage page shows, in three tabs. Cost and Tokens cover the past 24 hours, 7, 30 or 90 days with a chart, providers, models and cache savings. Limits shows each provider's remaining quota, pace and reset times.
 
 ## Usage
 

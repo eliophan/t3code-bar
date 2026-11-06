@@ -102,7 +102,13 @@ T3 Code restores cached snapshots without `usageLimits` when it starts, so a fil
 
 ## What the data cannot provide
 
-Limits are not part of the scan cache. The Usage screen shows the Tokens view of T3 Code's Usage page and nothing else from it.
+The Usage screen shows the Cost, Tokens and Limits tabs of T3 Code's Usage page. Some parts of that page need data Bar does not read.
+
+- OpenCode, Antigravity and Cursor usage, which T3 Code scans live and keeps out of the cache.
+- Remote and linked environments, and T3 Code's list of hidden providers.
+- The cost table by day or hour and the model dialog. The popover has no room for them.
+- Limits that T3 Code holds only in memory, and the actions the page offers, such as setting a price or using a reset credit.
+- Anything fresher than T3 Code's last Usage page scan and last provider check.
 
 The reference `ThreadBackgroundLivenessService` uses an in-memory registry rather than persistence. It distinguishes an active agent/workflow from a watch loop. T3 Code Bar does not connect to that runtime service and does not infer current work from old task history.
 
