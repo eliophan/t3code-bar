@@ -76,19 +76,6 @@ final class DatabaseFixture {
                     values: [thread, role, createdAt, createdAt, payload])
     }
 
-    /// A provider turn. `usage` is the `turnTokenUsage` object, or nil for a turn that reported none.
-    func turn(driver: String?, startedAt: String, usage: [String: Any]? = nil) throws {
-        var payload: [String: Any] = [:]
-        if let driver { payload["nativeTurnRef"] = ["driver": driver] }
-        if let usage { payload["turnTokenUsage"] = usage }
-        let json = String(data: try JSONSerialization.data(withJSONObject: payload), encoding: .utf8) ?? "{}"
-        turnCount += 1
-        try execute("INSERT INTO orchestration_v2_projection_provider_turns VALUES (?, 't', ?, ?)",
-                    values: ["turn-\(turnCount)", startedAt, json])
-    }
-
-    private var turnCount = 0
-
     enum FixtureError: Error { case sql }
 }
 

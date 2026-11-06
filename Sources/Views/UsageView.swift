@@ -66,24 +66,20 @@ struct UsageView: View {
     @ViewBuilder
     private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if let error = usage.readError {
-                notice(Self.noticeText(for: error))
+            if let kind = usage.notice, let message = Self.message(for: kind) {
+                noticeRow(message)
             }
-            if let snapshot = usage.snapshot {
-                if snapshot.isEmpty {
+            if let report = usage.report {
+                if report.isEmpty {
                     emptyState
                 } else {
-                    hero(snapshot)
-                    tokenTypes(snapshot.total)
-                    providers(snapshot)
+                    hero(report)
+                    tokenTypes(report.tokens)
+                    totals(report)
+                    providers(report)
                 }
-                if let footnote = Self.footnote(partial: snapshot.partialTurns, withoutUsage: snapshot.turnsWithoutUsage) {
-                    Text(footnote.text)
-                        .font(.system(size: 11))
-                        .foregroundColor(T3Theme.textMuted)
-                        .help(footnote.help)
-                }
-            } else if usage.readError == nil {
+                footnotes(report)
+            } else if usage.notice == nil || usage.notice == .retrying {
                 ProgressView("Reading usage…")
                     .controlSize(.small)
                     .frame(maxWidth: .infinity)
@@ -94,78 +90,103 @@ struct UsageView: View {
         .opacity(usage.isStale ? 0.45 : 1)
     }
 
-    private func hero(_ snapshot: UsageSnapshot) -> some View {
-        let total = snapshot.total
-        let summary = Self.summary(turns: snapshot.turns, cacheHit: total.cacheHit)
+    private func hero(_ report: UsageReport) -> some View {
+        let sessions = TokenFormat.sessions(report.sessions)
         return VStack(alignment: .leading, spacing: 4) {
             Text("Processed tokens")
                 .font(.system(size: 11.5))
                 .foregroundColor(T3Theme.textMuted)
-            Text(TokenFormat.compact(total.processed))
+            Text(TokenFormat.compact(report.processedTokens))
                 .font(.system(size: 34, weight: .semibold))
                 .monospacedDigit()
                 .foregroundColor(T3Theme.textPrimary)
-            Text(summary)
+            Text(sessions)
                 .font(.system(size: 11.5))
                 .monospacedDigit()
                 .foregroundColor(T3Theme.textMuted)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Processed tokens, \(TokenFormat.spoken(total.processed))")
-        .accessibilityValue(summary)
+        .accessibilityLabel("Processed tokens, \(TokenFormat.spoken(report.processedTokens))")
+        .accessibilityValue(sessions)
     }
 
-    private func tokenTypes(_ total: TokenBreakdown) -> some View {
+    private func tokenTypes(_ tokens: UsageReport.Tokens) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeading("Tokens by type")
             SegmentedBar(segments: TokenKind.allCases.map {
-                SegmentedBar.Segment(id: $0.label, value: $0.value(in: total), color: $0.color)
+                SegmentedBar.Segment(id: $0.label, value: $0.value(in: tokens), color: $0.color)
             })
             .accessibilityHidden(true)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())],
-                      alignment: .leading, spacing: 8) {
-                ForEach(TokenKind.allCases, id: \.self) { kind in
-                    legendItem(kind, value: kind.value(in: total))
+            legendGrid(TokenKind.allCases.map { (label: $0.label, value: TokenFormat.compact($0.value(in: tokens)),
+                                                 spoken: TokenFormat.spoken($0.value(in: tokens)), color: $0.color) })
+        }
+    }
+
+    private func totals(_ report: UsageReport) -> some View {
+        let rows: [(label: String, value: String, spoken: String)] = [
+            ("Cached input", TokenFormat.compact(report.tokens.cachedInput), TokenFormat.spoken(report.tokens.cachedInput)),
+            ("Uncached input", TokenFormat.compact(report.tokens.uncachedInput), TokenFormat.spoken(report.tokens.uncachedInput)),
+            ("Output", TokenFormat.compact(report.tokens.output), TokenFormat.spoken(report.tokens.output)),
+            ("Cache savings", TokenFormat.currency(report.cacheSavingsUsd), TokenFormat.currency(report.cacheSavingsUsd)),
+        ]
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("Totals")
+            VStack(spacing: 8) {
+                ForEach(rows, id: \.label) { row in
+                    HStack {
+                        Text(row.label).foregroundColor(T3Theme.textMuted)
+                        Spacer(minLength: 8)
+                        Text(row.value).monospacedDigit().foregroundColor(T3Theme.textPrimary)
+                    }
+                    .font(.system(size: 11.5))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(row.label), \(row.spoken)")
                 }
             }
         }
     }
 
-    private func legendItem(_ kind: TokenKind, value: Int) -> some View {
-        HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(kind.color)
-                .frame(width: 8, height: 8)
-            Text(kind.label)
-                .foregroundColor(T3Theme.textMuted)
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            Text(TokenFormat.compact(value))
-                .monospacedDigit()
-                .foregroundColor(T3Theme.textPrimary)
-        }
-        .font(.system(size: 11.5))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(kind.label), \(TokenFormat.spoken(value))")
-    }
-
-    private func providers(_ snapshot: UsageSnapshot) -> some View {
-        let shown = snapshot.providers.filter { $0.tokens.processed > 0 }
-        let largest = max(shown.first?.tokens.processed ?? 1, 1)
-        return VStack(alignment: .leading, spacing: 12) {
-            sectionHeading("By provider")
-            ForEach(shown, id: \.provider) { provider in
-                providerRow(provider, share: Double(provider.tokens.processed) / Double(largest))
+    private func legendGrid(_ items: [(label: String, value: String, spoken: String, color: Color)]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+            ForEach(items, id: \.label) { item in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(item.color)
+                        .frame(width: 8, height: 8)
+                    Text(item.label)
+                        .foregroundColor(T3Theme.textMuted)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(item.value)
+                        .monospacedDigit()
+                        .foregroundColor(T3Theme.textPrimary)
+                }
+                .font(.system(size: 11.5))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(item.label), \(item.spoken)")
             }
         }
     }
 
-    private func providerRow(_ provider: ProviderUsage, share: Double) -> some View {
+    private func providers(_ report: UsageReport) -> some View {
+        let largest = max(report.providers.map(\.tokens.processed).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("By provider")
+            ForEach(report.providers, id: \.kind) { provider in
+                providerRow(provider, total: report.processedTokens,
+                            share: Double(provider.tokens.processed) / Double(largest))
+            }
+        }
+    }
+
+    private func providerRow(_ provider: UsageReport.Provider, total: Int, share: Double) -> some View {
         let processed = provider.tokens.processed
+        let style = provider.kind.style
+        let detail = Self.providerDetail(tokens: processed, total: total, costUsd: provider.costUsd)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                ProviderIconView(providers: [provider.provider == .unknown ? "?" : provider.provider.rawValue], size: 14)
-                Text(provider.provider.displayName)
+                ProviderIconView(providers: [style.driver ?? "?"], size: 14)
+                Text(style.label)
                     .font(.system(size: 12.5))
                     .foregroundColor(T3Theme.textSecondary)
                     .lineLimit(1)
@@ -174,7 +195,7 @@ struct UsageView: View {
                     .font(.system(size: 12.5, weight: .medium))
                     .monospacedDigit()
                     .foregroundColor(T3Theme.textPrimary)
-                Text("· \(TokenFormat.turns(provider.turns))")
+                Text("· \(detail)")
                     .font(.system(size: 10.5))
                     .monospacedDigit()
                     .foregroundColor(T3Theme.textMuted)
@@ -182,8 +203,20 @@ struct UsageView: View {
             ShareBar(share: share)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(provider.provider.displayName), \(TokenFormat.spoken(processed)) processed tokens, \(TokenFormat.turns(provider.turns))")
+        .accessibilityLabel("\(style.label), \(TokenFormat.spoken(processed)) processed tokens, \(detail)")
+    }
+
+    private func footnotes(_ report: UsageReport) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let partial = Self.partialText(report) {
+                Text(partial)
+                    .help("These are left out of the totals, as T3 Code leaves them out of its own.")
+            }
+            Text(Self.updatedText(modified: report.cacheModified, now: Date()))
+                .help(Self.updatedHelp)
+        }
+        .font(.system(size: 11))
+        .foregroundColor(T3Theme.textMuted)
     }
 
     private func sectionHeading(_ title: String) -> some View {
@@ -207,7 +240,7 @@ struct UsageView: View {
         .padding(.vertical, 12)
     }
 
-    private func notice(_ text: String) -> some View {
+    private func noticeRow(_ text: String) -> some View {
         Label(text, systemImage: "exclamationmark.triangle")
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
@@ -216,28 +249,45 @@ struct UsageView: View {
 
     // MARK: Text
 
-    nonisolated static func noticeText(for error: DatabaseReadError) -> String {
-        error == .incompatibleSchema ? "This T3 Code version does not record token usage." : error.localizedDescription
+    nonisolated static func message(for notice: UsageNotice) -> String? {
+        switch notice {
+        case .missing: return "No usage data yet. Open T3 Code's Usage page once so it can scan your sessions."
+        case .unsupported: return "T3 Code changed its usage format. Update T3 Code Bar to read it."
+        case .retrying: return "T3 Code is rewriting its usage data. Trying again."
+        }
     }
 
-    nonisolated static func summary(turns: Int, cacheHit: Double?) -> String {
-        var parts = [TokenFormat.turns(turns)]
-        if let cacheHit { parts.append("\(TokenFormat.percent(cacheHit)) cache hit") }
-        return parts.joined(separator: " · ")
+    /// `29.5% of tokens · $682.88`, as T3 Code writes a provider row on the Tokens tab.
+    nonisolated static func providerDetail(tokens: Int, total: Int, costUsd: Double) -> String {
+        let share = total > 0 ? Double(tokens) / Double(total) : 0
+        return "\(TokenFormat.percent(share)) · \(TokenFormat.currency(costUsd))"
     }
 
-    nonisolated static func footnote(partial: Int, withoutUsage: Int) -> (text: String, help: String)? {
-        var text: [String] = []
-        var help: [String] = []
-        if partial > 0 {
-            text.append("\(TokenFormat.turns(partial)) reported partial usage.")
-            help.append("A provider sent incomplete token counts for these turns. They are included, so totals can read slightly low.")
+    /// T3 Code's wording for skipped transcript lines, plus a line for cache entries this build could not decode.
+    nonisolated static func partialText(_ report: UsageReport) -> String? {
+        var lines: [String] = []
+        if report.malformedRecords > 0 {
+            lines.append("\(report.malformedRecords) malformed or inconsistent usage record(s) were skipped; usage may be incomplete.")
         }
-        if withoutUsage > 0 {
-            text.append("\(TokenFormat.turns(withoutUsage)) reported no usage.")
-            help.append("A provider sent no token counts for these turns, so they are left out of the totals.")
+        if report.rejectedFiles > 0 {
+            lines.append("\(report.rejectedFiles) cache entries could not be read; usage may be incomplete.")
         }
-        return text.isEmpty ? nil : (text.joined(separator: " "), help.joined(separator: " "))
+        return lines.isEmpty ? nil : lines.joined(separator: " ")
+    }
+
+    nonisolated static let updatedHelp = """
+        The numbers are as of T3 Code's last scan, which runs when its Usage page opens. \
+        OpenCode, Antigravity and Cursor usage is not included yet, and neither are other computers.
+        """
+
+    nonisolated static func updatedText(modified: Date, now: Date) -> String {
+        let seconds = Int(now.timeIntervalSince(modified))
+        switch seconds {
+        case ..<60: return "Updated just now"
+        case ..<3_600: return "Updated \(seconds / 60) min ago"
+        case ..<86_400: return "Updated \(seconds / 3_600) h ago"
+        default: return "Updated \(seconds / 86_400) d ago"
+        }
     }
 }
 
@@ -263,7 +313,7 @@ private enum TokenKind: CaseIterable {
         }
     }
 
-    func value(in tokens: TokenBreakdown) -> Int {
+    func value(in tokens: UsageReport.Tokens) -> Int {
         switch self {
         case .input: return tokens.uncachedInput
         case .cacheRead: return tokens.cachedInput

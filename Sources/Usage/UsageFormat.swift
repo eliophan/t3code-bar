@@ -32,10 +32,6 @@ public enum TokenFormat {
         return percent > 0 && percent < 0.1 ? "<0.1%" : fixed(percent, 1) + "%"
     }
 
-    public static func turns(_ count: Int) -> String {
-        "\(grouped(String(count))) \(count == 1 ? "turn" : "turns")"
-    }
-
     public static func sessions(_ count: Int) -> String {
         "\(grouped(String(count))) \(count == 1 ? "session" : "sessions")"
     }

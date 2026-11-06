@@ -2,124 +2,253 @@ import Foundation
 import Testing
 @testable import T3CodeBar
 
+private final class TestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current: Date
+
+    init(_ iso: String) { current = date(iso) }
+
+    var now: Date {
+        get { lock.withLock { current } }
+        set { lock.withLock { current = newValue } }
+    }
+}
+
+/// A temporary T3 Code state directory with one Claude file of three records.
+private struct StateFixture {
+    static let now = "2026-11-06T09:08:30Z"
+
+    let directory = temporaryDirectory()
+
+    init(version: Int = 11, tokens: Int = 100, write: Bool = true) throws {
+        if write { try cache(version: version, tokens: tokens) }
+    }
+
+    @discardableResult
+    func cache(version: Int = 11, tokens: Int = 100) throws -> URL {
+        let rows = (0..<3).map { index in
+            CacheFixture.Row(timestampMs: ms("2026-11-06T08:00:00Z") + Double(index), session: index, uncached: tokens, output: 0, key: "k\(index)").json
+        }
+        var fixture = CacheFixture(sources: [("claude", "/c")], models: ["unpriced-model"], sessions: ["a", "b", "c"],
+                                   files: [.init(path: "/c/a.jsonl", kind: "claude", rows: rows)])
+        fixture.version = version
+        return try fixture.write(to: directory)
+    }
+
+    var source: UsageSource { UsageSource(config: EnvironmentConfig(stateDirectory: directory)) }
+
+    func engine(_ clock: TestClock) -> UsageEngine {
+        UsageEngine(source: source, clock: { clock.now }, timeZone: TimeZone(identifier: "Asia/Ho_Chi_Minh")!)
+    }
+}
+
 @MainActor
 struct UsageMonitorTests {
     private func defaults() -> UserDefaults {
         UserDefaults(suiteName: "usage-tests-\(UUID().uuidString)")!
     }
 
-    private func snapshot(_ period: UsagePeriod = .week, input: Int = 100) -> UsageSnapshot {
-        UsageSnapshot(period: period, drivers: [
-            DriverUsage(driver: "codex", tokens: TokenBreakdown(input: input), turns: 1, turnsWithoutUsage: 0, partialTurns: 0),
-        ])
-    }
-
     private func waitUntil(_ condition: () -> Bool) async {
-        for _ in 0..<200 where !condition() { try? await Task.sleep(for: .milliseconds(10)) }
+        for _ in 0..<300 where !condition() { try? await Task.sleep(for: .milliseconds(10)) }
     }
 
-    @Test func opensOnSevenDaysAndRemembersTheChoice() {
+    private func monitor(_ fixture: StateFixture, clock: TestClock = TestClock(StateFixture.now), store: UserDefaults? = nil) -> UsageMonitor {
+        UsageMonitor(engine: fixture.engine(clock), defaults: store ?? defaults())
+    }
+
+    @Test func opensOnThirtyDaysAndRemembersTheChoice() throws {
         let store = defaults()
-        let first = UsageMonitor(defaults: store)
-        #expect(first.period == .week)
+        let first = UsageMonitor(source: try StateFixture(write: false).source, defaults: store)
+        #expect(first.period == .month)
         first.period = .quarter
-        #expect(UsageMonitor(defaults: store).period == .quarter)
+        #expect(UsageMonitor(source: try StateFixture(write: false).source, defaults: store).period == .quarter)
     }
 
-    @Test func anUnknownStoredPeriodFallsBackToTheDefault() {
+    @Test func aStoredChoiceFromTheSevenDayEraIsKeptAndAnUnknownOneFallsBack() throws {
         let store = defaults()
+        store.set(7, forKey: UsageMonitor.periodKey)
+        #expect(UsageMonitor(source: try StateFixture(write: false).source, defaults: store).period == .week)
         store.set(14, forKey: UsageMonitor.periodKey)
-        #expect(UsageMonitor(defaults: store).period == .week)
+        #expect(UsageMonitor(source: try StateFixture(write: false).source, defaults: store).period == .month)
     }
 
-    @Test func aFailedReadKeepsTheLastGoodSnapshotAndRecordsTheError() {
-        let monitor = UsageMonitor(defaults: defaults())
-        monitor.apply(.success(snapshot(input: 100)))
-        monitor.apply(.failure(.busy))
-        #expect(monitor.snapshot?.total.input == 100)
-        #expect(monitor.readError == .busy)
-        monitor.apply(.success(snapshot(input: 200)))
-        #expect(monitor.readError == nil)
-        #expect(monitor.snapshot?.total.input == 200)
-    }
-
-    @Test func aSnapshotForAnotherPeriodIsMarkedStale() {
-        let monitor = UsageMonitor(defaults: defaults())
-        monitor.apply(.success(snapshot(.week)))
-        #expect(monitor.isStale == false)
-        monitor.period = .day
-        #expect(monitor.isStale)
-    }
-
-    @Test func readsOnStartAndAgainWhenThePeriodChanges() async throws {
-        let fixture = try DatabaseFixture()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let usage: [String: Any] = ["inputTokens": 40, "cachedInputTokens": 0, "cacheCreationTokens": 0, "outputTokens": 2]
-        try fixture.turn(driver: "codex", startedAt: formatter.string(from: Date().addingTimeInterval(-3 * 86_400)), usage: usage)
-
-        let monitor = UsageMonitor(database: DatabaseManager(config: fixture.config), defaults: defaults())
+    @Test func readsOnStartAndPublishesTheReport() async throws {
+        let monitor = monitor(try StateFixture())
         monitor.start()
         defer { monitor.stop() }
-        await waitUntil { monitor.snapshot?.period == .week }
-        #expect(monitor.snapshot?.total.processed == 42)
+        await waitUntil { monitor.report != nil }
+        #expect(monitor.report?.tokens.processed == 300)
+        #expect(monitor.report?.sessions == 3)
+        #expect(monitor.reportPeriod == .month)
+        #expect(monitor.notice == nil)
+    }
 
+    @Test func changingThePeriodRebuildsFromTheDecodedRecordsWithoutReadingTheCacheAgain() async throws {
+        let fixture = try StateFixture()
+        let engine = fixture.engine(TestClock(StateFixture.now))
+        let monitor = UsageMonitor(engine: engine, defaults: defaults())
+        monitor.start()
+        defer { monitor.stop() }
+        await waitUntil { monitor.reportPeriod == .month }
         monitor.period = .day
-        await waitUntil { monitor.snapshot?.period == .day }
-        #expect(monitor.snapshot?.isEmpty == true)
+        await waitUntil { monitor.reportPeriod == .day }
+        monitor.period = .quarter
+        await waitUntil { monitor.reportPeriod == .quarter }
         #expect(monitor.isStale == false)
+        #expect(await engine.cacheReads == 1)
     }
 
     @Test func nothingIsReadBeforeStartOrAfterStop() async throws {
-        let fixture = try DatabaseFixture()
-        let monitor = UsageMonitor(database: DatabaseManager(config: fixture.config), defaults: defaults())
-        monitor.period = .month
+        let monitor = monitor(try StateFixture())
+        monitor.period = .week
         try await Task.sleep(for: .milliseconds(100))
-        #expect(monitor.snapshot == nil)
+        #expect(monitor.report == nil)
 
         monitor.start()
-        await waitUntil { monitor.snapshot != nil }
+        await waitUntil { monitor.report != nil }
         monitor.stop()
-        let before = monitor.snapshot
+        let before = monitor.report
         monitor.period = .day
         try await Task.sleep(for: .milliseconds(100))
-        #expect(monitor.snapshot == before)
+        #expect(monitor.report == before)
     }
 
-    @Test func anIncompatibleDatabaseSurfacesAsAReadError() async throws {
-        let fixture = try DatabaseFixture(schema: false)
-        let monitor = UsageMonitor(database: DatabaseManager(config: fixture.config), defaults: defaults())
+    @Test func stoppingFreesTheDecodedRecordsAndStartingReadsThemAgain() async throws {
+        let fixture = try StateFixture()
+        let engine = fixture.engine(TestClock(StateFixture.now))
+        let monitor = UsageMonitor(engine: engine, defaults: defaults())
+        monitor.start()
+        await waitUntil { monitor.report != nil }
+        monitor.stop()
+        try await Task.sleep(for: .milliseconds(50))
         monitor.start()
         defer { monitor.stop() }
-        await waitUntil { monitor.readError != nil }
-        #expect(monitor.readError == .incompatibleSchema)
-        #expect(monitor.snapshot == nil)
+        for _ in 0..<300 where await engine.cacheReads < 2 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(await engine.cacheReads == 2)
+    }
+
+    @Test func aMissingCacheTellsTheUserToOpenT3CodesUsagePage() async throws {
+        let monitor = monitor(try StateFixture(write: false))
+        monitor.start()
+        defer { monitor.stop() }
+        await waitUntil { monitor.notice != nil }
+        #expect(monitor.notice == .missing)
+        #expect(monitor.report == nil)
+    }
+
+    @Test func aFormatNewerThanThisBuildShowsTheChangedFormatNoticeAndNoNumbers() async throws {
+        let monitor = monitor(try StateFixture(version: 12))
+        monitor.start()
+        defer { monitor.stop() }
+        await waitUntil { monitor.notice != nil }
+        #expect(monitor.notice == .unsupported(12))
+        #expect(monitor.report == nil)
+    }
+
+    @Test func anUnreadableAnswerKeepsTheLastGoodReportUntilAFreshOneArrives() throws {
+        let monitor = monitor(try StateFixture(write: false))
+        var report = UsageReport()
+        report.records = 1
+        monitor.apply(.report(report), for: .month)
+        monitor.apply(.unreadable, for: .month)
+        #expect(monitor.notice == .retrying)
+        #expect(monitor.report == report)
+        monitor.apply(.report(report), for: .month)
+        #expect(monitor.notice == nil)
+    }
+
+    @Test func aCacheT3IsRewritingIsUnreadableForNowAndRecoversWhenItIsWhole() async throws {
+        let fixture = try StateFixture()
+        let engine = fixture.engine(TestClock(StateFixture.now))
+        guard case .report = await engine.report(for: .month) else { Issue.record("expected a report"); return }
+
+        let url = fixture.directory.appendingPathComponent("usage-scan-cache-v11.json")
+        let whole = try Data(contentsOf: url)
+        try whole.prefix(whole.count / 2).write(to: url)
+        #expect(await engine.report(for: .month) == .unreadable)
+
+        try fixture.cache(tokens: 5_000)
+        guard case .report(let recovered) = await engine.report(for: .month) else { Issue.record("expected a report"); return }
+        #expect(recovered.tokens.processed == 15_000)
+    }
+
+    @Test func aChangedCacheIsPickedUpAndRepeatReadsInTheSameMinuteDoNothing() async throws {
+        let fixture = try StateFixture()
+        let clock = TestClock(StateFixture.now)
+        let engine = fixture.engine(clock)
+
+        guard case .report(let first) = await engine.report(for: .month) else { Issue.record("expected a report"); return }
+        #expect(first.tokens.processed == 300)
+        #expect(await engine.report(for: .month) == .unchanged)
+
+        clock.now = clock.now.addingTimeInterval(60)
+        guard case .report = await engine.report(for: .month) else { Issue.record("a new minute should rebuild"); return }
+
+        try fixture.cache(tokens: 5_000)
+        guard case .report(let changed) = await engine.report(for: .month) else { Issue.record("expected a report"); return }
+        #expect(changed.tokens.processed == 15_000)
+        #expect(await engine.cacheReads == 2)
+    }
+
+    @Test func aSnapshotForAnotherPeriodIsMarkedStale() throws {
+        let monitor = monitor(try StateFixture(write: false))
+        monitor.apply(.report(UsageReport()), for: .week)
+        #expect(monitor.isStale)
+        monitor.period = .week
+        #expect(monitor.isStale == false)
+    }
+}
+
+struct UsagePeriodTests {
+    @Test func periodsAreInT3CodesOrderWithThirtyDaysAsTheDefault() {
+        #expect(UsagePeriod.allCases.map(\.days) == [1, 7, 30, 90])
+        #expect(UsagePeriod.default == .month)
+    }
+
+    @Test func everyPeriodHasAShortLabelAndT3CodesOwn() {
+        #expect(UsagePeriod.allCases.map(\.shortLabel) == ["24h", "7d", "30d", "90d"])
+        #expect(UsagePeriod.allCases.map(\.label) == ["Past 24h", "7 days", "30 days", "90 days"])
+    }
+
+    @Test func pastDayRollsAndTheOthersAreCalendarDays() {
+        let zone = TimeZone(identifier: "Asia/Ho_Chi_Minh")!
+        let now = date("2026-11-06T09:08:30Z")
+        #expect(UsagePeriod.day.window(now: now, timeZone: zone).resolution == .hour)
+        for period in [UsagePeriod.week, .month, .quarter] {
+            let window = period.window(now: now, timeZone: zone)
+            #expect(window.resolution == .day)
+            #expect(window.untilDay - window.sinceDay == period.days - 1)
+        }
     }
 }
 
 struct UsageScreenTextTests {
-    @Test func theSummaryLineNamesTurnsAndCacheHit() {
-        #expect(UsageView.summary(turns: 1_091, cacheHit: 0.962) == "1,091 turns · 96.2% cache hit")
-        #expect(UsageView.summary(turns: 1, cacheHit: nil) == "1 turn")
+    @Test func theUpdatedLineIsRelativeToTheCacheTime() {
+        let modified = date("2026-11-06T09:00:00Z")
+        #expect(UsageView.updatedText(modified: modified, now: date("2026-11-06T09:00:30Z")) == "Updated just now")
+        #expect(UsageView.updatedText(modified: modified, now: date("2026-11-06T09:05:00Z")) == "Updated 5 min ago")
+        #expect(UsageView.updatedText(modified: modified, now: date("2026-11-06T12:30:00Z")) == "Updated 3 h ago")
+        #expect(UsageView.updatedText(modified: modified, now: date("2026-11-09T09:00:00Z")) == "Updated 3 d ago")
+        #expect(UsageView.updatedText(modified: modified, now: date("2026-11-06T08:59:00Z")) == "Updated just now")
     }
 
-    @Test func theFootnoteAppearsOnlyWhenSomeTurnsAreIncomplete() throws {
-        #expect(UsageView.footnote(partial: 0, withoutUsage: 0) == nil)
-        #expect(try #require(UsageView.footnote(partial: 12, withoutUsage: 0)).text == "12 turns reported partial usage.")
-        #expect(try #require(UsageView.footnote(partial: 0, withoutUsage: 1)).text == "1 turn reported no usage.")
-        let both = try #require(UsageView.footnote(partial: 2, withoutUsage: 3))
-        #expect(both.text == "2 turns reported partial usage. 3 turns reported no usage.")
-        #expect(both.help.contains("left out of the totals"))
+    @Test func aProviderRowQuotesItsShareOfTokensAndItsCost() {
+        #expect(UsageView.providerDetail(tokens: 295, total: 1_000, costUsd: 682.875) == "29.5% · $682.88")
+        #expect(UsageView.providerDetail(tokens: 0, total: 0, costUsd: 0) == "0.0% · $0.00")
     }
 
-    @Test func aMissingTableExplainsItselfInsteadOfShowingARawError() {
-        #expect(UsageView.noticeText(for: .incompatibleSchema) == "This T3 Code version does not record token usage.")
-        #expect(UsageView.noticeText(for: .busy) == DatabaseReadError.busy.errorDescription)
+    @Test func partialDataIsReportedInT3CodesWords() {
+        var report = UsageReport()
+        #expect(UsageView.partialText(report) == nil)
+        report.malformedRecords = 3
+        #expect(UsageView.partialText(report) == "3 malformed or inconsistent usage record(s) were skipped; usage may be incomplete.")
+        report.rejectedFiles = 2
+        #expect(UsageView.partialText(report)?.hasSuffix("2 cache entries could not be read; usage may be incomplete.") == true)
     }
 
-    @Test func turnsAreSingularForOneAndGroupedForMany() {
-        #expect(TokenFormat.turns(1) == "1 turn")
-        #expect(TokenFormat.turns(0) == "0 turns")
-        #expect(TokenFormat.turns(5_701) == "5,701 turns")
+    @Test func eachNoticeExplainsWhatToDo() {
+        #expect(UsageView.message(for: .missing)?.contains("Open T3 Code's Usage page") == true)
+        #expect(UsageView.message(for: .unsupported(12)) == "T3 Code changed its usage format. Update T3 Code Bar to read it.")
+        #expect(UsageView.message(for: .retrying) != nil)
     }
 }

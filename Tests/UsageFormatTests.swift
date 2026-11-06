@@ -59,8 +59,6 @@ struct TokenFormatTests {
     }
 
     @Test func countsAreGroupedAndSingularForOne() {
-        #expect(TokenFormat.turns(1) == "1 turn")
-        #expect(TokenFormat.turns(5_701) == "5,701 turns")
         #expect(TokenFormat.sessions(0) == "0 sessions")
         #expect(TokenFormat.sessions(1) == "1 session")
         #expect(TokenFormat.sessions(1_234_567) == "1,234,567 sessions")
