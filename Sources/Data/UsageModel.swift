@@ -138,6 +138,10 @@ public enum TokenFormat {
         return number(value, locale: locale) + (unit.map { " " + $0.word } ?? "")
     }
 
+    public static func turns(_ count: Int, locale: Locale = .current) -> String {
+        "\(count.formatted(.number.locale(locale))) \(count == 1 ? "turn" : "turns")"
+    }
+
     public static func percent(_ ratio: Double) -> String {
         "\(Int((ratio * 100).rounded()))%"
     }

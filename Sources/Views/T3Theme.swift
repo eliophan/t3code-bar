@@ -18,6 +18,13 @@ public enum T3Theme {
     public static let textHover = Color(hex: "#d1d5db")
     public static let textFaint = Color(hex: "#52525b") // decorative only, never carries information
 
+    // Token types on the Usage screen: T3 Code mixes its foreground into the background at
+    // 60, 30, 72 and 100 percent. The canvas is black, so those are opacities of the primary text.
+    public static let tokenInput = textPrimary.opacity(0.60)
+    public static let tokenCacheRead = textPrimary.opacity(0.30)
+    public static let tokenCacheWrite = textPrimary.opacity(0.72)
+    public static let tokenOutput = textPrimary
+
     // Status colors: T3 Code's dark-mode foreground tokens
     public static let statusWorking = Color(hex: "#60a5fa") // blue-400, T3 Code info-foreground
     public static let statusApproval = Color(hex: "#fbbf24") // amber-400, T3 Code warning-foreground

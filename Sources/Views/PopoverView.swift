@@ -1,17 +1,36 @@
 import SwiftUI
 
+public enum PopoverScreen: Equatable, Sendable {
+    case threads, usage
+}
+
+/// Which screen the popover shows. The app resets it when the popover closes, so it always opens on threads.
+@MainActor
+public final class PopoverNavigation: ObservableObject {
+    @Published public var screen: PopoverScreen = .threads
+
+    public init() {}
+}
+
 public struct PopoverView: View {
     /// Tall enough for a full list plus one expanded preview; longer lists scroll.
     public static let maxHeight: CGFloat = 560
+    static let footerHeight: CGFloat = 36
 
     @ObservedObject var monitor: ThreadMonitor
+    @ObservedObject var usage: UsageMonitor
+    @ObservedObject var navigation: PopoverNavigation
+    /// The height the current screen wants, chrome included.
     @State private var contentHeight: CGFloat = 0
     @State private var isRetrying = false
 
     private let onHeightChange: (CGFloat) -> Void
 
-    public init(monitor: ThreadMonitor, onHeightChange: @escaping (CGFloat) -> Void = { _ in }) {
+    public init(monitor: ThreadMonitor, usage: UsageMonitor, navigation: PopoverNavigation,
+                onHeightChange: @escaping (CGFloat) -> Void = { _ in }) {
         self.monitor = monitor
+        self.usage = usage
+        self.navigation = navigation
         self.onHeightChange = onHeightChange
     }
 
@@ -23,7 +42,7 @@ public struct PopoverView: View {
         if monitor.activeThreads.isEmpty {
             return 160
         }
-        var total: CGFloat = 12
+        var total: CGFloat = 12 + Self.footerHeight
         for thread in monitor.activeThreads {
             let hasBranch = !(thread.branch?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             total += (hasBranch ? 63 : 47) + 2
@@ -32,6 +51,29 @@ public struct PopoverView: View {
     }
 
     public var body: some View {
+        VStack(spacing: 0) {
+            switch navigation.screen {
+            case .threads: threadsScreen
+            case .usage: UsageView(usage: usage) { navigation.screen = .threads }
+            }
+        }
+        .onPreferenceChange(ContentHeightPreferenceKey.self) { height in
+            if height > 0 {
+                contentHeight = height
+                onHeightChange(effectiveHeight)
+            }
+        }
+        // The window is resized by AppDelegate. The content fills it and stays pinned to the top.
+        // A fixed height here would be animated separately from the window, and the hosting view
+        // centers fixed-size content, so for a moment the rows would slide under a resting pointer:
+        // the hovered row loses hover and its preview closes again.
+        .frame(width: 320)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(T3Theme.canvas)
+        .preferredColorScheme(.dark)
+    }
+
+    private var threadsScreen: some View {
         VStack(spacing: 0) {
             // Active Threads List (Pure view-only monitor, clean flat rows, no scrollbars)
             ScrollView(.vertical, showsIndicators: false) {
@@ -62,27 +104,14 @@ public struct PopoverView: View {
                     GeometryReader { proxy in
                         Color.clear.preference(
                             key: ContentHeightPreferenceKey.self,
-                            value: proxy.size.height
+                            value: proxy.size.height + Self.footerHeight
                         )
                     }
                 )
             }
             .background(HideScrollerHelper())
+            UsageLinkRow { navigation.screen = .usage }
         }
-        .onPreferenceChange(ContentHeightPreferenceKey.self) { height in
-            if height > 0 {
-                contentHeight = height
-                onHeightChange(effectiveHeight)
-            }
-        }
-        // The window is resized by AppDelegate. The content fills it and stays pinned to the top.
-        // A fixed height here would be animated separately from the window, and the hosting view
-        // centers fixed-size content, so for a moment the rows would slide under a resting pointer:
-        // the hovered row loses hover and its preview closes again.
-        .frame(width: 320)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(T3Theme.canvas)
-        .preferredColorScheme(.dark)
     }
 
     private var emptyState: some View {
@@ -146,14 +175,14 @@ public struct PopoverView: View {
     }
 }
 
-private struct ContentHeightPreferenceKey: PreferenceKey {
+struct ContentHeightPreferenceKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }
 }
 
-private struct HideScrollerHelper: NSViewRepresentable {
+struct HideScrollerHelper: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
@@ -175,5 +204,38 @@ private struct HideScrollerHelper: NSViewRepresentable {
                 scrollView.verticalScroller = nil
             }
         }
+    }
+}
+
+/// Opens the Usage screen. It sits below the thread list, outside the scroll view.
+private struct UsageLinkRow: View {
+    let action: () -> Void
+
+    var body: some View {
+        HoverArea { isHovered in
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.bar")
+                        .font(.system(size: 12))
+                        .frame(width: 16)
+                    Text("Usage")
+                        .font(.system(size: 12.5))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundColor(isHovered ? T3Theme.textPrimary : T3Theme.textSecondary)
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity)
+                .frame(height: PopoverView.footerHeight)
+                .background(isHovered ? T3Theme.rowHover : Color.clear)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .accessibilityLabel("Usage")
+            .accessibilityHint("Shows token usage")
+        }
+        .overlay(alignment: .top) { T3Theme.border.frame(height: 1) }
     }
 }

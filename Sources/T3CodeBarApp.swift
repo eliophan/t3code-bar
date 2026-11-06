@@ -6,6 +6,8 @@ import Combine
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitor = ThreadMonitor()
+    private let usage = UsageMonitor()
+    private let navigation = PopoverNavigation()
     private var statusItem: NSStatusItem!
     private var panel: NSPanel!
     private var panelHeight: CGFloat = 160
@@ -67,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configurePopover() {
-        hostingController = NSHostingController(rootView: PopoverView(monitor: monitor) { [weak self] height in
+        hostingController = NSHostingController(rootView: PopoverView(monitor: monitor, usage: usage, navigation: navigation) { [weak self] height in
             self?.resizePanel(to: height)
         })
         let view = hostingController.view
@@ -109,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func closePanel() {
+        // Reopening lands on threads, and leaving the Usage screen stops its reads.
+        navigation.screen = .threads
         panel.orderOut(nil)
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         clickMonitor = nil
