@@ -54,6 +54,8 @@ public actor LimitsReader {
         return LimitsMerge.snapshot(records, skippedFiles: files.count - records.count)
     }
 
+    func records() -> [LimitsRecord] { entries.keys.sorted().compactMap { entries[$0]?.record } }
+
     private func listFiles() throws -> [(name: String, url: URL, signature: Signature)] {
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
         let urls = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)
@@ -85,7 +87,7 @@ public actor LimitsReader {
             limits: (root["usageLimits"] as? [String: Any]).map(decodeLimits))
     }
 
-    private static func decodeLimits(_ object: [String: Any]) -> LimitsRecord.Limits {
+    static func decodeLimits(_ object: [String: Any]) -> LimitsRecord.Limits {
         let unavailable = object["unavailable"] as? [String: Any]
         return LimitsRecord.Limits(
             checkedAt: (object["checkedAt"] as? String).flatMap(LimitsDate.parse) ?? .distantPast,

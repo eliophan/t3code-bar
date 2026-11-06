@@ -34,6 +34,7 @@ struct LimitsRecord: Equatable, Sendable {
     var email: String?
     var workspaceID: String?
     var limits: Limits?
+    var isSource = false
 
     /// T3's `V`: `enabled && installed && p(e) && usageLimits !== undefined`.
     var isVisible: Bool { enabled && installed && available && limits != nil }
@@ -46,10 +47,10 @@ struct LimitsRecord: Equatable, Sendable {
 
 /// T3's account merge (`wt`) for the one environment this app sees.
 enum LimitsMerge {
-    static func snapshot(_ records: [LimitsRecord], skippedFiles: Int = 0) -> LimitsSnapshot {
+    static func snapshot(_ records: [LimitsRecord], skippedFiles: Int = 0, sourceNotices: [String] = []) -> LimitsSnapshot {
         let visible = records.filter(\.isVisible)
         let accounts = mergedAccounts(visible, mergeKey: mergeKeys(for: records.filter(\.enabled)))
-        let notices = visible.compactMap { record -> String? in
+        let notices = sourceNotices + visible.filter { !$0.isSource }.compactMap { record -> String? in
             guard let limits = record.limits, limits.unavailableReason != "unsupported",
                   let notice = limits.notice else { return nil }
             return "\(record.trimmedName ?? record.driver): \(notice)"
@@ -119,6 +120,10 @@ enum LimitsMerge {
             var newest = limits.checkedAt > current.limits.checkedAt ? limits : current.limits
             newest.resetCredits = creditsHolder[key]?.credits
             current.displayName = current.displayName ?? record.trimmedName
+            if record.isSource, record.email != nil,
+               current.displayName?.lowercased() == LimitsDrivers.label(record.driver).lowercased() {
+                current.displayName = nil
+            }
             current.plan = planHolder[key]?.plan ?? current.plan ?? record.plan
             current.limits = newest
             merged[key] = current
@@ -130,8 +135,19 @@ enum LimitsMerge {
             return order != .orderedSame ? order == .orderedAscending
                 : a.id.compare(b.id, locale: Locale(identifier: "en_US")) == .orderedAscending
         }
+        func initials(_ item: Merged) -> String? {
+            item.email.map { email in
+                email.split(separator: "@", omittingEmptySubsequences: false).prefix(2)
+                    .compactMap(\.first).map { String($0).uppercased() }.joined()
+            }
+        }
         return accounts.map { item in
-            LimitsAccount(id: item.id, driver: item.driver, displayName: item.displayName, plan: item.plan,
+            let sameDriver = ranked.filter { $0.driver == item.driver }
+            let abbreviation = initials(item)
+            let duplicates = sameDriver.filter { $0.displayName == nil && initials($0) == abbreviation }
+            let suffix = duplicates.count > 1 ? " \((duplicates.firstIndex { $0.id == item.id } ?? 0) + 1)" : ""
+            let name = item.displayName ?? (sameDriver.count > 1 ? abbreviation.map { $0 + suffix } : nil)
+            return LimitsAccount(id: item.id, driver: item.driver, displayName: name, plan: item.plan,
                           checkedAt: item.limits.checkedAt, windows: item.limits.windows,
                           resetCredits: item.limits.resetCredits,
                           nameOrder: ranked.firstIndex { $0.id == item.id } ?? 0)

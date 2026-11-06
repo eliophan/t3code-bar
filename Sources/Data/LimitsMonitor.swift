@@ -15,16 +15,26 @@ public final class LimitsMonitor: ObservableObject {
     /// The time of the last tick. The view derives "resets in" and "checked ago" from it.
     @Published public private(set) var now: Date
 
+    let live: LimitsLiveConnection
+    private var cachedSnapshot: LimitsSnapshot?
+    private var cachedRecords: [LimitsRecord] = []
+
     private let reader: LimitsReader
     private let clock: @Sendable () -> Date
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
 
-    public init(reader: LimitsReader = LimitsReader(cachesDirectory: EnvironmentConfig.shared.cachesDirectory),
-                clock: @escaping @Sendable () -> Date = { Date() }) {
+    public convenience init(reader: LimitsReader = LimitsReader(cachesDirectory: EnvironmentConfig.shared.cachesDirectory),
+                            clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.init(reader: reader, live: LimitsLiveConnection(), clock: clock)
+    }
+
+    init(reader: LimitsReader, live: LimitsLiveConnection, clock: @escaping @Sendable () -> Date = { Date() }) {
         self.reader = reader
+        self.live = live
         self.clock = clock
         now = clock()
+        live.onChange = { [weak self] in self?.updateSnapshot() }
     }
 
     public func start() {
@@ -32,10 +42,12 @@ public final class LimitsMonitor: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refresh() }
         }
+        live.resume()
         refresh()
     }
 
     public func stop() {
+        live.stop()
         timer?.invalidate()
         timer = nil
         refreshTask?.cancel()
@@ -54,6 +66,7 @@ public final class LimitsMonitor: ObservableObject {
         let result: Result<LimitsSnapshot, LimitsReadError>
         do {
             result = .success(try await reader.read())
+            cachedRecords = await reader.records()
         } catch {
             result = .failure(error as? LimitsReadError ?? .unreadable)
         }
@@ -61,11 +74,20 @@ public final class LimitsMonitor: ObservableObject {
         apply(result)
     }
 
+    private func updateSnapshot() {
+        guard let data = live.data else { snapshot = cachedSnapshot; return }
+        // Connected config is authoritative (including disabled/deleted providers). During an outage,
+        // merge last live sources with newly written cache records, using T3's newest-check rule.
+        let records = live.status == .live ? data.records : data.providers + cachedRecords + data.sources
+        snapshot = LimitsMerge.snapshot(records, skippedFiles: cachedSnapshot?.skippedFiles ?? 0, sourceNotices: data.notices)
+    }
+
     func apply(_ result: Result<LimitsSnapshot, LimitsReadError>) {
         now = clock()
         switch result {
         case .success(let fresh):
-            if snapshot != fresh { snapshot = fresh }
+            cachedSnapshot = fresh
+            updateSnapshot()
             readError = nil
         case .failure(let error):
             readError = error

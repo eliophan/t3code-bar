@@ -102,6 +102,14 @@ struct UsageView: View {
 
     @ViewBuilder
     private var limitsContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            LimitsConnectionView(connection: limits.live)
+            limitsDataContent
+        }
+    }
+
+    @ViewBuilder
+    private var limitsDataContent: some View {
         switch UsageContentState.limits(snapshot: limits.snapshot, error: limits.readError) {
         case .loading:
             ProgressView("Reading limits…")
@@ -118,7 +126,7 @@ struct UsageView: View {
             UsageStateView(symbol: "gauge.with.dots.needle.50percent", title: "No provider reports subscription limits.")
         case .content:
             if let snapshot = limits.snapshot {
-                UsageLimitsTab(snapshot: snapshot, now: limits.now, readFailed: limits.readError != nil)
+                UsageLimitsTab(snapshot: snapshot, now: limits.now, readFailed: limits.readError != nil && limits.live.status != .live)
             }
         }
     }

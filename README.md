@@ -46,7 +46,7 @@ See the [usage guide](docs/USAGE.md) for thread states, launching at login, cust
 
 ## Privacy
 
-T3 Code Bar needs no API key, collects no telemetry, and never calls AI services. It opens T3 Code's SQLite database read-only and never modifies it. The only network request is the update check against GitHub's releases API, which **Update Automatically** controls. When sharing screenshots or bug reports, check for private thread names, project names, and paths.
+T3 Code Bar collects no telemetry and never calls AI services or provider APIs. It opens T3 Code's SQLite database read-only and never modifies it. An optional Limits connection uses a separately created read-only pairing code to read provider and CLI Proxy snapshots from `127.0.0.1`. Its Bar access token stays in memory unless you select **Remember Bar token in Keychain**. The other network request is the update check against GitHub's releases API, which **Update Automatically** controls. When sharing screenshots or bug reports, check for private thread names, project names, and paths.
 
 ## Contributing
 
