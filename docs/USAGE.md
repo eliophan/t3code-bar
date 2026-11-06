@@ -67,11 +67,23 @@ To include those accounts:
 
 These T3 labels were checked in the `0.1.8-nightly.20261105.4205` client bundle. If your T3 version does not expose a separate scoped pairing code or the RPC ticket endpoint, saved provider data remains available. Live pairing, account counts against a real server, and macOS Keychain prompts still require manual verification; the connection is covered by mock tests.
 
-After pairing, the subscription is maintained while the app is running, including when the popover is closed. If the connection drops after a successful snapshot, Bar keeps the last data and shows when it was received. Token expiry requires pairing again. To revoke a Bar session on the server, use T3 Code’s authorized-client controls.
+After pairing, the subscription is maintained while the app is running, including when the popover is closed. If the connection drops after a successful snapshot, Bar keeps the last data and shows when it was received. A pairing-code token expires after one hour and requires pairing again. To revoke a Bar session on the server, use T3 Code’s authorized-client controls.
 
 The connection reads this environment’s providers and configured CLI Proxy sources. Linked environments are excluded. Bar never sends refresh, reset-credit, or settings commands. T3 Code may still perform its own remote/direct-endpoint discovery while building the server-config subscription.
 
-Bar requests a DPoP-bound access token and rejects a plain bearer token. When remembered, the token and its private key are stored together in Keychain. Existing bearer-only sessions must pair again. DPoP reduces reuse of a stolen token but does not authenticate the local server: a process impersonating T3 on the configured port can still receive a pairing code. Only pair when the local T3 server is running and trusted.
+#### Long-lived access token
+
+A pairing code gives Bar a DPoP token that T3 Code expires after one hour, so the live connection ends and you must pair again. For a connection that lasts, choose **Access token** in the connect form and paste a token from T3 Code's command line:
+
+```bash
+t3 auth session issue --scope orchestration:read --ttl 3650d --token-only
+```
+
+Select **Remember in Keychain** to reconnect at every launch. Bar sends the token as a Bearer credential to `127.0.0.1` only, and never to the token exchange.
+
+The trade-off is that a Bearer token works for anyone who holds it. Its scope is read-only on this machine, and you can revoke it from T3 Code's authorized-client list. If T3 Code rejects the token, Bar stops and says the token expired or was revoked. Bar does not retry. This path has been tested against a mock server only. Live acceptance of a Bearer token by the ticket route still needs a manual check.
+
+Bar's pairing-code flow requests a DPoP-bound access token and rejects a plain bearer token from the exchange. When remembered, the token and its private key are stored together in Keychain. DPoP reduces reuse of a stolen token but does not authenticate the local server: a process impersonating T3 on the configured port can still receive a pairing code. Only pair when the local T3 server is running and trusted.
 
 ### How Bar reads the data
 
