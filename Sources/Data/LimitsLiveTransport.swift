@@ -65,10 +65,18 @@ private struct LimitsURLSocket: LimitsSocket {
     func close() async { task.cancel(with: .goingAway, reason: nil) }
 }
 
+enum LimitsCredentialKind: Sendable {
+    /// Short-lived token from the pairing exchange, bound to this key.
+    case dpop(privateKey: Data)
+    /// Long-lived token issued by T3's CLI. Valid for whoever holds it.
+    case bearer
+}
+
 struct LimitsCredential: Codable, Sendable {
     let port: Int
     let token: String
     let expiresAt: Date
+    /// Stored shape stays flat so credentials saved before Bearer support still decode.
     let privateKey: Data?
 
     init(port: Int, token: String, expiresAt: Date, privateKey: Data? = nil) {
@@ -76,6 +84,25 @@ struct LimitsCredential: Codable, Sendable {
         self.token = token
         self.expiresAt = expiresAt
         self.privateKey = privateKey
+    }
+
+    var kind: LimitsCredentialKind { privateKey.map { .dpop(privateKey: $0) } ?? .bearer }
+
+    /// T3 session tokens look like `<base64url JSON>.<signature>` with `exp` in milliseconds.
+    /// Anything else is treated as non-expiring and the server's 401 is the signal.
+    static func bearer(port: Int, token: String) -> LimitsCredential {
+        LimitsCredential(port: port, token: token, expiresAt: bearerExpiry(token) ?? .distantFuture)
+    }
+
+    static func bearerExpiry(_ token: String) -> Date? {
+        guard let payload = token.split(separator: ".", omittingEmptySubsequences: false).first else { return nil }
+        var base64 = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        guard let data = Data(base64Encoded: base64),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = object["exp"] as? NSNumber, CFGetTypeID(exp) != CFBooleanGetTypeID(),
+              exp.doubleValue.isFinite, exp.doubleValue > 0 else { return nil }
+        return Date(timeIntervalSince1970: exp.doubleValue / 1000)
     }
 }
 protocol LimitsCredentialStore: Sendable {

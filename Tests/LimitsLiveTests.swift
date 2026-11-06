@@ -57,13 +57,15 @@ private actor MockLimitsServer: LimitsTransport {
     private(set) var requests: [URLRequest] = []
     private(set) var sockets: [MockLimitsSocket] = []
     private(set) var socketURLs: [URL] = []
-    init(scope: String = "orchestration:read", tokenType: String = "DPoP", status: Int = 200, expires: Double = 3600, grantDelay: Duration = .zero, socketDelay: Duration = .zero) throws {
+    init(scope: String = "orchestration:read", tokenType: String = "DPoP", status: Int = 200, expires: Double = 3600, grantDelay: Duration = .zero, socketDelay: Duration = .zero,
+         bearer: Bool = false, ticketStatus: Int = 200) throws {
         self.grantDelay = grantDelay
         self.socketDelay = socketDelay
         responses = [(try JSONSerialization.data(withJSONObject: [
             "access_token": "bar-test-token", "token_type": tokenType,
             "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
             "scope": scope, "expires_in": expires]), status)]
+        if bearer { responses = ticketStatus == 200 ? [] : [(Data("{}".utf8), ticketStatus)] }
     }
     func request(_ request: URLRequest) async throws -> (Data, Int) {
         requests.append(request)
@@ -181,6 +183,81 @@ struct LimitsLiveTests {
         #expect(frame["headers"] as? [String] == [])
         #expect((frame["payload"] as? [String: Bool]) == ["usageLimitSources": true, "workspaceSnapshotsOnDemand": true])
         #expect(store.saveCount == 0)
+    }
+
+    @Test func bearerTokenConnectsWithoutDPoPOrTokenExchange() async throws {
+        let server = try MockLimitsServer(bearer: true)
+        let store = MemoryLimitsStore()
+        let connection = LimitsLiveConnection(transport: server, store: store)
+        defer { connection.disconnect() }
+        connection.connect(port: 43111, bearerToken: "  long-lived-token \n", remember: false)
+        try await waitUntil { await server.sockets.count == 1 }
+        let requests = await server.requests
+        #expect(requests.count == 1)
+        #expect(requests[0].url?.path == "/api/auth/websocket-ticket/rpc")
+        #expect(requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer long-lived-token")
+        #expect(requests[0].value(forHTTPHeaderField: "DPoP") == nil)
+        let url = try #require(await server.socketURLs.first)
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(url.path == "/ws")
+        #expect(items.contains { $0.name == "wsTicket" })
+        #expect(!items.contains { $0.name == "dpop" })
+        #expect(store.saveCount == 0)
+    }
+
+    @Test func rememberedBearerTokenReconnectsAtLaunch() async throws {
+        let server = try MockLimitsServer(bearer: true)
+        let store = MemoryLimitsStore()
+        let first = LimitsLiveConnection(transport: server, store: store)
+        first.connect(port: 43111, bearerToken: "long-lived-token", remember: true)
+        try await waitUntil { await server.sockets.count == 1 }
+        #expect(store.saveCount == 1)
+        first.stop()
+        let second = LimitsLiveConnection(transport: server, store: store)
+        second.reconnectSavedIfAvailable(port: 43111)
+        try await waitUntil { await server.sockets.count == 2 }
+        let requests = await server.requests
+        #expect(requests.last?.value(forHTTPHeaderField: "Authorization") == "Bearer long-lived-token")
+        first.disconnect()
+        second.disconnect()
+    }
+
+    @Test(arguments: [401, 403]) func rejectedBearerTokenFailsWithExpiredMessageAndDoesNotRetry(status: Int) async throws {
+        let server = try MockLimitsServer(bearer: true, ticketStatus: status)
+        let connection = LimitsLiveConnection(transport: server, store: MemoryLimitsStore(), retryDelay: .milliseconds(5))
+        connection.connect(port: 43111, bearerToken: "revoked-token", remember: false)
+        try await waitUntil { if case .failed = connection.status { return true }; return false }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(connection.status == .failed(LimitsConnectionError.expired.message))
+        #expect(await server.requests.count == 1)
+        #expect(await server.sockets.isEmpty)
+        #expect(!connection.status.text.contains("revoked-token"))
+    }
+
+    @Test(arguments: ["", "   \n", String(repeating: "a", count: 16_385)]) func unusableBearerInputFailsBeforeAnyNetwork(token: String) async throws {
+        let server = try MockLimitsServer(bearer: true)
+        let connection = LimitsLiveConnection(transport: server, store: MemoryLimitsStore())
+        connection.connect(port: 43111, bearerToken: token, remember: true)
+        #expect(connection.status == .failed(LimitsConnectionError.invalidToken.message))
+        #expect(await server.requests.isEmpty)
+    }
+
+    @Test func bearerExpiryComesFromTheTokenPayloadElseNeverExpires() throws {
+        func token(_ json: String) -> String {
+            let payload = Data(json.utf8).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+            return payload + ".signature"
+        }
+        let exp = LimitsCredential.bearer(port: 1, token: token("{\"sub\":\"x\",\"exp\":1893456000000}"))
+        #expect(exp.expiresAt == Date(timeIntervalSince1970: 1_893_456_000))
+        #expect(exp.privateKey == nil)
+        for opaque in ["opaque-token", token("{\"sub\":\"x\"}"), token("{\"exp\":\"soon\"}"), token("[1]"), ""] {
+            #expect(LimitsCredential.bearer(port: 1, token: opaque).expiresAt == .distantFuture)
+        }
+        let kept = try JSONDecoder().decode(LimitsCredential.self, from: JSONEncoder().encode(
+            LimitsCredential.bearer(port: 1, token: "opaque-token")))
+        #expect(kept.expiresAt == .distantFuture)
     }
 
     @Test(arguments: [0, -1, 65536, Int.max]) func invalidPortFailsBeforeAnyNetwork(port: Int) async throws {

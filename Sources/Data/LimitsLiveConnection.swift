@@ -73,6 +73,26 @@ final class LimitsLiveConnection: ObservableObject {
         }
     }
 
+    /// Uses a long-lived token from T3's CLI directly. No token exchange happens, so there is no DPoP key.
+    func connect(port: Int, bearerToken: String, remember: Bool) {
+        stop()
+        credential = nil
+        data = nil
+        lastUpdatedAt = nil
+        do {
+            _ = try LimitsEndpoint(port: port)
+            let token = bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !token.isEmpty, token.utf8.count <= 16_384 else { throw LimitsConnectionError.invalidToken }
+            let grant = LimitsCredential.bearer(port: port, token: token)
+            if remember { try store.save(grant) } else { try store.delete() }
+            credential = grant
+            resume()
+        } catch {
+            status = .failed((error as? LimitsConnectionError)?.message ?? LimitsConnectionError.storage.message)
+        }
+        onChange?()
+    }
+
     /// Explicit button action: no Keychain lookup or network request occurs just by opening Limits.
     func reconnectSaved(port: Int) {
         stop()
@@ -86,7 +106,6 @@ final class LimitsLiveConnection: ObservableObject {
             guard saved.port == port else { throw LimitsConnectionError.destination }
             _ = try LimitsEndpoint(port: saved.port)
             guard saved.expiresAt > clock() else { throw LimitsConnectionError.expired }
-            guard saved.privateKey != nil else { throw LimitsConnectionError.authorization }
             credential = saved
             resume()
         } catch {
@@ -103,7 +122,6 @@ final class LimitsLiveConnection: ObservableObject {
             guard let saved = try store.load() else { return }
             guard saved.port == port else { throw LimitsConnectionError.destination }
             guard saved.expiresAt > clock() else { throw LimitsConnectionError.expired }
-            guard saved.privateKey != nil else { throw LimitsConnectionError.authorization }
             credential = saved
             resume()
         } catch {
@@ -181,9 +199,10 @@ final class LimitsLiveConnection: ObservableObject {
                                 privateKey: signer.key.rawRepresentation)
     }
 
-    private func http(_ request: URLRequest) async throws -> [String: Any] {
+    private func http(_ request: URLRequest, unauthorized: LimitsConnectionError? = nil) async throws -> [String: Any] {
         let (body, status) = try await transport.request(request)
         guard status == 200 else {
+            if let unauthorized, status == 401 || status == 403 { throw unauthorized }
             if (400...499).contains(status) || (300...399).contains(status) { throw LimitsConnectionError.authorization }
             throw URLError(.badServerResponse)
         }
@@ -201,22 +220,28 @@ final class LimitsLiveConnection: ObservableObject {
             var heartbeat: Task<Void, Never>?
             do {
                 guard credential.expiresAt > clock() else { throw LimitsConnectionError.expired }
-                guard let privateKey = credential.privateKey, let signer = try? LimitsDPoP(raw: privateKey) else {
-                    throw LimitsConnectionError.authorization
-                }
                 let endpoint = try LimitsEndpoint(port: credential.port)
                 var request = URLRequest(url: endpoint.url("/api/auth/websocket-ticket/rpc"))
                 request.httpMethod = "POST"
-                request.setValue("DPoP \(credential.token)", forHTTPHeaderField: "Authorization")
-                request.setValue(try signer.proof(method: "POST", url: request.url!, token: credential.token, now: clock()), forHTTPHeaderField: "DPoP")
-                let issued = try await http(request)
+                let signer: LimitsDPoP?
+                switch credential.kind {
+                case .dpop(let privateKey):
+                    guard let key = try? LimitsDPoP(raw: privateKey) else { throw LimitsConnectionError.authorization }
+                    signer = key
+                    request.setValue("DPoP \(credential.token)", forHTTPHeaderField: "Authorization")
+                    request.setValue(try key.proof(method: "POST", url: request.url!, token: credential.token, now: clock()), forHTTPHeaderField: "DPoP")
+                case .bearer:
+                    signer = nil
+                    request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
+                }
+                let issued = try await http(request, unauthorized: signer == nil ? .expired : nil)
                 guard let ticket = issued["ticket"] as? String, !ticket.isEmpty,
                       let expires = issued["expiresAt"] as? String, let expiry = LimitsDate.parse(expires), expiry > clock() else {
                     throw LimitsConnectionError.protocolMismatch
                 }
                 try Task.checkCancellation()
                 guard generation == run else { return }
-                let proof = try signer.proof(method: "GET", url: endpoint.url("/ws"), token: ticket, now: clock())
+                let proof = try signer?.proof(method: "GET", url: endpoint.url("/ws"), token: ticket, now: clock())
                 let connected = await transport.socket(endpoint.url("/ws", ticket: ticket, proof: proof))
                 guard !Task.isCancelled, generation == run else { await connected.close(); return }
                 socket = connected

@@ -23,13 +23,14 @@ struct LimitsEndpoint: Equatable, Sendable {
 }
 
 enum LimitsConnectionError: Error, Equatable {
-    case destination, authorization, protocolMismatch, expired, storage
+    case destination, authorization, invalidToken, protocolMismatch, expired, storage
     var message: String {
         switch self {
         case .destination: "Enter a local T3 Code port from 1 to 65535."
         case .authorization: "Pairing failed. Create a new read-only code."
+        case .invalidToken: "Enter a T3 Code access token of up to 16 KiB."
         case .protocolMismatch: "This T3 Code version returned an unsupported Limits stream."
-        case .expired: "The Bar access token expired. Pair again in T3 Code."
+        case .expired: "The Bar access token expired or was revoked. Connect again with a new pairing code or access token."
         case .storage: "Could not save the Bar access token in Keychain. Connect again without Remember."
         }
     }
