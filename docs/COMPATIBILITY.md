@@ -53,6 +53,24 @@ Reasoning tokens are not shown on their own. T3 Code counts them inside output.
 
 The query runs about 30 ms on an 8.6 GB database once the pages are cached, and about half a second the first time. It reads only while the Usage screen is open.
 
+## Limits
+
+Limits are not in SQLite. T3 Code writes a snapshot of every provider instance to `caches/<instanceId>.json` in the folder above the state directory, which is `~/.t3/caches` by default. Bar lists that folder every 5 seconds while the Limits tab is open and decodes only the files whose size or modification time changed. A file it cannot decode is skipped and counted, and a file that decoded before keeps its last good copy.
+
+Bar reads these keys and no others.
+
+- `driver`, `instanceId`, `enabled`, `installed`, `availability`, and `displayName`.
+- `auth.status`, `auth.label` (the plan), `auth.email`, and `auth.workspaceId`.
+- `usageLimits.checkedAt`, `windows`, `resetCredits`, `externalUsage`, `unavailable`, and `credentialFingerprint`.
+
+The email, the workspace id, and the fingerprint only build the key that merges accounts across files. They are never shown, logged, or kept in the types the screen reads.
+
+Bar applies T3 Code's own rules. A provider counts when it is enabled, installed, not marked `availability: "unavailable"`, and has `usageLimits`. Files for one `driver:email` merge, split by workspace, and the newest `checkedAt` wins. Windows group by driver and sort session, weekly, monthly, other. "Left" is `round(100 - clamp(usedPercent))`, and pace is ahead or under beyond 5 points. A Codex or Claude session shows 100% used while the weekly window is exhausted. An account that reports `unsupported` shows nothing, and one that failed to probe shows T3's warning text.
+
+Bar fetches nothing from the network and never reads a token, a key, or a credential store. Cursor, Grok, OpenCode, and Antigravity limits appear only when T3 Code itself has probed them and written the result to the cache. Limits that T3 Code holds only in memory, such as CLI Proxy hub accounts, and limits of linked remote environments are not available. The tab covers this Mac.
+
+T3 Code restores cached snapshots without `usageLimits` when it starts, so a file can keep old bars until the first probe. T3 Code's own page does not hide a window whose reset time has passed. It shows the stored percent with "resets now". Bar does the same and also exposes `checkedAt`, so the screen can say how old the numbers are.
+
 ## What SQLite cannot provide
 
 Cost needs the model of each turn, which only part of the turns record. Limits are not stored in SQLite. Per-model breakdowns are not available for the same reason as cost. The Usage screen therefore shows the Tokens view of T3 Code's Usage page and nothing else from it.
