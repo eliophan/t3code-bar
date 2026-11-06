@@ -121,8 +121,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func resizePanel(to height: CGFloat) {
-        panelHeight = min(max(height, 80), PopoverView.maxHeight)
-        if panel.isVisible { positionPanel() } else { panel.setContentSize(NSSize(width: 320, height: panelHeight)) }
+        let target = min(max(height, 80), PopoverView.maxHeight)
+        // Tabs have different heights, so the Usage screen glides between them. The thread list resizes
+        // at once: it changes every second and its hover previews rely on the window not lagging the rows.
+        let animates = panel.isVisible && navigation.screen == .usage && target != panelHeight
+        panelHeight = target
+        if animates {
+            positionPanel(animated: true)
+        } else if panel.isVisible {
+            positionPanel()
+        } else {
+            panel.setContentSize(NSSize(width: 320, height: panelHeight))
+        }
     }
 
     private func buttonScreenFrame() -> NSRect? {
@@ -130,14 +140,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return window.convertToScreen(button.convert(button.bounds, to: nil))
     }
 
-    private func positionPanel() {
+    private func positionPanel(animated: Bool = false) {
         guard let button = statusItem.button, let window = button.window, let anchor = buttonScreenFrame() else { return }
         let size = NSSize(width: 320, height: panelHeight)
         var x = anchor.midX - size.width / 2
         if let screen = window.screen ?? NSScreen.main {
             x = min(max(x, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - size.width - 8)
         }
-        panel.setFrame(NSRect(x: x, y: anchor.minY - 6 - size.height, width: size.width, height: size.height), display: true)
+        let frame = NSRect(x: x, y: anchor.minY - 6 - size.height, width: size.width, height: size.height)
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            panel.setFrame(frame, display: true)
+        }
     }
 
     private func addToggleItems(to menu: NSMenu) {
