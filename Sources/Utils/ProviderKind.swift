@@ -17,6 +17,24 @@ public enum ProviderKind: String, Hashable, CaseIterable, Sendable {
         ("kiro", .kiro), ("pi", .pi), ("muse", .muse),
     ]
 
+    /// How T3 Code names the provider's driver. OpenAI shows as Codex because that is its driver.
+    public var displayName: String {
+        switch self {
+        case .openAI: return "Codex"
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        case .grok: return "Grok"
+        case .cursor: return "Cursor"
+        case .openCode: return "OpenCode"
+        case .antigravity: return "Antigravity"
+        case .fx: return "fx"
+        case .kiro: return "Kiro"
+        case .pi: return "Pi"
+        case .muse: return "Muse"
+        case .unknown: return "Other"
+        }
+    }
+
     public static func resolve(_ raw: String) -> ProviderKind {
         let name = raw.lowercased()
         for (prefix, kind) in drivers where name == prefix || name.hasPrefix(prefix + "_") {
