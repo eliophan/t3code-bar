@@ -7,6 +7,8 @@ import Combine
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitor = ThreadMonitor()
     private let usage = UsageMonitor()
+    private let limits = LimitsMonitor()
+    private let usageScreen = UsageScreenModel()
     private let navigation = PopoverNavigation()
     private var statusItem: NSStatusItem!
     private var panel: NSPanel!
@@ -69,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configurePopover() {
-        hostingController = NSHostingController(rootView: PopoverView(monitor: monitor, usage: usage, navigation: navigation) { [weak self] height in
+        hostingController = NSHostingController(rootView: PopoverView(monitor: monitor, usage: usage, limits: limits, usageScreen: usageScreen, navigation: navigation) { [weak self] height in
             self?.resizePanel(to: height)
         })
         let view = hostingController.view

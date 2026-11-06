@@ -1,15 +1,21 @@
 import SwiftUI
 
-/// T3 Code's Usage page, Tokens view, sized for the popover.
+/// T3 Code's Usage page, sized for the popover: Cost, Tokens and Limits under one header.
 struct UsageView: View {
     static let headerHeight: CGFloat = 44
+    static let tabBarHeight: CGFloat = 38
+    /// Everything above the scrolling content.
+    static let chromeHeight = headerHeight + tabBarHeight
 
     @ObservedObject var usage: UsageMonitor
+    @ObservedObject var limits: LimitsMonitor
+    @ObservedObject var screen: UsageScreenModel
     let onBack: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            tabBar
             ScrollView(.vertical, showsIndicators: false) {
                 content
                     .padding(.horizontal, 16)
@@ -19,15 +25,30 @@ struct UsageView: View {
                         GeometryReader { proxy in
                             Color.clear.preference(
                                 key: ContentHeightPreferenceKey.self,
-                                value: proxy.size.height + Self.headerHeight
+                                value: proxy.size.height + Self.chromeHeight
                             )
                         }
                     )
             }
             .background(HideScrollerHelper())
         }
-        .onAppear { usage.start() }
-        .onDisappear { usage.stop() }
+        .onAppear { monitor(for: screen.tab) }
+        .onChange(of: screen.tab) { _, tab in monitor(for: tab) }
+        .onDisappear {
+            usage.stop()
+            limits.stop()
+        }
+    }
+
+    /// Each tab reads only its own file, and only while it is the one on screen.
+    private func monitor(for tab: UsageTab) {
+        if tab == .limits {
+            usage.stop()
+            limits.start()
+        } else {
+            limits.stop()
+            usage.start()
+        }
     }
 
     // MARK: Header
@@ -54,190 +75,66 @@ struct UsageView: View {
                 .foregroundColor(T3Theme.textPrimary)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            PeriodControl(selection: $usage.period)
+            if screen.tab.showsPeriod {
+                UsageSegmentedControl(options: UsageOptions.periods, selection: $usage.period, groupLabel: "Usage period")
+            }
         }
         .padding(.horizontal, 12)
         .frame(height: Self.headerHeight)
-        .overlay(alignment: .bottom) { T3Theme.border.frame(height: 1) }
+    }
+
+    private var tabBar: some View {
+        UsageSegmentedControl(options: UsageOptions.tabs, selection: $screen.tab, groupLabel: "Usage metric", fillsWidth: true)
+            .padding(.horizontal, 12)
+            .frame(height: Self.tabBarHeight, alignment: .top)
+            .overlay(alignment: .bottom) { T3Theme.border.frame(height: 1) }
     }
 
     // MARK: Content
 
     @ViewBuilder
     private var content: some View {
+        switch screen.tab {
+        case .cost, .tokens: scanContent
+        case .limits: UsageStateView(symbol: "gauge.with.dots.needle.50percent", title: "Limits are not built yet")
+        }
+    }
+
+    @ViewBuilder
+    private var scanContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if let kind = usage.notice, let message = Self.message(for: kind) {
+            if usage.report != nil, usage.notice == .retrying, let message = Self.message(for: .retrying) {
                 noticeRow(message)
             }
-            if let report = usage.report {
-                if report.isEmpty {
-                    emptyState
-                } else {
-                    hero(report)
-                    tokenTypes(report.tokens)
-                    totals(report)
-                    providers(report)
-                }
-                footnotes(report)
-            } else if usage.notice == nil || usage.notice == .retrying {
+            switch UsageContentState.scan(report: usage.report, notice: usage.notice) {
+            case .loading:
                 ProgressView("Reading usage…")
                     .controlSize(.small)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
+            case .missing:
+                UsageStateView(symbol: "chart.bar", title: "No usage data yet", detail: Self.message(for: .missing))
+            case .unsupported(let version):
+                UsageStateView(symbol: "exclamationmark.triangle", title: "T3 Code changed its usage format",
+                               detail: Self.message(for: .unsupported(version)))
+            case .unreadable:
+                UsageStateView(symbol: "exclamationmark.triangle", title: "Could not read usage",
+                               detail: Self.message(for: .retrying))
+            case .empty:
+                UsageStateView(symbol: "chart.bar", title: "No usage in this period")
+                if let report = usage.report { UsageFootnotes(report: report) }
+            case .content:
+                if let report = usage.report {
+                    if screen.tab == .tokens {
+                        UsageTokensTab(report: report)
+                    } else {
+                        UsageStateView(symbol: "dollarsign.circle", title: "Cost is not built yet")
+                    }
+                }
             }
         }
         // A read for another period is still running, so these numbers are not for the selected one.
         .opacity(usage.isStale ? 0.45 : 1)
-    }
-
-    private func hero(_ report: UsageReport) -> some View {
-        let sessions = TokenFormat.sessions(report.sessions)
-        return VStack(alignment: .leading, spacing: 4) {
-            Text("Processed tokens")
-                .font(.system(size: 11.5))
-                .foregroundColor(T3Theme.textMuted)
-            Text(TokenFormat.compact(report.processedTokens))
-                .font(.system(size: 34, weight: .semibold))
-                .monospacedDigit()
-                .foregroundColor(T3Theme.textPrimary)
-            Text(sessions)
-                .font(.system(size: 11.5))
-                .monospacedDigit()
-                .foregroundColor(T3Theme.textMuted)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Processed tokens, \(TokenFormat.spoken(report.processedTokens))")
-        .accessibilityValue(sessions)
-    }
-
-    private func tokenTypes(_ tokens: UsageReport.Tokens) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeading("Tokens by type")
-            SegmentedBar(segments: TokenKind.allCases.map {
-                SegmentedBar.Segment(id: $0.label, value: $0.value(in: tokens), color: $0.color)
-            })
-            .accessibilityHidden(true)
-            legendGrid(TokenKind.allCases.map { (label: $0.label, value: TokenFormat.compact($0.value(in: tokens)),
-                                                 spoken: TokenFormat.spoken($0.value(in: tokens)), color: $0.color) })
-        }
-    }
-
-    private func totals(_ report: UsageReport) -> some View {
-        let rows: [(label: String, value: String, spoken: String)] = [
-            ("Cached input", TokenFormat.compact(report.tokens.cachedInput), TokenFormat.spoken(report.tokens.cachedInput)),
-            ("Uncached input", TokenFormat.compact(report.tokens.uncachedInput), TokenFormat.spoken(report.tokens.uncachedInput)),
-            ("Output", TokenFormat.compact(report.tokens.output), TokenFormat.spoken(report.tokens.output)),
-            ("Cache savings", TokenFormat.currency(report.cacheSavingsUsd), TokenFormat.currency(report.cacheSavingsUsd)),
-        ]
-        return VStack(alignment: .leading, spacing: 12) {
-            sectionHeading("Totals")
-            VStack(spacing: 8) {
-                ForEach(rows, id: \.label) { row in
-                    HStack {
-                        Text(row.label).foregroundColor(T3Theme.textMuted)
-                        Spacer(minLength: 8)
-                        Text(row.value).monospacedDigit().foregroundColor(T3Theme.textPrimary)
-                    }
-                    .font(.system(size: 11.5))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(row.label), \(row.spoken)")
-                }
-            }
-        }
-    }
-
-    private func legendGrid(_ items: [(label: String, value: String, spoken: String, color: Color)]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], alignment: .leading, spacing: 8) {
-            ForEach(items, id: \.label) { item in
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(item.color)
-                        .frame(width: 8, height: 8)
-                    Text(item.label)
-                        .foregroundColor(T3Theme.textMuted)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    Text(item.value)
-                        .monospacedDigit()
-                        .foregroundColor(T3Theme.textPrimary)
-                }
-                .font(.system(size: 11.5))
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(item.label), \(item.spoken)")
-            }
-        }
-    }
-
-    private func providers(_ report: UsageReport) -> some View {
-        let largest = max(report.providers.map(\.tokens.processed).max() ?? 1, 1)
-        return VStack(alignment: .leading, spacing: 12) {
-            sectionHeading("By provider")
-            ForEach(report.providers, id: \.kind) { provider in
-                providerRow(provider, total: report.processedTokens,
-                            share: Double(provider.tokens.processed) / Double(largest))
-            }
-        }
-    }
-
-    private func providerRow(_ provider: UsageReport.Provider, total: Int, share: Double) -> some View {
-        let processed = provider.tokens.processed
-        let style = provider.kind.style
-        let detail = Self.providerDetail(tokens: processed, total: total, costUsd: provider.costUsd)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                ProviderIconView(providers: [style.driver ?? "?"], size: 14)
-                Text(style.label)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(T3Theme.textSecondary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                Text(TokenFormat.compact(processed))
-                    .font(.system(size: 12.5, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundColor(T3Theme.textPrimary)
-                Text("· \(detail)")
-                    .font(.system(size: 10.5))
-                    .monospacedDigit()
-                    .foregroundColor(T3Theme.textMuted)
-            }
-            ShareBar(share: share)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(style.label), \(TokenFormat.spoken(processed)) processed tokens, \(detail)")
-    }
-
-    private func footnotes(_ report: UsageReport) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let partial = Self.partialText(report) {
-                Text(partial)
-                    .help("These are left out of the totals, as T3 Code leaves them out of its own.")
-            }
-            Text(Self.updatedText(modified: report.cacheModified, now: Date()))
-                .help(Self.updatedHelp)
-        }
-        .font(.system(size: 11))
-        .foregroundColor(T3Theme.textMuted)
-    }
-
-    private func sectionHeading(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(T3Theme.textPrimary)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "chart.bar")
-                .font(.system(size: 20))
-                .foregroundColor(T3Theme.textFaint)
-                .accessibilityHidden(true)
-            Text("No usage in this period")
-                .font(.system(size: 12))
-                .foregroundColor(T3Theme.textMuted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
     }
 
     private func noticeRow(_ text: String) -> some View {
@@ -288,113 +185,5 @@ struct UsageView: View {
         case ..<86_400: return "Updated \(seconds / 3_600) h ago"
         default: return "Updated \(seconds / 86_400) d ago"
         }
-    }
-}
-
-/// The four slices of input and output T3 Code draws, in its order and one hue at four strengths.
-private enum TokenKind: CaseIterable {
-    case input, cacheRead, cacheWrite, output
-
-    var label: String {
-        switch self {
-        case .input: return "Input"
-        case .cacheRead: return "Cache read"
-        case .cacheWrite: return "Cache write"
-        case .output: return "Output"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .input: return T3Theme.tokenInput
-        case .cacheRead: return T3Theme.tokenCacheRead
-        case .cacheWrite: return T3Theme.tokenCacheWrite
-        case .output: return T3Theme.tokenOutput
-        }
-    }
-
-    func value(in tokens: UsageReport.Tokens) -> Int {
-        switch self {
-        case .input: return tokens.uncachedInput
-        case .cacheRead: return tokens.cachedInput
-        case .cacheWrite: return tokens.cacheCreation
-        case .output: return tokens.output
-        }
-    }
-}
-
-private struct SegmentedBar: View {
-    struct Segment: Identifiable {
-        let id: String
-        let value: Int
-        let color: Color
-    }
-
-    let segments: [Segment]
-    private let gap: CGFloat = 2
-
-    var body: some View {
-        let visible = segments.filter { $0.value > 0 }
-        let total = Double(visible.reduce(0) { $0 + $1.value })
-        GeometryReader { proxy in
-            let room = proxy.size.width - gap * CGFloat(max(visible.count - 1, 0))
-            HStack(spacing: gap) {
-                ForEach(visible) { segment in
-                    Rectangle()
-                        .fill(segment.color)
-                        .frame(width: max(1, room * CGFloat(Double(segment.value) / total)))
-                }
-            }
-        }
-        .frame(height: 8)
-        .clipShape(Capsule())
-    }
-}
-
-private struct ShareBar: View {
-    let share: Double
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule().fill(T3Theme.border)
-                Capsule()
-                    .fill(T3Theme.tokenInput)
-                    .frame(width: max(4, proxy.size.width * CGFloat(min(max(share, 0), 1))))
-            }
-        }
-        .frame(height: 4)
-        .accessibilityHidden(true)
-    }
-}
-
-private struct PeriodControl: View {
-    @Binding var selection: UsagePeriod
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(UsagePeriod.allCases, id: \.self) { period in
-                HoverArea { isHovered in
-                    let isSelected = period == selection
-                    Button { selection = period } label: {
-                        Text(period.shortLabel)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(isSelected ? T3Theme.textPrimary : isHovered ? T3Theme.textHover : T3Theme.textMuted)
-                            .frame(minWidth: 30)
-                            .padding(.vertical, 4)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .fill(isSelected ? T3Theme.rowHover : Color.clear))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .help(period.label)
-                    .accessibilityLabel(period.label)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                }
-            }
-        }
-        .padding(2)
-        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(T3Theme.border, lineWidth: 1))
     }
 }

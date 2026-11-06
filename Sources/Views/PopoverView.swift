@@ -19,6 +19,8 @@ public struct PopoverView: View {
 
     @ObservedObject var monitor: ThreadMonitor
     @ObservedObject var usage: UsageMonitor
+    @ObservedObject var limits: LimitsMonitor
+    @ObservedObject var usageScreen: UsageScreenModel
     @ObservedObject var navigation: PopoverNavigation
     /// The height the current screen wants, chrome included.
     @State private var contentHeight: CGFloat = 0
@@ -26,10 +28,12 @@ public struct PopoverView: View {
 
     private let onHeightChange: (CGFloat) -> Void
 
-    public init(monitor: ThreadMonitor, usage: UsageMonitor, navigation: PopoverNavigation,
-                onHeightChange: @escaping (CGFloat) -> Void = { _ in }) {
+    public init(monitor: ThreadMonitor, usage: UsageMonitor, limits: LimitsMonitor, usageScreen: UsageScreenModel,
+                navigation: PopoverNavigation, onHeightChange: @escaping (CGFloat) -> Void = { _ in }) {
         self.monitor = monitor
         self.usage = usage
+        self.limits = limits
+        self.usageScreen = usageScreen
         self.navigation = navigation
         self.onHeightChange = onHeightChange
     }
@@ -54,7 +58,7 @@ public struct PopoverView: View {
         VStack(spacing: 0) {
             switch navigation.screen {
             case .threads: threadsScreen
-            case .usage: UsageView(usage: usage) { navigation.screen = .threads }
+            case .usage: UsageView(usage: usage, limits: limits, screen: usageScreen) { navigation.screen = .threads }
             }
         }
         .onPreferenceChange(ContentHeightPreferenceKey.self) { height in
@@ -234,7 +238,7 @@ private struct UsageLinkRow: View {
             .buttonStyle(.plain)
             .focusable(false)
             .accessibilityLabel("Usage")
-            .accessibilityHint("Shows token usage")
+            .accessibilityHint("Shows cost, tokens and limits")
         }
         .overlay(alignment: .top) { T3Theme.border.frame(height: 1) }
     }
