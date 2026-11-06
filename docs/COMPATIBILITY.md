@@ -33,7 +33,7 @@ Woke uses the completion timestamp for an early completion wake, the session/sno
 
 ## Usage data
 
-The Usage screen no longer reads token counts from SQLite. It reads the files T3 Code's own Usage page reads, so the numbers can match that page.
+The Usage screen combines T3 Code's transcript cache with local OpenCode and Antigravity usage and Cursor's saved account cache. Each source is read without changing its contents.
 
 Checked on 2026-11-06 against T3 Code Nightly `0.1.8-nightly.20261105.4205` (commit `935818e422f9`). Every file is opened read-only, and Bar makes no network call.
 
@@ -41,13 +41,13 @@ Checked on 2026-11-06 against T3 Code Nightly `0.1.8-nightly.20261105.4205` (com
 | --- | --- |
 | `usage-scan-cache-vN.json` | Per-transcript usage records for Claude, Codex, Grok, Pi and Muse. Bar reads the highest `N` whose `version` field is 4 to 11. |
 | `usage-model-rates.json` | The price list T3 Code fetched. Without it, only provider-reported costs are priced. |
-| `settings.json` | Two keys, `usagePriceOverrides` and `usageModelAliases`. The file also holds provider credentials, so Bar skips every other key without decoding it. |
+| `settings.json` | `usagePriceOverrides`, `usageModelAliases`, and the IDs and driver names of Antigravity provider instances. Environment values and credentials are skipped without decoding them. |
 | `statev2.sqlite` | The Codex service tier of turns the cache has not resolved yet. This reads `orchestration_events`, `orchestration_v2_projection_provider_turns` and `orchestration_v2_projection_run_attempts`. If the database is missing, those turns count at standard speed. |
 
 ### Freshness and coverage
 
 - T3 Code writes the cache only when its Usage page scans. The numbers are as current as the last time that page was open, and the screen says so.
-- OpenCode, Antigravity and Cursor are rescanned live by T3 Code and are never in the cache. This build does not show them.
+- OpenCode and Antigravity are read from local sources every 30 seconds while Cost or Tokens is visible. Cursor reads only the account cache that T3 Code already fetched. Missing, partial, and unreadable sources are disclosed below the totals.
 - Remote and linked environments are not included. Bar reads this Mac only.
 - T3 Code's per-user list of hidden providers lives in its renderer storage. Bar does not read it.
 
@@ -58,6 +58,18 @@ Checked on 2026-11-06 against T3 Code Nightly `0.1.8-nightly.20261105.4205` (com
 - Claude rows for the model `<synthetic>` are dropped. A provider kind this build does not know is kept under its own name and counts in the totals.
 - A cache that fails to parse is treated as being rewritten. Bar keeps the last good numbers and tries again.
 - The file is 20 MB or more. Bar decodes it off the main actor in about 0.1 to 0.4 seconds, only when its size or modification time changes, and builds each period from the decoded records.
+
+### Local usage sources
+
+OpenCode reads `opencode.db`, matching `opencode-*.db` files, and legacy `storage/message/**/*.json`. It selects only message tables, never credentials. `OPENCODE_DATA_DIR` accepts comma-separated roots. Otherwise the root is `$XDG_DATA_HOME/opencode`, or `~/.local/share/opencode`. Message IDs deduplicate SQLite and legacy copies. Reasoning is added to OpenCode output once.
+
+Antigravity reads conversation databases from `ANTIGRAVITY_DATA_DIR`, or the standard `~/.gemini/antigravity*` and `~/.config/antigravity` directories. Configured T3 Code Antigravity instances add their hashed `providers/antigravity/<hash>/antigravity-acp` directories. The reader decodes step and generation metadata, retries, and trajectory timestamps. Shared response identities merge across files with the maximum of each token field and the best timestamp. Unknown model IDs count tokens without an invented price. Directory walks skip symlinks.
+
+Cursor reads `usage-cursor-account-cache-v1.json` from the state directory. Its reported costs and model names feed the same price rules as other records. The screen shows the oldest account fetch time. Bar never refreshes Cursor from the network or accesses Keychain. Without this cache, Cursor usage is unavailable.
+
+Local databases are opened with `SQLITE_OPEN_READONLY` in a read transaction. Their size, modification time, attribute change time, and WAL fingerprint cache the decoded records. An unchanged database is not decoded again. A failed read retains its last readable records when available and marks that provider partial. A schema with no supported message or metadata table is unreadable. Bad records are skipped and counted. A missing source adds no provider row. A local source can supply usage before the transcript cache exists, with an explicit warning about missing transcript providers.
+
+The transcript cache timestamp describes only transcript providers. Local check times and Cursor fetch times appear separately. These readers are ports of the same documented T3 Code internals, not a promise of compatibility with future schema changes. Fixture tests cover both OpenCode table layouts, legacy JSON, WAL changes, Antigravity protobuf layouts and identity merges, Cursor cache tuples, and failure recovery. The opt-in real-data test accepts `T3_CODE_BAR_REAL_LOCAL=1` to include local readers alongside the transcript cache.
 
 ### Counting rules
 
@@ -104,11 +116,11 @@ T3 Code restores cached snapshots without `usageLimits` when it starts, so a fil
 
 The Usage screen shows the Cost, Tokens and Limits tabs of T3 Code's Usage page. Some parts of that page need data Bar does not read.
 
-- OpenCode, Antigravity and Cursor usage, which T3 Code scans live and keeps out of the cache.
+- Providers without a supported local source or a usable T3 Code cache. No provider API is contacted to fill gaps.
 - Remote and linked environments, and T3 Code's list of hidden providers.
 - The cost table by day or hour and the model dialog. The popover has no room for them.
 - Limits that T3 Code holds only in memory, and the actions the page offers, such as setting a price or using a reset credit.
-- Anything fresher than T3 Code's last Usage page scan and last provider check.
+- Transcript usage fresher than T3 Code's last Usage page scan, Cursor data fresher than its saved fetch, and limits fresher than the last provider check.
 
 The reference `ThreadBackgroundLivenessService` uses an in-memory registry rather than persistence. It distinguishes an active agent/workflow from a watch loop. T3 Code Bar does not connect to that runtime service and does not infer current work from old task history.
 

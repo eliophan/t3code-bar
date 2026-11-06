@@ -74,6 +74,9 @@ public struct UsageReport: Equatable, Sendable {
     /// When T3 Code last wrote the cache.
     public var cacheModified = Date(timeIntervalSince1970: 0)
 
+    public var localSources: [LocalUsageStatus] = []
+    public var scanCacheMissing = false
+
     public var processedTokens: Int { tokens.processed }
 
     /// Share of records without a price. The Cost headline's tooltip quotes it.
@@ -82,7 +85,7 @@ public struct UsageReport: Equatable, Sendable {
     public var isEmpty: Bool { records == 0 }
 
     /// Cost headline's partial-data warning.
-    public var isPartial: Bool { rejectedFiles > 0 || malformedRecords > 0 }
+    public var isPartial: Bool { rejectedFiles > 0 || malformedRecords > 0 || scanCacheMissing || localSources.contains { $0.state == .partial || $0.state == .unreadable } }
 }
 
 enum UsageReportBuilder {

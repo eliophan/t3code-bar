@@ -35,7 +35,7 @@ private struct StateFixture {
         return try fixture.write(to: directory)
     }
 
-    var source: UsageSource { UsageSource(config: EnvironmentConfig(stateDirectory: directory)) }
+    var source: UsageSource { UsageSource(config: EnvironmentConfig(stateDirectory: directory), localPaths: .empty) }
 
     func engine(_ clock: TestClock) -> UsageEngine {
         UsageEngine(source: source, clock: { clock.now }, timeZone: TimeZone(identifier: "Asia/Ho_Chi_Minh")!)

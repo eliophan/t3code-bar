@@ -196,9 +196,24 @@ struct UsageView: View {
     }
 
     nonisolated static let updatedHelp = """
-        The numbers are as of T3 Code's last scan, which runs when its Usage page opens. \
-        OpenCode, Antigravity and Cursor usage is not included yet, and neither are other computers.
+        Transcript usage is as of T3 Code's last Usage page scan. OpenCode and Antigravity are read locally \
+        every 30 seconds while this tab is open. Cursor uses T3 Code's saved account cache. Other computers are excluded.
         """
+
+    nonisolated static func localSourceText(_ source: LocalUsageStatus, now: Date = Date()) -> String {
+        let name = source.kind.style.label
+        switch source.state {
+        case .missing: return "\(name) · No local usage source found"
+        case .unreadable: return "\(name) · Could not read local usage. Trying again."
+        case .partial: return "\(name) · Partial local data. Unreadable files or records may be missing or show older values. Trying again."
+        case .ready:
+            if source.kind == .cursor {
+                guard let updated = source.dataUpdatedAt else { return "Cursor · Saved account cache is empty" }
+                return "Cursor · Saved account data · " + updatedText(modified: updated, now: now)
+            }
+            return "\(name) · Local check · " + updatedText(modified: source.checkedAt, now: now)
+        }
+    }
 
     nonisolated static func updatedText(modified: Date, now: Date) -> String {
         let seconds = Int(now.timeIntervalSince(modified))

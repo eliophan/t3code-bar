@@ -20,7 +20,15 @@ struct UsageRealDataTests {
             return
         }
         let loadStart = Date()
-        let dataset = try source.dataset(file)
+        var dataset = try source.dataset(file)
+        if ProcessInfo.processInfo.environment["T3_CODE_BAR_REAL_LOCAL"] == "1" {
+            var scanner = LocalUsageScanner()
+            let local = scanner.scan(paths: source.localPaths, now: Self.now)
+            dataset = local.merging(dataset)
+            for status in local.statuses {
+                print("LOCAL provider=\(status.kind.raw) state=\(status.state) failed=\(status.failedFiles)")
+            }
+        }
         let prices = source.prices()
         let records = dataset.files.reduce(0) { $0 + $1.records.count }
         print("REAL cache=\(file.url.lastPathComponent) version=\(dataset.version) files=\(dataset.files.count) records=\(records) "

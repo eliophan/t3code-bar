@@ -15,10 +15,21 @@ public struct UsageSource: Sendable {
 
     public let directory: URL
     private let database: URL
+    private var pathsOverride: LocalUsagePaths?
+
+    var localPaths: LocalUsagePaths {
+        pathsOverride ?? .discover(state: directory, home: FileManager.default.homeDirectoryForCurrentUser, environment: ProcessInfo.processInfo.environment)
+    }
 
     public init(config: EnvironmentConfig = .shared) {
         directory = config.baseDir
         database = config.stateDbUrl
+    }
+
+    init(config: EnvironmentConfig, localPaths: LocalUsagePaths) {
+        directory = config.baseDir
+        database = config.stateDbUrl
+        pathsOverride = localPaths
     }
 
     public func locate() -> UsageCacheLocation {

@@ -88,7 +88,13 @@ struct UsageFootnotes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("OpenCode, Antigravity and Cursor usage is not included.")
+            Text("This Mac only. Other providers appear when T3 Code has cached their usage.")
+            ForEach(report.localSources, id: \.kind) { source in
+                Text(UsageView.localSourceText(source))
+            }
+            if report.scanCacheMissing {
+                Text("Transcript usage is missing. Open T3 Code's Usage page once to include Claude, Codex and other transcript providers.")
+            }
             if let range = UsagePresentation.rangeText(report.timeline) {
                 Text(range).monospacedDigit()
             }
@@ -96,8 +102,10 @@ struct UsageFootnotes: View {
                 Text(partial)
                     .help("These records are left out of the totals.")
             }
-            Text(UsageView.updatedText(modified: report.cacheModified, now: Date()))
-                .help(UsageView.updatedHelp)
+            if !report.scanCacheMissing {
+                Text("Transcript cache · " + UsageView.updatedText(modified: report.cacheModified, now: Date()))
+                    .help(UsageView.updatedHelp)
+            }
         }
         .font(.system(size: 11))
         .foregroundColor(T3Theme.textMuted)

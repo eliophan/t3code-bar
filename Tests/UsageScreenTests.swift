@@ -40,7 +40,7 @@ struct UsageTabTests {
 
     @Test @MainActor func thePeriodChoiceIsRememberedAlongsideTheTab() {
         let defaults = freshDefaults()
-        let engine = UsageEngine(source: UsageSource(config: EnvironmentConfig(stateDirectory: temporaryDirectory())))
+        let engine = UsageEngine(source: UsageSource(config: EnvironmentConfig(stateDirectory: temporaryDirectory()), localPaths: .empty))
         UsageMonitor(engine: engine, defaults: defaults).period = .quarter
         #expect(UsageMonitor(engine: engine, defaults: defaults).period == .quarter)
     }

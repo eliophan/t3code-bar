@@ -24,7 +24,7 @@ Archived, deleted, and settled threads, side chats, and separate subagent thread
 
 Click **Usage** at the bottom of the thread list to see what T3 Code's own Usage page shows. Click the back arrow or press Esc to return to the threads. The popover always opens on the threads.
 
-Three tabs sit under the header, in T3 Code's order. **Cost** and **Tokens** read T3 Code's usage cache. **Limits** reads the status files T3 Code keeps for each provider. Bar remembers the tab you left open. On first launch it opens on Limits and 30 days, as T3 Code does.
+Three tabs sit under the header, in T3 Code's order. **Cost** and **Tokens** combine T3 Code's transcript cache with local OpenCode and Antigravity usage and Cursor's saved account cache. **Limits** reads the status files T3 Code keeps for each provider. Bar remembers the tab you left open. On first launch it opens on Limits and 30 days, as T3 Code does.
 
 The period control on Cost and Tokens offers Past 24h, 7 days, 30 days and 90 days. Limits has no period, so the control is hidden there. Past 24h is a sliding window. The other periods are whole calendar days in your time zone, with today counted in full. Bar remembers your choice. Hover a period for its full name.
 
@@ -44,7 +44,7 @@ The period control on Cost and Tokens offers Past 24h, 7 days, 30 days and 90 da
 - **Tokens by type** splits the total into input, cache read, cache write and output.
 - **Totals**, **By provider**, the chart and the **Breakdown** follow the same rules as on Cost. Models rank by tokens here.
 
-The last lines say which days or hours the numbers cover and how old the data is. Bar reads T3 Code's usage cache, and T3 Code updates it only when its Usage page scans. If the line is old, open T3 Code's Usage page once and the numbers catch up within a few seconds. Costs are API estimates from T3 Code's price list. They are not what a plan bills.
+The last lines show the period, transcript cache age, local check times, and Cursor account fetch time. OpenCode and Antigravity refresh locally every 30 seconds while this tab is open. Transcript providers update when T3 Code's Usage page scans. If their cache is old, open that page once. Cursor uses only its saved account cache, which Bar never fetches. Costs are API estimates from T3 Code's price list. They are not what a plan bills.
 
 ### Limits
 
@@ -61,14 +61,14 @@ Limits do not need the usage cache. They work even if T3 Code has never scanned.
 
 Bar checks the files about every 5 seconds while the screen is open and decodes the usage cache again only when it changes. Switching periods does not read the file again. Bar reads nothing while the screen is closed and frees the decoded data when you leave it. Each tab starts only its own reader.
 
-If T3 Code has never scanned, Cost and Tokens ask you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, they say so and show no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low. A period with no usage says "No usage in this period".
+If T3 Code has never scanned, Cost and Tokens can still show local provider usage and explain that transcript usage is missing. Without any local sources, they ask you to open T3 Code's Usage page once. If T3 Code writes a newer cache format than this build understands, they say so and show no numbers. Update Bar in that case. While T3 Code is rewriting the cache, Bar keeps the last numbers and retries. A warning appears when entries or lines could not be read, because the totals may then read low. A period with no usage says "No usage in this period".
 
 ### What is missing
 
-- OpenCode, Antigravity and Cursor usage. T3 Code scans those live and does not put them in the cache, so Cost and Tokens leave them out.
+- Usage for a provider without a readable local source or a T3 Code cache. Missing and unreadable OpenCode, Antigravity and Cursor sources are identified below the totals. Bar does not contact provider APIs or read credentials.
 - Remote and linked environments. Bar reads this Mac only.
 - T3 Code's own list of hidden providers. It lives in T3 Code's renderer storage, which Bar does not read.
-- Live freshness. The numbers are as current as T3 Code's last Usage page scan, and the limits are as current as its last provider check.
+- Live freshness for transcript providers, Cursor and limits. These remain as current as T3 Code's last scan, saved account fetch and provider check. Local OpenCode and Antigravity sources are checked separately.
 - The table of cost by day or hour, and the model dialog with its price per million tokens. The popover has no room for them.
 - Setting a price, refreshing prices or limits, and using a reset credit. Bar never writes to T3 Code and never contacts a provider.
 
@@ -110,7 +110,7 @@ Apps opened from Finder or Login Items do not automatically inherit your termina
 | Data not found | Open T3 Code at least once and check the configured data directory. |
 | Usage says "Open T3 Code's Usage page once" | T3 Code has not written `usage-scan-cache-vN.json` in the data directory yet. Open its Usage page. |
 | Usage says "T3 Code changed its usage format" | T3 Code writes a cache version newer than 11. Update T3 Code Bar. |
-| Usage numbers differ from T3 Code's page | The page rescans on open and also counts OpenCode, Antigravity and Cursor. Open T3 Code's Usage page, wait for the next refresh, and compare again. |
+| Usage numbers differ from T3 Code's page | Compare the same period and time zone, check each source's freshness, and allow a local refresh. Open T3 Code's Usage page to refresh transcript and Cursor caches. Remote environments and unsupported local sources are excluded. |
 | Limits say "No limits data yet" | T3 Code has not written its provider files to `caches` yet. Open T3 Code once. |
 | Limits say T3 Code last checked hours ago | T3 Code probes providers only while it runs. Open T3 Code and the numbers refresh within minutes. |
 | Unsupported schema | Your T3 Code version may use a different database structure. See the [compatibility notes](COMPATIBILITY.md). Bar does not repair the database. |
@@ -123,7 +123,7 @@ For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues)
 
 ## Known limitations
 
-- Monitors one local T3 Code instance, not remote machines. Usage excludes remote environments, OpenCode, Antigravity and Cursor, and is only as fresh as T3 Code's last Usage page scan. Limits are only as fresh as T3 Code's last provider check.
+- Monitors one local T3 Code instance, not remote machines. Usage excludes remote environments. OpenCode and Antigravity refresh from local sources, while other usage depends on T3 Code's saved caches. Limits are only as fresh as T3 Code's last provider check.
 - Some background activity exists only in T3 Code's memory and cannot be inferred from SQLite. Working/Monitoring indicators after the main run ends may be incomplete.
 - Unread completion and wake indicators depend on visit timestamps persisted by T3 Code; Bar does not read browser localStorage or call the sidebar's acknowledgment API.
 - Server availability uses the runtime PID, not an HTTP health check. After a read error, the last successful list remains visible with live status disabled.

@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// Decodes T3 Code's scan cache once per change and answers each period from the decoded records.
+/// Combines T3 Code's transcript cache with read-only local provider sources.
 ///
 /// It runs off the main actor, so the parse (a fraction of a second for a 20 MB cache) never blocks the UI.
 actor UsageEngine {
@@ -16,7 +16,8 @@ actor UsageEngine {
     }
 
     private struct Key: Equatable {
-        let file: UsageCacheFile
+        let file: UsageCacheFile?
+        let localRevision: Int
         let prices: UsageSource.PriceStamp
         let period: UsagePeriod
         let minute: Int
@@ -28,6 +29,11 @@ actor UsageEngine {
     private var loaded: (file: UsageCacheFile, dataset: UsageDataset)?
     private var priced: (stamp: UsageSource.PriceStamp, book: PriceBook)?
     private var lastKey: Key?
+    private var localScanner = LocalUsageScanner()
+    private var localSnapshot = LocalUsageSnapshot()
+    private var localScannedAt: Date?
+    private var localRevision = 0
+    static let localRefreshInterval: TimeInterval = 30
     private(set) var cacheReads = 0
 
     init(source: UsageSource, clock: @escaping @Sendable () -> Date = Date.init, timeZone: TimeZone = .autoupdatingCurrent) {
@@ -37,14 +43,18 @@ actor UsageEngine {
     }
 
     func report(for period: UsagePeriod) -> Outcome {
+        let now = clock()
+        var cacheFile: UsageCacheFile?
+        var cacheMissing = false
         switch source.locate() {
         case .missing:
-            release()
-            return .missing
+            loaded = nil
+            cacheMissing = true
         case .unsupported(let version):
             release()
             return .unsupported(version)
         case .available(let file):
+            cacheFile = file
             if loaded?.file != file {
                 do {
                     cacheReads += 1
@@ -56,22 +66,33 @@ actor UsageEngine {
                     return .unreadable
                 }
             }
-            let stamp = source.priceStamp()
-            if priced?.stamp != stamp { priced = (stamp, source.prices()) }
-
-            let now = clock()
-            let key = Key(file: file, prices: stamp, period: period, minute: Int(now.timeIntervalSince1970 / 60))
-            if key == lastKey { return .unchanged }
-            lastKey = key
-            guard let dataset = loaded?.dataset, let book = priced?.book else { return .unreadable }
-            return .report(UsageReportBuilder.build(dataset: dataset, window: period.window(now: now, timeZone: timeZone), prices: book))
         }
+        if localScannedAt.map({ now.timeIntervalSince($0) >= Self.localRefreshInterval }) ?? true {
+            localSnapshot = localScanner.scan(paths: source.localPaths, now: now)
+            localScannedAt = now
+            localRevision += 1
+        }
+        let stamp = source.priceStamp()
+        if priced?.stamp != stamp { priced = (stamp, source.prices()) }
+        let key = Key(file: cacheFile, localRevision: localRevision, prices: stamp, period: period, minute: Int(now.timeIntervalSince1970 / 60))
+        if key == lastKey { return .unchanged }
+        lastKey = key
+        let dataset = localSnapshot.merging(loaded?.dataset)
+        guard let book = priced?.book else { return .unreadable }
+        if cacheMissing && dataset.files.isEmpty && !localSnapshot.statuses.contains(where: { $0.state == .unreadable || $0.state == .partial }) { return .missing }
+        var report = UsageReportBuilder.build(dataset: dataset, window: period.window(now: now, timeZone: timeZone), prices: book)
+        report.localSources = localSnapshot.statuses
+        report.scanCacheMissing = cacheMissing
+        return .report(report)
     }
 
-    /// Drops the decoded records, which are the only large thing held.
+    /// Drops decoded transcript and local provider records.
     func release() {
         loaded = nil
         lastKey = nil
+        localScanner = LocalUsageScanner()
+        localSnapshot = LocalUsageSnapshot()
+        localScannedAt = nil
     }
 }
 
