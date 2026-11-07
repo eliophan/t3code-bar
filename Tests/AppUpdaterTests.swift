@@ -19,14 +19,57 @@ struct AppUpdatePolicyTests {
         #expect(AppUpdatePolicy.tagToInstall(latestTag: "v1.0.2-beta", runningVersion: "1.0.0") == nil)
     }
 
-    @Test func tagIsReadFromTheReleaseJSON() {
-        let json = Data(#"{"id": 1, "tag_name": "v1.2.3", "name": "v1.2.3"}"#.utf8)
-        #expect(AppUpdatePolicy.latestTag(fromReleaseJSON: json) == "v1.2.3")
-        #expect(AppUpdatePolicy.latestTag(fromReleaseJSON: Data("{}".utf8)) == nil)
+    @Test func releaseIsReadFromTheJSON() {
+        let json = Data(#"{"id": 1, "tag_name": "v1.2.3", "assets": [{"name": "a.zip", "size": 3}, {"id": 9}, {"name": "b.sha256"}]}"#.utf8)
+        #expect(AppUpdatePolicy.release(fromReleaseJSON: json) == ReleaseInfo(tag: "v1.2.3", assetNames: ["a.zip", "b.sha256"]))
+    }
+
+    @Test func missingAssetsKeyMeansNoAssets() {
+        let json = Data(#"{"tag_name": "v1.2.3"}"#.utf8)
+        #expect(AppUpdatePolicy.release(fromReleaseJSON: json) == ReleaseInfo(tag: "v1.2.3", assetNames: []))
+    }
+
+    @Test func malformedReleaseJSONIsRejected() {
+        #expect(AppUpdatePolicy.release(fromReleaseJSON: Data("{}".utf8)) == nil)
+        #expect(AppUpdatePolicy.release(fromReleaseJSON: Data("not json".utf8)) == nil)
+        #expect(AppUpdatePolicy.release(fromReleaseJSON: Data(#"{"tag_name": "v1.0.0", "assets": "x"}"#.utf8)) == nil)
+    }
+
+    @Test func assetNameMatchesThePackagedZip() {
+        #expect(UpdatePlatform.current.assetName(version: "1.2.3") == "T3-Code-Bar-1.2.3-universal.zip")
+    }
+
+    @Test(arguments: [
+        ("v1.2.0", ["T3-Code-Bar-1.2.0-universal.zip"], "1.1.0", "v1.2.0"),
+        ("v1.2.0", [], "1.1.0", nil),
+        ("v1.2.0", ["T3-Code-Bar-1.1.0-universal.zip"], "1.1.0", nil),
+        ("v1.1.0", ["T3-Code-Bar-1.1.0-universal.zip"], "1.1.0", nil),
+        ("v1.0.0", ["T3-Code-Bar-1.0.0-universal.zip"], "1.1.0", nil),
+    ] as [(String, [String], String, String?)])
+    func offersOnlyNewerReleasesThatCarryTheAsset(tag: String, assets: [String], running: String, expected: String?) {
+        let release = ReleaseInfo(tag: tag, assetNames: assets)
+        #expect(AppUpdatePolicy.tagToInstall(release: release, runningVersion: running, platform: .macOS) == expected)
+    }
+
+    @Test(arguments: [
+        (false, "/a/App.app", "/a/App.app", "1.0.0", UnsupportedReason.notReleaseBuild),
+        (true, "/b/App.app", "/a/App.app", "1.0.0", UnsupportedReason.notInstalledInApplications),
+        (true, "/a/App.app", "/a/App.app", nil, UnsupportedReason.missingVersion),
+    ] as [(Bool, String, String, String?, UnsupportedReason)])
+    func unsupportedReasons(release: Bool, bundle: String, installed: String, version: String?, expected: UnsupportedReason) {
+        let reason = AppUpdatePolicy.unsupportedReason(
+            isReleaseBuild: release, bundleURL: URL(fileURLWithPath: bundle),
+            installedAt: URL(fileURLWithPath: installed), version: version)
+        #expect(reason == expected)
+    }
+
+    @Test func supportedReleaseBuildHasNoReason() {
+        let url = URL(fileURLWithPath: "/a/App.app")
+        #expect(AppUpdatePolicy.unsupportedReason(isReleaseBuild: true, bundleURL: url, installedAt: url, version: "1.0.0") == nil)
     }
 
     @Test func swiftRunNeverSelfUpdates() {
         let home = URL(fileURLWithPath: "/tmp/Applications/T3 Code Bar.app")
-        #expect(!AppUpdatePolicy.canSelfUpdate(bundle: .main, installedAt: home))
+        #expect(AppUpdatePolicy.unsupportedReason(bundle: .main, installedAt: home) == .notReleaseBuild)
     }
 }

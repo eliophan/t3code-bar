@@ -23,6 +23,23 @@ public enum UpdateSettings {
     }
 }
 
+public enum UpdatePlatform: Sendable {
+    case macOS
+
+    public static var current: UpdatePlatform { .macOS }
+
+    public func assetName(version: String) -> String {
+        switch self {
+        case .macOS: "T3-Code-Bar-\(version)-universal.zip"
+        }
+    }
+}
+
+public struct ReleaseInfo: Equatable, Sendable {
+    public let tag: String
+    public let assetNames: [String]
+}
+
 public enum AppUpdatePolicy {
     public static let repository = "eliophan/t3code-bar"
     public static let releaseBuildKey = "T3CodeBarReleaseBuild"
@@ -33,32 +50,61 @@ public enum AppUpdatePolicy {
         return latestTag
     }
 
-    static func latestTag(fromReleaseJSON data: Data) -> String? {
-        struct Release: Decodable { let tag_name: String }
-        return (try? JSONDecoder().decode(Release.self, from: data))?.tag_name
+    /// A newer tag can be published before its assets finish uploading, so a
+    /// release is offered only once it carries the running platform's asset.
+    public static func tagToInstall(release: ReleaseInfo, runningVersion: String, platform: UpdatePlatform) -> String? {
+        guard let tag = tagToInstall(latestTag: release.tag, runningVersion: runningVersion) else { return nil }
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        return release.assetNames.contains(platform.assetName(version: version)) ? tag : nil
+    }
+
+    static func release(fromReleaseJSON data: Data) -> ReleaseInfo? {
+        struct Release: Decodable {
+            struct Asset: Decodable { let name: String? }
+            let tag_name: String
+            let assets: [Asset]?
+        }
+        guard let release = try? JSONDecoder().decode(Release.self, from: data) else { return nil }
+        return ReleaseInfo(tag: release.tag_name, assetNames: (release.assets ?? []).compactMap(\.name))
     }
 
     /// Source builds and `swift run` must never replace themselves with a
     /// release, and a copy outside ~/Applications is not the one the installer replaces.
-    static func canSelfUpdate(bundle: Bundle, installedAt: URL) -> Bool {
-        bundle.object(forInfoDictionaryKey: releaseBuildKey) as? Bool == true
-            && bundle.bundleURL.standardizedFileURL == installedAt.standardizedFileURL
+    static func unsupportedReason(isReleaseBuild: Bool, bundleURL: URL, installedAt: URL, version: String?) -> UnsupportedReason? {
+        if !isReleaseBuild { return .notReleaseBuild }
+        if bundleURL.standardizedFileURL != installedAt.standardizedFileURL { return .notInstalledInApplications }
+        if version == nil { return .missingVersion }
+        return nil
+    }
+
+    static func unsupportedReason(bundle: Bundle, installedAt: URL) -> UnsupportedReason? {
+        unsupportedReason(
+            isReleaseBuild: bundle.object(forInfoDictionaryKey: releaseBuildKey) as? Bool == true,
+            bundleURL: bundle.bundleURL,
+            installedAt: installedAt,
+            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        )
     }
 }
 
 @MainActor
-public final class AppUpdater {
+public final class AppUpdater: ObservableObject {
     private static let interval: TimeInterval = 6 * 60 * 60
     private var timer: Timer?
-    private var installing = false
+    @Published public private(set) var status = UpdateStatus()
+
+    public var state: UpdateState { status.state }
 
     public init() {}
 
     public func start() {
         let installedAt = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications/T3 Code Bar.app")
-        guard AppUpdatePolicy.canSelfUpdate(bundle: .main, installedAt: installedAt),
-              let running = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else { return }
+        if let reason = AppUpdatePolicy.unsupportedReason(bundle: .main, installedAt: installedAt) {
+            send(.unsupported(reason))
+            return
+        }
+        guard let running = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else { return }
         let check = { [weak self] in
             guard UpdateSettings.isEnabled else { return }
             Task { await self?.checkAndInstall(running: running) }
@@ -67,29 +113,52 @@ public final class AppUpdater {
         timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { _ in check() }
     }
 
+    private func send(_ event: UpdateEvent) {
+        status = UpdateStatus.reduce(status, event)
+    }
+
     private func checkAndInstall(running: String) async {
-        guard !installing,
-              let url = URL(string: "https://api.github.com/repos/\(AppUpdatePolicy.repository)/releases/latest"),
-              let (data, response) = try? await URLSession.shared.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let latest = AppUpdatePolicy.latestTag(fromReleaseJSON: data),
-              let tag = AppUpdatePolicy.tagToInstall(latestTag: latest, runningVersion: running) else { return }
-        install(tag: tag)
+        send(.checkStarted)
+        guard state == .checking else { return }
+        let result = await fetchRelease()
+        let outcome: CheckResult
+        switch result {
+        case .failure(let failure):
+            outcome = .failed(failure)
+        case .success(let release):
+            if let tag = AppUpdatePolicy.tagToInstall(release: release, runningVersion: running, platform: .current) {
+                outcome = .available(tag)
+            } else {
+                outcome = .upToDate
+            }
+        }
+        send(.checkFinished(outcome, at: Date()))
+        if case .available(let tag) = state { install(tag: tag) }
+    }
+
+    private func fetchRelease() async -> Result<ReleaseInfo, UpdateFailure> {
+        guard let url = URL(string: "https://api.github.com/repos/\(AppUpdatePolicy.repository)/releases/latest"),
+              let (data, response) = try? await URLSession.shared.data(from: url) else { return .failure(.network) }
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let release = AppUpdatePolicy.release(fromReleaseJSON: data) else { return .failure(.badResponse) }
+        return .success(release)
     }
 
     /// The installer quits this app, swaps the bundle, and reopens it, so it
     /// runs as a detached child with no pipes back to us.
     private func install(tag: String) {
-        installing = true
+        send(.installStarted(tag: tag))
+        guard case .installing = state else { return }
         let script = "https://raw.githubusercontent.com/\(AppUpdatePolicy.repository)/\(tag)/scripts/install-release.sh"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "curl -fsSL --retry 3 \"$0\" | bash -s -- --version \"$1\"", script, tag]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { [weak self] _ in
-            Task { @MainActor in self?.installing = false }
+        process.terminationHandler = { [weak self] finished in
+            let code = finished.terminationStatus
+            Task { @MainActor in self?.send(.installFinished(status: code)) }
         }
-        do { try process.run() } catch { installing = false }
+        do { try process.run() } catch { send(.installFinished(status: -1)) }
     }
 }
