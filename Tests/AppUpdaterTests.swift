@@ -2,6 +2,123 @@ import Foundation
 import Testing
 @testable import T3CodeBar
 
+@MainActor
+struct AppUpdaterTests {
+    private let newer = ReleaseInfo(tag: "v1.2.0", assetNames: ["T3-Code-Bar-1.2.0-universal.zip"])
+
+    private final class Recorder: @unchecked Sendable {
+        var installed: [String] = []
+        var fetches = 0
+    }
+
+    private func updater(
+        _ recorder: Recorder,
+        fetch: Result<ReleaseInfo, UpdateFailure>,
+        autoUpdate: Bool = false
+    ) -> AppUpdater {
+        AppUpdater(
+            runningVersion: "1.1.0",
+            fetchRelease: { recorder.fetches += 1; return fetch },
+            runInstaller: { tag, _ in recorder.installed.append(tag) },
+            isAutoUpdateEnabled: { autoUpdate }
+        )
+    }
+
+    @Test func manualCheckWithAutoUpdateOffStopsAtAvailable() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: false)
+        await sut.checkNow()
+        #expect(sut.state == .available("v1.2.0"))
+        #expect(sut.status.lastChecked != nil)
+        #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func installAvailableRunsTheInstallerOnce() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        await sut.checkNow()
+        sut.installAvailable()
+        sut.installAvailable()
+        #expect(sut.state == .installing("v1.2.0"))
+        #expect(recorder.installed == ["v1.2.0"])
+    }
+
+    @Test func installAvailableWithoutAnAvailableReleaseDoesNothing() {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        sut.installAvailable()
+        #expect(sut.state == .idle)
+        #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func automaticCheckInstallsWhenEnabled() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        await sut.checkAutomatically()
+        #expect(sut.state == .installing("v1.2.0"))
+        #expect(recorder.installed == ["v1.2.0"])
+    }
+
+    @Test func automaticCheckDoesNothingWhenDisabled() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: false)
+        await sut.checkAutomatically()
+        #expect(sut.state == .idle)
+        #expect(recorder.fetches == 0)
+    }
+
+    @Test func manualCheckWhileUnsupportedDoesNothing() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        sut.send(.unsupported(.notReleaseBuild))
+        await sut.checkNow()
+        #expect(sut.state == .unsupported(.notReleaseBuild))
+        #expect(recorder.fetches == 0)
+    }
+
+    @Test func manualCheckWhileInstallingDoesNothing() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        sut.send(.installStarted(tag: "v1.2.0"))
+        await sut.checkNow()
+        #expect(sut.state == .installing("v1.2.0"))
+        #expect(recorder.fetches == 0)
+    }
+
+    @Test func manualCheckWhileCheckingDoesNotFetchAgain() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        sut.send(.checkStarted)
+        await sut.checkNow()
+        #expect(sut.state == .checking)
+        #expect(recorder.fetches == 0)
+    }
+
+    @Test func failedFetchRecordsFailureAndTime() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .failure(.network))
+        await sut.checkNow()
+        #expect(sut.state == .failed(.network))
+        #expect(sut.status.lastChecked != nil)
+    }
+
+    @Test func installerExitIsReportedBack() async {
+        let recorder = Recorder()
+        var finish: (@Sendable (Int32) -> Void)?
+        let sut = AppUpdater(
+            runningVersion: "1.1.0",
+            fetchRelease: { .success(newer) },
+            runInstaller: { tag, completion in recorder.installed.append(tag); finish = completion },
+            isAutoUpdateEnabled: { false }
+        )
+        await sut.checkNow()
+        sut.installAvailable()
+        finish?(22)
+        await Task.yield()
+        #expect(sut.state == .failed(.installerExit(22)))
+    }
+}
+
 struct AppUpdatePolicyTests {
     @Test func newerReleaseIsInstalled() {
         #expect(AppUpdatePolicy.tagToInstall(latestTag: "v1.0.2", runningVersion: "1.0.1") == "v1.0.2")

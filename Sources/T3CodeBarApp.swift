@@ -162,6 +162,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func addToggleItems(to menu: NSMenu) {
+        menu.autoenablesItems = false
+        let update = UpdateMenuModel(status: updater.status, runningVersion: updater.runningVersion, now: Date())
+        for line in [update.versionLine, update.statusLine] {
+            let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        let actionItem = NSMenuItem(title: update.action.title, action: #selector(runUpdateAction), keyEquivalent: "")
+        actionItem.target = self
+        actionItem.isEnabled = update.action.isEnabled
+        menu.addItem(actionItem)
+        menu.addItem(.separator())
+
         let mute = NSMenuItem(title: "Mute Notifications", action: #selector(toggleMuteNotifications), keyEquivalent: "")
         mute.target = self
         mute.state = notifier.isMuted ? .on : .off
@@ -177,6 +190,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updates.state = UpdateSettings.isEnabled ? .on : .off
         menu.addItem(updates)
         menu.addItem(.separator())
+    }
+
+    @objc private func runUpdateAction() {
+        switch UpdateMenuModel(status: updater.status, runningVersion: updater.runningVersion, now: Date()).action {
+        case .check: Task { await updater.checkNow() }
+        case .install: updater.installAvailable()
+        case .checking, .installing, .unavailable: break
+        }
     }
 
     @objc private func toggleAutoUpdate() { UpdateSettings.isEnabled.toggle() }

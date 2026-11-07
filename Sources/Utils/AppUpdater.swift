@@ -92,34 +92,70 @@ public final class AppUpdater: ObservableObject {
     private static let interval: TimeInterval = 6 * 60 * 60
     private var timer: Timer?
     @Published public private(set) var status = UpdateStatus()
+    public private(set) var runningVersion: String?
+
+    private let fetchRelease: () async -> Result<ReleaseInfo, UpdateFailure>
+    /// Calls back with the installer's exit status once it ends.
+    private let runInstaller: (String, @escaping @Sendable (Int32) -> Void) -> Void
+    private let isAutoUpdateEnabled: () -> Bool
 
     public var state: UpdateState { status.state }
 
-    public init() {}
+    public init(
+        runningVersion: String? = nil,
+        fetchRelease: @escaping () async -> Result<ReleaseInfo, UpdateFailure> = AppUpdater.liveFetchRelease,
+        runInstaller: @escaping (String, @escaping @Sendable (Int32) -> Void) -> Void = AppUpdater.liveRunInstaller,
+        isAutoUpdateEnabled: @escaping () -> Bool = { UpdateSettings.isEnabled }
+    ) {
+        self.runningVersion = runningVersion
+        self.fetchRelease = fetchRelease
+        self.runInstaller = runInstaller
+        self.isAutoUpdateEnabled = isAutoUpdateEnabled
+    }
 
     public func start() {
+        runningVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let installedAt = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Applications/T3 Code Bar.app")
         if let reason = AppUpdatePolicy.unsupportedReason(bundle: .main, installedAt: installedAt) {
             send(.unsupported(reason))
             return
         }
-        guard let running = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else { return }
-        let check = { [weak self] in
-            guard UpdateSettings.isEnabled else { return }
-            Task { await self?.checkAndInstall(running: running) }
+        let check: @Sendable () -> Void = { [weak self] in
+            Task { @MainActor in await self?.checkAutomatically() }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: check)
         timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { _ in check() }
     }
 
-    private func send(_ event: UpdateEvent) {
+    /// Stops at `.available`; installing is a separate, explicit step.
+    public func checkNow() async {
+        await check(installIfAvailable: false)
+    }
+
+    public func installAvailable() {
+        guard case .available(let tag) = state else { return }
+        install(tag: tag)
+    }
+
+    func checkAutomatically() async {
+        guard isAutoUpdateEnabled() else { return }
+        await check(installIfAvailable: true)
+    }
+
+    func send(_ event: UpdateEvent) {
         status = UpdateStatus.reduce(status, event)
     }
 
-    private func checkAndInstall(running: String) async {
+    private func check(installIfAvailable: Bool) async {
+        guard let running = runningVersion else { return }
+        // The reducer accepts .checkStarted only from these states. Checking here
+        // too keeps a second caller from fetching while a check is in flight.
+        switch state {
+        case .idle, .available, .failed: break
+        case .checking, .installing, .unsupported: return
+        }
         send(.checkStarted)
-        guard state == .checking else { return }
         let result = await fetchRelease()
         let outcome: CheckResult
         switch result {
@@ -133,10 +169,10 @@ public final class AppUpdater: ObservableObject {
             }
         }
         send(.checkFinished(outcome, at: Date()))
-        if case .available(let tag) = state { install(tag: tag) }
+        if installIfAvailable, case .available(let tag) = state { install(tag: tag) }
     }
 
-    private func fetchRelease() async -> Result<ReleaseInfo, UpdateFailure> {
+    public nonisolated static func liveFetchRelease() async -> Result<ReleaseInfo, UpdateFailure> {
         guard let url = URL(string: "https://api.github.com/repos/\(AppUpdatePolicy.repository)/releases/latest"),
               let (data, response) = try? await URLSession.shared.data(from: url) else { return .failure(.network) }
         guard (response as? HTTPURLResponse)?.statusCode == 200,
@@ -144,21 +180,24 @@ public final class AppUpdater: ObservableObject {
         return .success(release)
     }
 
-    /// The installer quits this app, swaps the bundle, and reopens it, so it
-    /// runs as a detached child with no pipes back to us.
     private func install(tag: String) {
         send(.installStarted(tag: tag))
         guard case .installing = state else { return }
+        runInstaller(tag) { [weak self] code in
+            Task { @MainActor in self?.send(.installFinished(status: code)) }
+        }
+    }
+
+    /// The installer quits this app, swaps the bundle, and reopens it, so it
+    /// runs as a detached child with no pipes back to us.
+    public nonisolated static func liveRunInstaller(tag: String, completion: @escaping @Sendable (Int32) -> Void) {
         let script = "https://raw.githubusercontent.com/\(AppUpdatePolicy.repository)/\(tag)/scripts/install-release.sh"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "curl -fsSL --retry 3 \"$0\" | bash -s -- --version \"$1\"", script, tag]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { [weak self] finished in
-            let code = finished.terminationStatus
-            Task { @MainActor in self?.send(.installFinished(status: code)) }
-        }
-        do { try process.run() } catch { send(.installFinished(status: -1)) }
+        process.terminationHandler = { completion($0.terminationStatus) }
+        do { try process.run() } catch { completion(-1) }
     }
 }
