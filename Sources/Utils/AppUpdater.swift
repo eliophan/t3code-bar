@@ -98,19 +98,35 @@ public final class AppUpdater: ObservableObject {
     /// Calls back with the installer's exit status once it ends.
     private let runInstaller: (String, @escaping @Sendable (Int32) -> Void) -> Void
     private let isAutoUpdateEnabled: () -> Bool
+    /// Runs the work after the delay and returns a function that cancels it.
+    private let scheduleRetry: (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void
+    private let log: UpdateLog
+    private var consecutiveFailures = 0
+    private var cancelPendingRetry: (() -> Void)?
 
     public var state: UpdateState { status.state }
 
     public init(
         runningVersion: String? = nil,
-        fetchRelease: @escaping () async -> Result<ReleaseInfo, UpdateFailure> = AppUpdater.liveFetchRelease,
-        runInstaller: @escaping (String, @escaping @Sendable (Int32) -> Void) -> Void = AppUpdater.liveRunInstaller,
-        isAutoUpdateEnabled: @escaping () -> Bool = { UpdateSettings.isEnabled }
+        fetchRelease: (() async -> Result<ReleaseInfo, UpdateFailure>)? = nil,
+        runInstaller: ((String, @escaping @Sendable (Int32) -> Void) -> Void)? = nil,
+        isAutoUpdateEnabled: @escaping () -> Bool = { UpdateSettings.isEnabled },
+        scheduleRetry: @escaping (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void = AppUpdater.liveScheduleRetry(delay:work:),
+        log: UpdateLog = .standard
     ) {
         self.runningVersion = runningVersion
-        self.fetchRelease = fetchRelease
-        self.runInstaller = runInstaller
+        if let fetchRelease {
+            self.fetchRelease = fetchRelease
+        } else {
+            let fetcher = ReleaseFetcher()
+            self.fetchRelease = { await fetcher.fetch() }
+        }
+        self.runInstaller = runInstaller ?? { tag, completion in
+            AppUpdater.liveRunInstaller(tag: tag, log: log, completion: completion)
+        }
         self.isAutoUpdateEnabled = isAutoUpdateEnabled
+        self.scheduleRetry = scheduleRetry
+        self.log = log
     }
 
     public func start() {
@@ -121,16 +137,21 @@ public final class AppUpdater: ObservableObject {
             send(.unsupported(reason))
             return
         }
-        let check: @Sendable () -> Void = { [weak self] in
-            Task { @MainActor in await self?.checkAutomatically() }
-        }
+        let check = automaticCheck
         DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: check)
         timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { _ in check() }
     }
 
+    private var automaticCheck: @Sendable () -> Void {
+        { [weak self] in Task { @MainActor in await self?.checkAutomatically() } }
+    }
+
     /// Stops at `.available`; installing is a separate, explicit step.
+    /// A manual check never schedules a retry, but a success clears a pending one.
     public func checkNow() async {
-        await check(installIfAvailable: false)
+        guard let result = await check(installIfAvailable: false) else { return }
+        if case .failed = result { return }
+        resetRetries()
     }
 
     public func installAvailable() {
@@ -140,20 +161,37 @@ public final class AppUpdater: ObservableObject {
 
     func checkAutomatically() async {
         guard isAutoUpdateEnabled() else { return }
-        await check(installIfAvailable: true)
+        guard let result = await check(installIfAvailable: true) else { return }
+        guard case .failed(let failure) = result else {
+            resetRetries()
+            return
+        }
+        resetRetries(keepingCount: true)
+        consecutiveFailures += 1
+        guard failure.isRetryable,
+              let delay = UpdateRetryPolicy.delay(afterConsecutiveFailures: consecutiveFailures) else { return }
+        cancelPendingRetry = scheduleRetry(delay, automaticCheck)
+    }
+
+    /// Cancelling the timer without the count lets the next failure back off further.
+    private func resetRetries(keepingCount: Bool = false) {
+        cancelPendingRetry?()
+        cancelPendingRetry = nil
+        if !keepingCount { consecutiveFailures = 0 }
     }
 
     func send(_ event: UpdateEvent) {
         status = UpdateStatus.reduce(status, event)
     }
 
-    private func check(installIfAvailable: Bool) async {
-        guard let running = runningVersion else { return }
+    /// Nil when no fetch happened because the state does not allow one.
+    private func check(installIfAvailable: Bool) async -> CheckResult? {
+        guard let running = runningVersion else { return nil }
         // The reducer accepts .checkStarted only from these states. Checking here
         // too keeps a second caller from fetching while a check is in flight.
         switch state {
         case .idle, .available, .failed: break
-        case .checking, .installing, .unsupported: return
+        case .checking, .installing, .unsupported: return nil
         }
         send(.checkStarted)
         let result = await fetchRelease()
@@ -169,35 +207,47 @@ public final class AppUpdater: ObservableObject {
             }
         }
         send(.checkFinished(outcome, at: Date()))
+        if case .failed(let failure) = outcome { log.append("update check failed: \(failure.logLabel)") }
         if installIfAvailable, case .available(let tag) = state { install(tag: tag) }
-    }
-
-    public nonisolated static func liveFetchRelease() async -> Result<ReleaseInfo, UpdateFailure> {
-        guard let url = URL(string: "https://api.github.com/repos/\(AppUpdatePolicy.repository)/releases/latest"),
-              let (data, response) = try? await URLSession.shared.data(from: url) else { return .failure(.network) }
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let release = AppUpdatePolicy.release(fromReleaseJSON: data) else { return .failure(.badResponse) }
-        return .success(release)
+        return outcome
     }
 
     private func install(tag: String) {
         send(.installStarted(tag: tag))
         guard case .installing = state else { return }
+        let log = log
+        log.append("install started: \(tag)")
         runInstaller(tag) { [weak self] code in
+            log.append("install finished: \(tag), exit \(code)")
             Task { @MainActor in self?.send(.installFinished(status: code)) }
         }
     }
 
+    public nonisolated static func liveScheduleRetry(delay: TimeInterval, work: @escaping @Sendable () -> Void) -> () -> Void {
+        let task = Task {
+            try? await Task.sleep(for: .seconds(delay))
+            if !Task.isCancelled { work() }
+        }
+        return { task.cancel() }
+    }
+
     /// The installer quits this app, swaps the bundle, and reopens it, so it
     /// runs as a detached child with no pipes back to us.
-    public nonisolated static func liveRunInstaller(tag: String, completion: @escaping @Sendable (Int32) -> Void) {
+    public nonisolated static func liveRunInstaller(tag: String, log: UpdateLog, completion: @escaping @Sendable (Int32) -> Void) {
         let script = "https://raw.githubusercontent.com/\(AppUpdatePolicy.repository)/\(tag)/scripts/install-release.sh"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "curl -fsSL --retry 3 \"$0\" | bash -s -- --version \"$1\"", script, tag]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { completion($0.terminationStatus) }
-        do { try process.run() } catch { completion(-1) }
+        let output = log.openForInstaller(tag: tag)
+        process.standardOutput = output ?? FileHandle.nullDevice
+        process.standardError = output ?? FileHandle.nullDevice
+        process.terminationHandler = {
+            try? output?.close()
+            completion($0.terminationStatus)
+        }
+        do { try process.run() } catch {
+            try? output?.close()
+            completion(-1)
+        }
     }
 }

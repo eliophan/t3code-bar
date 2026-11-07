@@ -25,6 +25,7 @@ struct UpdateMenuModelTests {
         (.installing("v1.2.3"), nil, "Installing v1.2.3…", .installing),
         (.failed(.network), nil, "Could not reach GitHub", .check),
         (.failed(.badResponse), nil, "Unexpected response from GitHub", .check),
+        (.failed(.rateLimited), nil, "GitHub rate limit reached, try again later", .check),
         (.failed(.installerExit(22)), nil, "Installer failed (exit 22)", .check),
         (.unsupported(.notReleaseBuild), nil, "Updates are off for builds run from source", .unavailable),
         (.unsupported(.notInstalledInApplications), nil, "Move the app to ~/Applications to enable updates", .unavailable),

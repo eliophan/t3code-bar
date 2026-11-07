@@ -20,8 +20,13 @@ struct AppUpdaterTests {
             runningVersion: "1.1.0",
             fetchRelease: { recorder.fetches += 1; return fetch },
             runInstaller: { tag, _ in recorder.installed.append(tag) },
-            isAutoUpdateEnabled: { autoUpdate }
+            isAutoUpdateEnabled: { autoUpdate },
+            log: UpdateLog(directory: Self.tempDirectory())
         )
+    }
+
+    static func tempDirectory() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("t3bar-updater-\(UUID().uuidString)", isDirectory: true)
     }
 
     @Test func manualCheckWithAutoUpdateOffStopsAtAvailable() async {
@@ -109,13 +114,109 @@ struct AppUpdaterTests {
             runningVersion: "1.1.0",
             fetchRelease: { .success(newer) },
             runInstaller: { tag, completion in recorder.installed.append(tag); finish = completion },
-            isAutoUpdateEnabled: { false }
+            isAutoUpdateEnabled: { false },
+            log: UpdateLog(directory: Self.tempDirectory())
         )
         await sut.checkNow()
         sut.installAvailable()
         finish?(22)
         await Task.yield()
         #expect(sut.state == .failed(.installerExit(22)))
+    }
+
+    private final class Scheduler: @unchecked Sendable {
+        var delays: [TimeInterval] = []
+        var active = 0
+        var maxActive = 0
+
+        func schedule(_ delay: TimeInterval, _ work: @escaping @Sendable () -> Void) -> () -> Void {
+            delays.append(delay)
+            active += 1
+            maxActive = max(maxActive, active)
+            return { [self] in active -= 1 }
+        }
+    }
+
+    private final class Script: @unchecked Sendable {
+        var results: [Result<ReleaseInfo, UpdateFailure>]
+        init(_ results: [Result<ReleaseInfo, UpdateFailure>]) { self.results = results }
+        func next() -> Result<ReleaseInfo, UpdateFailure> { results.count > 1 ? results.removeFirst() : results[0] }
+    }
+
+    private func retrying(_ script: Script, _ scheduler: Scheduler) -> AppUpdater {
+        AppUpdater(
+            runningVersion: "1.1.0",
+            fetchRelease: { script.next() },
+            runInstaller: { _, _ in },
+            isAutoUpdateEnabled: { true },
+            scheduleRetry: { scheduler.schedule($0, $1) },
+            log: UpdateLog(directory: Self.tempDirectory())
+        )
+    }
+
+    @Test func automaticFailuresBackOffWithoutStackingTimers() async {
+        let scheduler = Scheduler()
+        let sut = retrying(Script([.failure(.network)]), scheduler)
+        for _ in 0..<5 { await sut.checkAutomatically() }
+        #expect(scheduler.delays == [300, 900, 3600])
+        #expect(scheduler.maxActive == 1)
+        #expect(scheduler.active == 0)
+    }
+
+    @Test func successResetsTheBackoff() async {
+        let scheduler = Scheduler()
+        let upToDate = ReleaseInfo(tag: "v1.1.0", assetNames: [])
+        let sut = retrying(Script([.failure(.network), .failure(.badResponse), .success(upToDate), .failure(.rateLimited)]), scheduler)
+        for _ in 0..<4 { await sut.checkAutomatically() }
+        #expect(scheduler.delays == [300, 900, 300])
+        #expect(scheduler.active == 1)
+    }
+
+    @Test func manualCheckNeverSchedulesARetry() async {
+        let scheduler = Scheduler()
+        let sut = retrying(Script([.failure(.network)]), scheduler)
+        await sut.checkNow()
+        #expect(sut.state == .failed(.network))
+        #expect(scheduler.delays.isEmpty)
+    }
+
+    @Test func manualSuccessCancelsThePendingRetry() async {
+        let scheduler = Scheduler()
+        let upToDate = ReleaseInfo(tag: "v1.1.0", assetNames: [])
+        let sut = retrying(Script([.failure(.network), .success(upToDate)]), scheduler)
+        await sut.checkAutomatically()
+        await sut.checkNow()
+        #expect(scheduler.delays == [300])
+        #expect(scheduler.active == 0)
+    }
+
+    @Test func installerExitIsNotRetried() async {
+        let scheduler = Scheduler()
+        let sut = retrying(Script([.failure(.installerExit(1))]), scheduler)
+        await sut.checkAutomatically()
+        #expect(scheduler.delays.isEmpty)
+    }
+
+    @Test func rateLimitIsRetried() async {
+        let scheduler = Scheduler()
+        let sut = retrying(Script([.failure(.rateLimited)]), scheduler)
+        await sut.checkAutomatically()
+        #expect(scheduler.delays == [300])
+    }
+
+    @Test func failedCheckIsLoggedWithoutDetails() async {
+        let log = UpdateLog(directory: Self.tempDirectory())
+        let sut = AppUpdater(
+            runningVersion: "1.1.0",
+            fetchRelease: { .failure(.rateLimited) },
+            runInstaller: { _, _ in },
+            isAutoUpdateEnabled: { true },
+            scheduleRetry: { _, _ in {} },
+            log: log
+        )
+        await sut.checkAutomatically()
+        let text = (try? String(contentsOf: log.fileURL, encoding: .utf8)) ?? ""
+        #expect(text.contains("update check failed: rate limited"))
     }
 }
 

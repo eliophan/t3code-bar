@@ -9,7 +9,26 @@ public enum UnsupportedReason: Equatable, Sendable {
 public enum UpdateFailure: Error, Equatable, Sendable {
     case network
     case badResponse
+    case rateLimited
     case installerExit(Int32)
+
+    /// A failed installer will fail the same way next time, so only
+    /// fetch problems are worth an automatic retry.
+    public var isRetryable: Bool {
+        switch self {
+        case .network, .badResponse, .rateLimited: true
+        case .installerExit: false
+        }
+    }
+
+    public var logLabel: String {
+        switch self {
+        case .network: "network"
+        case .badResponse: "bad response"
+        case .rateLimited: "rate limited"
+        case .installerExit(let code): "installer exit \(code)"
+        }
+    }
 }
 
 public enum UpdateState: Equatable, Sendable {

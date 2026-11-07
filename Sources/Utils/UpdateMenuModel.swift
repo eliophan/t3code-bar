@@ -49,6 +49,7 @@ public struct UpdateMenuModel: Equatable, Sendable {
             switch failure {
             case .network: statusLine = "Could not reach GitHub"
             case .badResponse: statusLine = "Unexpected response from GitHub"
+            case .rateLimited: statusLine = "GitHub rate limit reached, try again later"
             case .installerExit(let code): statusLine = "Installer failed (exit \(code))"
             }
             action = .check
