@@ -8,19 +8,23 @@ struct AppUpdaterTests {
 
     private final class Recorder: @unchecked Sendable {
         var installed: [String] = []
+        var announced: [String] = []
         var fetches = 0
     }
 
     private func updater(
         _ recorder: Recorder,
         fetch: Result<ReleaseInfo, UpdateFailure>,
-        autoUpdate: Bool = false
+        autoUpdate: Bool = false,
+        installsWithoutAsking: Bool = false
     ) -> AppUpdater {
         AppUpdater(
             runningVersion: "1.1.0",
             fetchRelease: { recorder.fetches += 1; return fetch },
             runInstaller: { tag, _ in recorder.installed.append(tag) },
             isAutoUpdateEnabled: { autoUpdate },
+            installsWithoutAsking: { installsWithoutAsking },
+            onUpdateAvailable: { recorder.announced.append($0) },
             log: UpdateLog(directory: Self.tempDirectory())
         )
     }
@@ -58,10 +62,92 @@ struct AppUpdaterTests {
 
     @Test func automaticCheckInstallsWhenEnabled() async {
         let recorder = Recorder()
-        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true, installsWithoutAsking: true)
         await sut.checkAutomatically()
         #expect(sut.state == .installing("v1.2.0"))
         #expect(recorder.installed == ["v1.2.0"])
+        #expect(recorder.announced.isEmpty)
+    }
+
+    @Test func automaticCheckAsksInsteadOfInstallingByDefault() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        await sut.checkAutomatically()
+        #expect(sut.state == .available("v1.2.0"))
+        #expect(recorder.installed.isEmpty)
+        #expect(recorder.announced == ["v1.2.0"])
+    }
+
+    @Test func laterDoesNotPromptAgainForTheSameTag() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        await sut.checkAutomatically()
+        await sut.checkAutomatically()
+        #expect(recorder.announced == ["v1.2.0"])
+        #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func aNewerTagPromptsAgain() async {
+        let recorder = Recorder()
+        let script = ScriptBox(.success(newer))
+        let sut = AppUpdater(
+            runningVersion: "1.1.0",
+            fetchRelease: { script.result },
+            runInstaller: { tag, _ in recorder.installed.append(tag) },
+            isAutoUpdateEnabled: { true },
+            installsWithoutAsking: { false },
+            onUpdateAvailable: { recorder.announced.append($0) },
+            log: UpdateLog(directory: Self.tempDirectory())
+        )
+        await sut.checkAutomatically()
+        script.result = .success(ReleaseInfo(tag: "v1.3.0", assetNames: ["T3-Code-Bar-1.3.0-universal.zip"]))
+        await sut.checkAutomatically()
+        #expect(recorder.announced == ["v1.2.0", "v1.3.0"])
+        #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func manualCheckNeverAnnouncesOrInstalls() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true, installsWithoutAsking: true)
+        await sut.checkNow()
+        #expect(sut.state == .available("v1.2.0"))
+        #expect(recorder.announced.isEmpty)
+        #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func autoToggleOffNeverAnnounces() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: false)
+        await sut.checkAutomatically()
+        #expect(recorder.announced.isEmpty)
+        #expect(recorder.fetches == 0)
+    }
+
+    @Test func acceptingThePromptInstallsExactlyOnce() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        sut.onUpdateAvailable = { [unowned sut] tag in
+            recorder.announced.append(tag)
+            sut.installAvailable()
+        }
+        await sut.checkAutomatically()
+        sut.installAvailable()
+        #expect(recorder.announced == ["v1.2.0"])
+        #expect(recorder.installed == ["v1.2.0"])
+    }
+
+    @Test func installsWithoutAskingDefaultsToOff() throws {
+        let name = "t3bar-settings-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        #expect(UpdateSettings.installsWithoutAsking(in: defaults) == false)
+        defaults.set(true, forKey: UpdateSettings.installsWithoutAskingKey)
+        #expect(UpdateSettings.installsWithoutAsking(in: defaults) == true)
+    }
+
+    private final class ScriptBox: @unchecked Sendable {
+        var result: Result<ReleaseInfo, UpdateFailure>
+        init(_ result: Result<ReleaseInfo, UpdateFailure>) { self.result = result }
     }
 
     @Test func automaticCheckDoesNothingWhenDisabled() async {
@@ -115,6 +201,7 @@ struct AppUpdaterTests {
             fetchRelease: { .success(newer) },
             runInstaller: { tag, completion in recorder.installed.append(tag); finish = completion },
             isAutoUpdateEnabled: { false },
+            installsWithoutAsking: { false },
             log: UpdateLog(directory: Self.tempDirectory())
         )
         await sut.checkNow()
@@ -149,6 +236,7 @@ struct AppUpdaterTests {
             fetchRelease: { script.next() },
             runInstaller: { _, _ in },
             isAutoUpdateEnabled: { true },
+            installsWithoutAsking: { false },
             scheduleRetry: { scheduler.schedule($0, $1) },
             log: UpdateLog(directory: Self.tempDirectory())
         )
@@ -211,6 +299,7 @@ struct AppUpdaterTests {
             fetchRelease: { .failure(.rateLimited) },
             runInstaller: { _, _ in },
             isAutoUpdateEnabled: { true },
+            installsWithoutAsking: { false },
             scheduleRetry: { _, _ in {} },
             log: log
         )

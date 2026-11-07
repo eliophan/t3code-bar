@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         limits.start()
         usage.prewarmLocal()
         installContextMenuMonitor()
+        updater.onUpdateAvailable = { [weak self] tag in self?.askToInstall(tag: tag) }
         updater.start()
         refreshObserver = monitor.$lastRefreshedAt.compactMap { $0 }.sink { [weak self] _ in
             guard let self else { return }
@@ -189,7 +190,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updates.target = self
         updates.state = UpdateSettings.isEnabled ? .on : .off
         menu.addItem(updates)
+
+        let withoutAsking = NSMenuItem(title: "Install Without Asking", action: #selector(toggleInstallWithoutAsking), keyEquivalent: "")
+        withoutAsking.target = self
+        withoutAsking.indentationLevel = 1
+        withoutAsking.state = UpdateSettings.installsWithoutAsking ? .on : .off
+        menu.addItem(withoutAsking)
         menu.addItem(.separator())
+    }
+
+    private func askToInstall(tag: String) {
+        guard NSApp.modalWindow == nil else { return }
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        let alert = NSAlert()
+        alert.messageText = "T3 Code Bar \(version) is available"
+        alert.informativeText = "The app will quit and reopen to finish installing."
+        alert.addButton(withTitle: "Install and Restart")
+        alert.addButton(withTitle: "Later")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn { updater.installAvailable() }
     }
 
     @objc private func runUpdateAction() {
@@ -201,6 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleAutoUpdate() { UpdateSettings.isEnabled.toggle() }
+
+    @objc private func toggleInstallWithoutAsking() { UpdateSettings.installsWithoutAsking.toggle() }
 
     @objc private func toggleMuteNotifications() { notifier.toggleMute() }
 

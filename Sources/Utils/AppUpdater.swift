@@ -21,6 +21,16 @@ public enum UpdateSettings {
         get { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
+
+    public static let installsWithoutAskingKey = "installsWithoutAsking"
+    public static var installsWithoutAsking: Bool {
+        get { installsWithoutAsking(in: .standard) }
+        set { UserDefaults.standard.set(newValue, forKey: installsWithoutAskingKey) }
+    }
+
+    static func installsWithoutAsking(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: installsWithoutAskingKey) as? Bool ?? false
+    }
 }
 
 public enum UpdatePlatform: Sendable {
@@ -98,6 +108,11 @@ public final class AppUpdater: ObservableObject {
     /// Calls back with the installer's exit status once it ends.
     private let runInstaller: (String, @escaping @Sendable (Int32) -> Void) -> Void
     private let isAutoUpdateEnabled: () -> Bool
+    private let installsWithoutAsking: () -> Bool
+    /// Called at most once per tag per session, from an automatic check that
+    /// found a release it will not install on its own.
+    public var onUpdateAvailable: (String) -> Void
+    private var announcedTags: Set<String> = []
     /// Runs the work after the delay and returns a function that cancels it.
     private let scheduleRetry: (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void
     private let log: UpdateLog
@@ -111,6 +126,8 @@ public final class AppUpdater: ObservableObject {
         fetchRelease: (() async -> Result<ReleaseInfo, UpdateFailure>)? = nil,
         runInstaller: ((String, @escaping @Sendable (Int32) -> Void) -> Void)? = nil,
         isAutoUpdateEnabled: @escaping () -> Bool = { UpdateSettings.isEnabled },
+        installsWithoutAsking: @escaping () -> Bool = { UpdateSettings.installsWithoutAsking },
+        onUpdateAvailable: @escaping (String) -> Void = { _ in },
         scheduleRetry: @escaping (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void = AppUpdater.liveScheduleRetry(delay:work:),
         log: UpdateLog = .standard
     ) {
@@ -125,6 +142,8 @@ public final class AppUpdater: ObservableObject {
             AppUpdater.liveRunInstaller(tag: tag, log: log, completion: completion)
         }
         self.isAutoUpdateEnabled = isAutoUpdateEnabled
+        self.installsWithoutAsking = installsWithoutAsking
+        self.onUpdateAvailable = onUpdateAvailable
         self.scheduleRetry = scheduleRetry
         self.log = log
     }
@@ -208,8 +227,16 @@ public final class AppUpdater: ObservableObject {
         }
         send(.checkFinished(outcome, at: Date()))
         if case .failed(let failure) = outcome { log.append("update check failed: \(failure.logLabel)") }
-        if installIfAvailable, case .available(let tag) = state { install(tag: tag) }
+        if installIfAvailable, case .available(let tag) = state { handleAutomaticallyFound(tag: tag) }
         return outcome
+    }
+
+    private func handleAutomaticallyFound(tag: String) {
+        if installsWithoutAsking() {
+            install(tag: tag)
+        } else if announcedTags.insert(tag).inserted {
+            onUpdateAvailable(tag)
+        }
     }
 
     private func install(tag: String) {
