@@ -4,9 +4,8 @@ import Testing
 struct UpdatePromptTests {
     private let prompt = UpdatePrompt(tag: "v1.2.3")
 
-    @Test func returnAndEscapeChooseLater() {
+    @Test func returnChoosesLater() {
         #expect(prompt.defaultChoice == .later)
-        #expect(prompt.cancelChoice == .later)
     }
 
     @Test func installingHasNoKeyEquivalent() {

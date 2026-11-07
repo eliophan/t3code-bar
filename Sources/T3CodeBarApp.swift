@@ -215,6 +215,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         later.keyEquivalent = "\r"
         install.keyEquivalent = prompt.installKeyEquivalent
 
+        // Without runModal nothing lays the alert out, which leaves a blank button row and the suppression checkbox showing.
+        alert.layout()
         let window = alert.window
         let actions = UpdatePromptActions(
             install: { [weak self] in
@@ -227,13 +229,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         later.action = #selector(UpdatePromptActions.chooseLater)
         install.target = actions
         install.action = #selector(UpdatePromptActions.chooseInstall)
-
-        let escape = NSButton(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
-        escape.isTransparent = true
-        escape.keyEquivalent = "\u{1b}"
-        escape.target = actions
-        escape.action = #selector(UpdatePromptActions.chooseLater)
-        window.contentView?.addSubview(escape)
 
         window.level = .floating
         window.isReleasedWhenClosed = false

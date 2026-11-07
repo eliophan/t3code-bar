@@ -17,8 +17,6 @@ public struct UpdatePrompt: Equatable, Sendable {
 
     /// What Return chooses.
     public var defaultChoice: Choice { .later }
-    /// What Escape chooses.
-    public var cancelChoice: Choice { .later }
     /// Installing quits the app, so it takes a deliberate click.
     public var installKeyEquivalent: String { "" }
 }
