@@ -106,7 +106,9 @@ Click a thread to open it in T3 Code. Right-click a thread for **Open in T3 Code
 
 ## Previews and the menu bar icon menu
 
-Rest the pointer on a thread for half a second and its row expands to show the start of the thread's last assistant reply (up to five lines, code blocks left out) and how long ago it was sent. Moving away closes it. Previews read only the `messages` table, never the large turn items, and show real message text, so turn them off with **Show Previews** in the menu you get by right-clicking the menu bar icon. The same menu has **Mute Notifications** and **Update Automatically**.
+Rest the pointer on a thread for half a second and its row expands to show the start of the thread's last assistant reply (up to five lines, code blocks left out) and how long ago it was sent. Moving away closes it. Previews read only the `messages` table, never the large turn items, and show real message text, so turn them off with **Show Previews** in the menu you get by right-clicking the menu bar icon. The same menu has **Mute Notifications**, **Update Automatically**, and **Install Without Asking**.
+
+The top of the menu shows the app version, a status line, and one update button. The button reads **Check for Updates…**, **Checking…**, **Install v1.2.3 and Restart**, or **Installing…**. It is dimmed while a check or install runs and when updates are off. **Install Without Asking** sits under **Update Automatically** and only matters while that item is on. Both are described in the [README](../README.md#installation).
 
 Browser links use `127.0.0.1` and the port configured by your local T3 Code instance. Your browser session may need sign-in or pairing. Opening links in T3 Code requires its `t3code://` URL scheme to be registered.
 
@@ -145,6 +147,14 @@ Apps opened from Finder or Login Items do not automatically inherit your termina
 | Offline | Reopen T3 Code. Saved threads remain visible, but live activity indicators are disabled. |
 | Busy/read error | The app retries every second. Use **Retry** to retry immediately when no read is in progress. |
 | Links do not open | Check the T3 Code installation, URL scheme registration, and local runtime configuration. |
+| Update status says "Updates are off for builds run from source" | Only release builds update themselves. Install a release with the command in the README. |
+| Update status says "Move the app to ~/Applications to enable updates" | The installer replaces `~/Applications/T3 Code Bar.app`, so a copy elsewhere never updates. Move the app there. |
+| Update status says "Version unknown; updates are off" | The app's `Info.plist` has no version. Reinstall a release. |
+| Update status says "Could not reach GitHub" | The check had no network or no answer. The app retries an automatic check after 5 minutes, 15 minutes, and 1 hour, then waits for the 6 hour check. **Check for Updates…** tries again now. |
+| Update status says "Unexpected response from GitHub" | GitHub answered with something the app could not read. It retries like "Could not reach GitHub". |
+| Update status says "GitHub rate limit reached, try again later" | GitHub limits unauthenticated requests. Wait, then use **Check for Updates…**. |
+| Update status says "Installer failed (exit n)" | The install script ended with exit code n. The app does not retry it. Read `~/Library/Logs/T3 Code Bar/update.log`, which holds the installer's output, then use **Check for Updates…** or run the install command from the README. |
+| A new release does not show up | A release is offered only after its `T3-Code-Bar-<version>-universal.zip` asset is uploaded. Check again later. |
 | Installation fails | Check `swift --version` for Swift 6 or later and read the Terminal error. If the destination app already exists, quit it and move it aside. |
 
 For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues) with your macOS version, architecture, T3 Code version, and steps to reproduce. Redact private information; do not attach your database or credentials.
@@ -156,3 +166,5 @@ For a bug report, [open an issue](https://github.com/eliophan/t3code-bar/issues)
 - Unread completion and wake indicators depend on visit timestamps persisted by T3 Code; Bar does not read browser localStorage or call the sidebar's acknowledgment API.
 - Server availability uses the runtime PID, not an HTTP health check. After a read error, the last successful list remains visible with live status disabled.
 - Full sidebar parity is not guaranteed. Running on Intel, Gatekeeper behavior, and notarized distribution have not been verified.
+- Releases are ad hoc signed and not notarized. The `.sha256` file sits in the same GitHub Release as the zip. It detects a corrupt download but not a tampered release.
+- If a recheck fails while an update is waiting, the status line shows the failure instead of the available version until the next check succeeds. Escape does not close the install window. Choose **Later**.
