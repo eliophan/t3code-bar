@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updater = AppUpdater()
     private var refreshObserver: AnyCancellable?
     private var hostingController: NSHostingController<PopoverView>!
+    private var updatePrompt: (window: NSWindow, actions: UpdatePromptActions)?
 
     static func main() {
         let app = NSApplication.shared
@@ -35,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         limits.start()
         usage.prewarmLocal()
         installContextMenuMonitor()
-        updater.onUpdateAvailable = { [weak self] tag in self?.askToInstall(tag: tag) }
+        updater.onUpdateAvailable = { [weak self] tag in self?.askToInstall(tag: tag) ?? false }
         updater.start()
         refreshObserver = monitor.$lastRefreshedAt.compactMap { $0 }.sink { [weak self] _ in
             guard let self else { return }
@@ -199,16 +200,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
     }
 
-    private func askToInstall(tag: String) {
-        guard NSApp.modalWindow == nil else { return }
-        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+    /// Shows the prompt as a floating window without activating the app, so a
+    /// keystroke meant for another app cannot answer it and the run loop keeps
+    /// running (runModal would stall ThreadMonitor's poll and the heartbeat).
+    /// Returns true once a prompt is on screen, replacing any earlier one.
+    private func askToInstall(tag: String) -> Bool {
+        closeUpdatePrompt()
+        let prompt = UpdatePrompt(tag: tag)
         let alert = NSAlert()
-        alert.messageText = "T3 Code Bar \(version) is available"
-        alert.informativeText = "The app will quit and reopen to finish installing."
-        alert.addButton(withTitle: "Install and Restart")
-        alert.addButton(withTitle: "Later")
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn { updater.installAvailable() }
+        alert.messageText = prompt.messageText
+        alert.informativeText = prompt.informativeText
+        let later = alert.addButton(withTitle: prompt.laterTitle)
+        let install = alert.addButton(withTitle: prompt.installTitle)
+        later.keyEquivalent = "\r"
+        install.keyEquivalent = prompt.installKeyEquivalent
+
+        let window = alert.window
+        let actions = UpdatePromptActions(
+            install: { [weak self] in
+                self?.closeUpdatePrompt()
+                self?.updater.installAvailable(tag: prompt.tag)
+            },
+            later: { [weak self] in self?.closeUpdatePrompt() }
+        )
+        later.target = actions
+        later.action = #selector(UpdatePromptActions.chooseLater)
+        install.target = actions
+        install.action = #selector(UpdatePromptActions.chooseInstall)
+
+        let escape = NSButton(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        escape.isTransparent = true
+        escape.keyEquivalent = "\u{1b}"
+        escape.target = actions
+        escape.action = #selector(UpdatePromptActions.chooseLater)
+        window.contentView?.addSubview(escape)
+
+        window.level = .floating
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.orderFrontRegardless()
+        updatePrompt = (window, actions)
+        return true
+    }
+
+    private func closeUpdatePrompt() {
+        updatePrompt?.window.orderOut(nil)
+        updatePrompt = nil
     }
 
     @objc private func runUpdateAction() {
@@ -254,6 +291,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+
+@MainActor
+private final class UpdatePromptActions: NSObject {
+    private let install: () -> Void
+    private let later: () -> Void
+
+    init(install: @escaping () -> Void, later: @escaping () -> Void) {
+        self.install = install
+        self.later = later
+    }
+
+    @objc func chooseInstall() { install() }
+    @objc func chooseLater() { later() }
+}
 
 /// Borderless panels refuse key status by default; see `showPanel()`.
 private final class PopoverPanel: NSPanel {

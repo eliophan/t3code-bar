@@ -10,6 +10,7 @@ struct AppUpdaterTests {
         var installed: [String] = []
         var announced: [String] = []
         var fetches = 0
+        var promptShown = true
     }
 
     private func updater(
@@ -24,7 +25,7 @@ struct AppUpdaterTests {
             runInstaller: { tag, _ in recorder.installed.append(tag) },
             isAutoUpdateEnabled: { autoUpdate },
             installsWithoutAsking: { installsWithoutAsking },
-            onUpdateAvailable: { recorder.announced.append($0) },
+            onUpdateAvailable: { recorder.announced.append($0); return recorder.promptShown },
             log: UpdateLog(directory: Self.tempDirectory())
         )
     }
@@ -96,7 +97,7 @@ struct AppUpdaterTests {
             runInstaller: { tag, _ in recorder.installed.append(tag) },
             isAutoUpdateEnabled: { true },
             installsWithoutAsking: { false },
-            onUpdateAvailable: { recorder.announced.append($0) },
+            onUpdateAvailable: { recorder.announced.append($0); return recorder.promptShown },
             log: UpdateLog(directory: Self.tempDirectory())
         )
         await sut.checkAutomatically()
@@ -104,6 +105,32 @@ struct AppUpdaterTests {
         await sut.checkAutomatically()
         #expect(recorder.announced == ["v1.2.0", "v1.3.0"])
         #expect(recorder.installed.isEmpty)
+    }
+
+    @Test func aPromptThatWasNotShownIsOfferedAgain() async {
+        let recorder = Recorder()
+        recorder.promptShown = false
+        let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
+        await sut.checkAutomatically()
+        await sut.checkAutomatically()
+        #expect(recorder.announced == ["v1.2.0", "v1.2.0"])
+        recorder.promptShown = true
+        await sut.checkAutomatically()
+        await sut.checkAutomatically()
+        #expect(recorder.announced == ["v1.2.0", "v1.2.0", "v1.2.0"])
+    }
+
+    @Test func installAvailableForATagInstallsOnlyThatRelease() async {
+        let recorder = Recorder()
+        let sut = updater(recorder, fetch: .success(newer))
+        await sut.checkNow()
+        sut.installAvailable(tag: "v1.1.5")
+        #expect(sut.state == .available("v1.2.0"))
+        #expect(recorder.installed.isEmpty)
+        sut.installAvailable(tag: "v1.2.0")
+        sut.installAvailable(tag: "v1.2.0")
+        #expect(sut.state == .installing("v1.2.0"))
+        #expect(recorder.installed == ["v1.2.0"])
     }
 
     @Test func manualCheckNeverAnnouncesOrInstalls() async {
@@ -128,7 +155,8 @@ struct AppUpdaterTests {
         let sut = updater(recorder, fetch: .success(newer), autoUpdate: true)
         sut.onUpdateAvailable = { [unowned sut] tag in
             recorder.announced.append(tag)
-            sut.installAvailable()
+            sut.installAvailable(tag: tag)
+            return true
         }
         await sut.checkAutomatically()
         sut.installAvailable()

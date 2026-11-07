@@ -109,9 +109,10 @@ public final class AppUpdater: ObservableObject {
     private let runInstaller: (String, @escaping @Sendable (Int32) -> Void) -> Void
     private let isAutoUpdateEnabled: () -> Bool
     private let installsWithoutAsking: () -> Bool
-    /// Called at most once per tag per session, from an automatic check that
-    /// found a release it will not install on its own.
-    public var onUpdateAvailable: (String) -> Void
+    /// Called from an automatic check that found a release it will not install
+    /// on its own. Returns whether a prompt was shown. A tag is recorded as
+    /// announced only when it returns true, so a skipped prompt is retried.
+    public var onUpdateAvailable: (String) -> Bool
     private var announcedTags: Set<String> = []
     /// Runs the work after the delay and returns a function that cancels it.
     private let scheduleRetry: (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void
@@ -127,7 +128,7 @@ public final class AppUpdater: ObservableObject {
         runInstaller: ((String, @escaping @Sendable (Int32) -> Void) -> Void)? = nil,
         isAutoUpdateEnabled: @escaping () -> Bool = { UpdateSettings.isEnabled },
         installsWithoutAsking: @escaping () -> Bool = { UpdateSettings.installsWithoutAsking },
-        onUpdateAvailable: @escaping (String) -> Void = { _ in },
+        onUpdateAvailable: @escaping (String) -> Bool = { _ in false },
         scheduleRetry: @escaping (TimeInterval, @escaping @Sendable () -> Void) -> () -> Void = AppUpdater.liveScheduleRetry(delay:work:),
         log: UpdateLog = .standard
     ) {
@@ -175,6 +176,12 @@ public final class AppUpdater: ObservableObject {
 
     public func installAvailable() {
         guard case .available(let tag) = state else { return }
+        install(tag: tag)
+    }
+
+    /// Installs only the release the caller showed to the user.
+    public func installAvailable(tag: String) {
+        guard case .available(let current) = state, current == tag else { return }
         install(tag: tag)
     }
 
@@ -234,8 +241,8 @@ public final class AppUpdater: ObservableObject {
     private func handleAutomaticallyFound(tag: String) {
         if installsWithoutAsking() {
             install(tag: tag)
-        } else if announcedTags.insert(tag).inserted {
-            onUpdateAvailable(tag)
+        } else if !announcedTags.contains(tag), onUpdateAvailable(tag) {
+            announcedTags.insert(tag)
         }
     }
 
