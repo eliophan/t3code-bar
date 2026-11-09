@@ -43,10 +43,23 @@ jobs:
           cargo --version
       - name: Tests and frontend build
         run: bash scripts/check.sh
-      - name: Build macOS app
+      - name: Build macOS release packages
         if: runner.os == 'macOS'
-        working-directory: desktop
-        run: npm run tauri -- build --bundles app
+        run: |
+          rustup target add aarch64-apple-darwin
+          python3 scripts/package-macos.py adhoc --target darwin-aarch64 --output /tmp/t3-macos-packages
+          git rev-parse HEAD > /tmp/t3-macos-packages/revision.txt
+      - name: Upload macOS packages
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages-${{ github.sha }}
+          path: |
+            /tmp/t3-macos-packages/*.app.*
+            /tmp/t3-macos-packages/metadata.json
+            /tmp/t3-macos-packages/revision.txt
+          if-no-files-found: error
+          retention-days: 14
       - name: Build Linux packages and source receipt
         if: runner.os == 'Linux'
         run: python3 scripts/package-linux.py --output /tmp/t3-linux-packages

@@ -20,16 +20,16 @@ The `.deb` targets Debian-family systems. Omarchy uses the AppImage. If FUSE is 
 
 ## Publish Linux packages
 
-Linux x86_64 packages share the `v2.0.0-alpha.1` release with macOS. A Linux build in CI does not publish a release. CI saves packages, checksums, the build log, and the source receipt as a `linux-packages-<commit>` workflow artifact for 14 days.
+Linux x86_64 packages share the `v2.0.0-alpha.2` release with macOS. A Linux build in CI does not publish a release. CI saves packages, checksums, the build log, and the source receipt as a `linux-packages-<commit>` workflow artifact for 14 days.
 
 1. Build the release commit on the oldest distribution you intend to support. Use `npm ci` in `desktop/`, then run `scripts/package-linux.py` from the repository root as described above. Record the build distribution and glibc version from the receipt. Build each advertised CPU separately.
 2. Test the exact AppImage on Omarchy and the exact `.deb` on your target Debian or Ubuntu system. Check launch, tray Show/Hide, Settings, Quit, tray loss/recovery, pairing, and reconnect after restart. Keep the release scope limited to the distributions and CPUs tested.
-3. Create a GitHub prerelease for the configured version, or add the Linux assets to its existing prerelease. Upload the `.deb`, `.AppImage`, and both `.sha256` files from the same output directory. Preserve the generated filenames, such as `T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage`. GitHub rewrites spaces in asset names, so release filenames use hyphens. Upload the receipt as `linux-<architecture>-receipt.json` to avoid colliding with macOS metadata. Include the tested distributions, CPU, glibc requirement, tray requirement, and manual update instructions in the release notes.
+3. Create a GitHub prerelease for the configured version, or add the Linux assets to its existing prerelease. Upload the `.deb`, `.AppImage`, and both `.sha256` files from the same output directory. Preserve the generated filenames, such as `T3-Code-Bar-2.0.0-alpha.2-linux-x86_64.AppImage`. GitHub rewrites spaces in asset names, so release filenames use hyphens. Upload the receipt as `linux-<architecture>-receipt.json` to avoid colliding with macOS metadata. Include the tested distributions, CPU, glibc requirement, tray requirement, and manual update instructions in the release notes.
 4. Merge the Linux documentation and installer into `main`. The Pages workflow publishes `scripts/install-linux.sh` at `https://eliophan.github.io/t3code-bar/install-linux.sh`. It preserves the macOS installer at `install.sh`.
 5. Download the public assets and check their SHA-256 files. Run the documented installer on a clean account, launch from the application menu and `~/.local/bin/t3-code-bar`, then test saved reconnect. A nonzero exit, missing launcher, unusable tray, or lost saved pairing fails acceptance.
 6. After the public download and installer checks pass, update the root README download links and the tested Linux targets in `docs/COMPATIBILITY.md`.
 
-The installer defaults to `2.0.0-alpha.1` and also accepts a version argument, such as `bash install-linux.sh 2.0.0-alpha.2`. Update its default when publishing a new version. It selects the exact Tauri AppImage name for the version and architecture from GitHub's release API. Missing CPU builds and checksum sidecars stop installation. It installs without sudo, refuses to overwrite an existing installation, and does not launch the app automatically. SHA-256 sidecars detect corruption, not independent publisher authenticity.
+The installer defaults to `2.0.0-alpha.2` and also accepts a version argument, such as `bash install-linux.sh 2.0.0-alpha.3`. Update its default when publishing a new version. It selects the exact Tauri AppImage name for the version and architecture from GitHub's release API. Missing CPU builds and checksum sidecars stop installation. It installs without sudo, refuses to overwrite an existing installation, and does not launch the app automatically. SHA-256 sidecars detect corruption, not independent publisher authenticity.
 
 ## Package macOS builds
 
@@ -50,7 +50,7 @@ export BAR_NOTARY_KEYCHAIN_PROFILE='<existing profile name>'
 export BAR_UPDATER_ENDPOINT='https://example.org/updates/manifest.json'
 export BAR_UPDATER_PUBLIC_KEY="$(cat /secure/path/updater.key.pub)"
 export TAURI_SIGNING_PRIVATE_KEY_PATH='/secure/path/updater.key'
-export BAR_UPDATER_ARTIFACT_URL='https://example.org/releases/T3-Code-Bar-2.0.0-alpha.1-darwin-aarch64.app.tar.gz'
+export BAR_UPDATER_ARTIFACT_URL='https://example.org/releases/T3-Code-Bar-2.0.0-alpha.2-darwin-aarch64.app.tar.gz'
 python3 scripts/package-macos.py release --target darwin-aarch64 --output /tmp/bar-release
 python3 scripts/package-macos.py verify --output /tmp/bar-release
 xcrun stapler validate '/tmp/bar-release/T3 Code Bar Tauri.app'

@@ -34,7 +34,7 @@ Or install with Homebrew:
 brew install --cask eliophan/tap/t3-code-bar
 ```
 
-[Download ZIP](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-darwin-aarch64.app.zip) · Unzip and move the app to Applications.
+[Download ZIP](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.2/T3-Code-Bar-2.0.0-alpha.2-darwin-aarch64.app.zip) · Unzip and move the app to Applications.
 
 The app is not notarized. If blocked, try opening it, then use **System Settings → Privacy & Security → Open Anyway**. [Homebrew help](desktop/RELEASE.md#homebrew-macos).
 
@@ -48,7 +48,7 @@ curl -fsSL https://eliophan.github.io/t3code-bar/install-linux.sh | bash
 
 The installer adds the AppImage to your app launcher. Requires curl, Python 3, and `sha256sum`.
 
-[Download AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage) · [Download .deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb)
+[Download AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.2/T3-Code-Bar-2.0.0-alpha.2-linux-x86_64.AppImage) · [Download .deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.2/T3-Code-Bar-2.0.0-alpha.2-linux-x86_64.deb)
 
 Requires a system tray and an unlocked Secret Service for saved pairing. On GNOME, enable an AppIndicator extension. [Linux setup and troubleshooting](docs/USAGE.md#linux-installation).
 

@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 INSTALLER = Path(__file__).with_name("install-linux.sh")
-VERSION = "2.0.0-alpha.1"
+VERSION = json.loads((INSTALLER.parents[1] / "desktop/src-tauri/tauri.conf.json").read_text())["version"]
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Linux installer acceptance requires Linux")
