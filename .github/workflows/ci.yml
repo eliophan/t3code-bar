@@ -50,5 +50,13 @@ jobs:
       - name: Build Linux packages and source receipt
         if: runner.os == 'Linux'
         run: python3 scripts/package-linux.py --output /tmp/t3-linux-packages
+      - name: Upload Linux packages
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-${{ github.sha }}
+          path: /tmp/t3-linux-packages/
+          if-no-files-found: error
+          retention-days: 14
       - name: Script syntax
         run: bash -n scripts/check.sh scripts/setup_hooks.sh

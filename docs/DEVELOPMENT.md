@@ -2,6 +2,31 @@
 
 The application lives in `desktop/`. Swift v1 is retired; its source remains in Git history.
 
+## Run from source
+
+Install Node.js 22+, Rust, and the native [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). macOS requires version 14+ and Xcode command line tools. Rust is pinned in `desktop/rust-toolchain.toml`.
+
+```sh
+git clone https://github.com/eliophan/t3code-bar.git
+cd t3code-bar/desktop
+npm ci
+npm run tauri -- dev
+```
+
+## Build
+
+From `desktop/`:
+
+```sh
+# macOS
+npm run tauri -- build --bundles app
+
+# Linux
+npm run tauri -- build --config src-tauri/tauri.linux.conf.json
+```
+
+A nonzero exit means the build failed. Packages are written under `desktop/src-tauri/target/release/bundle/`, unless `CARGO_TARGET_DIR` is configured. See the [release guide](../desktop/RELEASE.md) for distribution packages.
+
 ## Structure
 
 - `src/`: React views, presentation models and frontend tests.
