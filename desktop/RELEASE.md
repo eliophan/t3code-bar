@@ -2,6 +2,22 @@
 
 The current version is an alpha. Build and test the actual packages before distributing them. These commands do not publish or install anything. Old Swift v1 release assets are not compatible with Tauri updates.
 
+## Package Linux builds
+
+Install the Linux native dependencies listed in `.github/workflows/ci.yml`, the pinned Rust toolchain, Node.js, and the locked npm dependencies in `desktop/`. Build both formats from one source snapshot:
+
+```sh
+python3 scripts/package-linux.py --output /var/tmp/t3-linux-packages
+```
+
+A nonzero exit means packaging failed. The output directory must not exist. Success creates one `.deb`, one `.AppImage`, SHA-256 sidecars, `build.log`, and `receipt.json`. The receipt records each product source file, including untracked additions, the Git revision and diff, build host, binary hash, and package hashes. Source changes during the build reject the result. `--target-dir` optionally reuses a Cargo cache; the helper clears its Linux bundle directories before building.
+
+The Linux build links gtk-layer-shell (development package version 0.6 or newer). Wayland requires a compositor with layer-shell protocol version 4 for on-demand keyboard focus. The Debian package must depend on `libgtk-layer-shell0`; the AppImage must contain `libgtk-layer-shell.so.0`. Check both generated artifacts for those requirements before distribution.
+
+Linux requires a StatusNotifier tray host that accepts the app's own icon. Omarchy's shell supplies this host. Without it, the app must show only a native Retry/Quit diagnostic. Registration alone does not prove the icon is visible or clickable. Run the packaged app on the target desktop and exercise Show, Hide, Settings, Quit, tray loss, and recovery before distributing it. Use the project `verify-t3-code-bar` skill for isolated native evidence and `verify-linux-tray` for policy checks.
+
+The `.deb` targets Debian-family systems. Omarchy uses the AppImage. If FUSE is unavailable, try `APPIMAGE_EXTRACT_AND_RUN=1` for that process. Neither format guarantees compatibility with older glibc or every compositor. CI builds on Ubuntu 24.04; a local Omarchy build records its own libc in the receipt. A successful build does not establish a supported distro matrix. Linux updates use manual package replacement in this lane; no updater manifest is published.
+
 ## Package macOS builds
 
 The Tauri package lane is separate from the Swift release and installer. It does not publish or install anything. Use a Mac with Xcode command line tools, the Rust target, `npm ci` in `desktop/`, and Tauri CLI 2.12.4. Each command uses a fresh temporary Cargo target directory and refuses an existing output path. Select `darwin-aarch64` or `darwin-x86_64` and install its Rust target first.

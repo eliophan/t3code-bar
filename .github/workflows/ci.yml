@@ -35,7 +35,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev libgtk-layer-shell-dev librsvg2-dev patchelf
       - name: Pinned Rust toolchain
         working-directory: desktop
         run: |
@@ -47,9 +47,8 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: desktop
         run: npm run tauri -- build --bundles app
-      - name: Build Linux deb
+      - name: Build Linux packages and source receipt
         if: runner.os == 'Linux'
-        working-directory: desktop
-        run: npm run tauri -- build --config src-tauri/tauri.linux.conf.json --bundles deb
+        run: python3 scripts/package-linux.py --output /tmp/t3-linux-packages
       - name: Script syntax
         run: bash -n scripts/check.sh scripts/setup_hooks.sh

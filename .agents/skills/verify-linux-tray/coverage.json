@@ -1,0 +1,29 @@
+{
+  "sync_commit": "6adb75126be61f2bc43c68f4eb41b711768911a1",
+  "snapshot": "Reviewed working-tree implementation over sync_commit; sha256 identifies the exact checked source.",
+  "source": "desktop/src-tauri/src/platform_linux.rs",
+  "sha256": "0be6db0787442e9249470e3c72bf0ec58b4a37d357d9a1149e543ef34b3bfdbc",
+  "functions": [
+    "next_state",
+    "dispatch",
+    "present_diagnostic",
+    "rebuild_missing_tray",
+    "retry_on_main",
+    "present",
+    "hide_on_main",
+    "observe_on_main",
+    "publish",
+    "show",
+    "hide",
+    "resize",
+    "build_tray primary-click callback body",
+    "on_window_event (direct focus replay; outside TLC transition table)"
+  ],
+  "scheduler_correspondence": [
+    "initialize (single polling worker, capacity-one Retry channel, initial build failure); observe_on_main rebuild attempt after grace stays inside Apply and sends no worker wake",
+    "publish (mutex-protected latest observation and one queued drain)",
+    "main-thread dispatch FIFO and callback ownership",
+    "initialize_surface precedes make_tray and initialize in main setup; native layer-shell configuration without content show is outside the modeled successful-startup suffix"
+  ],
+  "scope": "One process and working window; separate native diagnostic; startup grace and construction failure including automatic post-grace rebuild success/failure; at most two pending callbacks plus one active main callback; arbitrary ordered registration samples; successful GTK calls for exhaustive safety. Recovery assumes grace elapses, successful constructor after grace, and fair sustained own-registration observations, without manual Retry. Failure and coalescing paths also replay real source with API doubles. Primary-click callback body compiled; native backend and package remain acceptance boundaries. Actual on_window_event compiled and replayed through every nonempty binary focus sequence of length at most six across visible/hidden Available and diagnostic Unavailable; direct tray activation and explicit Hide checks. Focus events do not extend the TLC scheduler or its liveness claim. focus_grab::presented is a typed no-op API double. Hyprland Rust/C lifecycle, generation guard, idle scheduling, Wayland delivery and outside-click behavior are excluded. initialize_surface and layer_bar.c are reviewed native startup boundaries and excluded from compiled policy and TLC: no layer-shell protocol, realization order, geometry, keyboard focus, or startup failure presentation proof."
+}

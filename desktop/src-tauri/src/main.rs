@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(target_os = "linux")]
+mod linux_appearance;
+#[cfg(target_os = "linux")]
 mod platform_linux;
 #[cfg(target_os = "macos")]
 mod platform_macos;
@@ -39,6 +41,7 @@ use tauri::{
 
 static VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static PANEL_HEIGHT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(560);
+#[cfg(target_os = "macos")]
 static PANEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1112,9 +1115,21 @@ fn main() {
             disconnect
         ]);
     let result = builder
+        .on_page_load(|webview, payload| {
+            #[cfg(target_os = "linux")]
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                linux_appearance::refresh(webview.app_handle().clone());
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = (webview, payload);
+        })
         .setup(move |app| {
+            #[cfg(target_os = "linux")]
+            platform::initialize_surface(app)?;
             make_tray(app)?;
             platform::initialize(app)?;
+            #[cfg(target_os = "linux")]
+            linux_appearance::watch(app.handle().clone());
             use tauri_plugin_notification::NotificationExt;
             let handle = app.handle().clone();
             app.notification().on_action(move |event| {
