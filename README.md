@@ -22,27 +22,35 @@ Your [T3 Code](https://github.com/pingdotgg/t3code) threads, replies, and usage 
 
 ### macOS
 
+macOS 14+ · Apple Silicon
+
+```sh
+curl -fsSL https://eliophan.github.io/t3code-bar/install.sh | bash
+```
+
+Or install with Homebrew:
+
 ```sh
 brew install --cask eliophan/tap/t3-code-bar
 ```
 
-Or [download for Apple Silicon](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-darwin-aarch64.app.zip), unzip, and move the app to Applications. Requires macOS 14+.
+[Download ZIP](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-darwin-aarch64.app.zip) · Unzip and move the app to Applications.
 
-If Homebrew requests trust, run `brew trust --cask eliophan/tap/t3-code-bar` and retry.
-
-The app is not notarized. If macOS blocks it, try opening it, then use **System Settings → Privacy & Security → Open Anyway**.
+The app is not notarized. If blocked, try opening it, then use **System Settings → Privacy & Security → Open Anyway**. [Homebrew help](desktop/RELEASE.md#homebrew-macos).
 
 ### Linux
+
+x86_64 · AppImage or Debian package
 
 ```sh
 curl -fsSL https://eliophan.github.io/t3code-bar/install-linux.sh | bash
 ```
 
-Installs an AppImage and adds **T3 Code Bar** to your app launcher. Requires curl, Python 3, and `sha256sum`.
+The installer adds the AppImage to your app launcher. Requires curl, Python 3, and `sha256sum`.
 
-Prefer a download? [AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage) · [.deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb)
+[Download AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage) · [Download .deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb)
 
-Linux x86_64, built on Ubuntu 24.04. Requires a system tray and an unlocked Secret Service for saved pairing. On GNOME, enable an AppIndicator extension. [Installation details and troubleshooting](docs/USAGE.md#linux-installation).
+Requires a system tray and an unlocked Secret Service for saved pairing. On GNOME, enable an AppIndicator extension. [Linux setup and troubleshooting](docs/USAGE.md#linux-installation).
 
 ## Get started
 
