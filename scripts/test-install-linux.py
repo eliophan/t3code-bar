@@ -26,7 +26,7 @@ class LinuxInstallerTest(unittest.TestCase):
         self.bin.mkdir()
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.home / ".local/share"),
                         PATH=f"{self.bin}:{os.environ['PATH']}", FIXTURES=str(self.root))
-        self.name = f"T3 Code Bar Tauri_{VERSION}_amd64.AppImage"
+        self.name = f"T3-Code-Bar-{VERSION}-linux-x86_64.AppImage"
         self.payload = b"synthetic AppImage; must never be executed\n"
         (self.root / "app").write_bytes(self.payload)
         self.release()
@@ -105,7 +105,7 @@ Path(args[args.index('--output') + 1]).write_bytes((Path(os.environ['FIXTURES'])
 
     def test_aarch64_asset_selection(self):
         self.mock("uname", '#!/bin/sh\ncase "$1" in -s) echo Linux;; -m) echo aarch64;; esac\n')
-        self.name = self.name.replace("amd64", "aarch64")
+        self.name = self.name.replace("x86_64", "aarch64")
         self.release()
         self.checksum()
         result = self.run_installer()

@@ -12,7 +12,7 @@ fi
 version="${1:-2.0.0-alpha.1}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || fail 'Invalid release version.'
 case "$(uname -m)" in
-  x86_64) architecture=amd64 ;;
+  x86_64) architecture=x86_64 ;;
   aarch64|arm64) architecture=aarch64 ;;
   *) fail 'Unsupported Linux architecture.' ;;
 esac
@@ -28,7 +28,7 @@ fetch() {
 }
 repository='https://github.com/eliophan/t3code-bar'
 fetch "https://api.github.com/repos/eliophan/t3code-bar/releases/tags/v${version}" "$work/release.json" || fail "Release v${version} is unavailable. See ${repository}/releases."
-# Tauri uses amd64 for x86_64 AppImages. Select an exact version and CPU.
+# Select an exact version and CPU from the published release.
 python3 - "$work/release.json" "$version" "$architecture" > "$work/asset" <<'PY'
 import json
 import sys
@@ -37,7 +37,7 @@ path, version, architecture = sys.argv[1:]
 with open(path) as stream:
     release = json.load(stream)
 assets = release.get("assets", [])
-expected = f"T3 Code Bar Tauri_{version}_{architecture}.AppImage"
+expected = f"T3-Code-Bar-{version}-linux-{architecture}.AppImage"
 base = f"https://github.com/eliophan/t3code-bar/releases/download/v{version}/"
 if release.get("tag_name") != f"v{version}" or release.get("draft"):
     sys.exit("Unexpected release identity.")
@@ -51,7 +51,7 @@ mapfile -t urls < "$work/asset"
 fetch "${urls[0]}" "$work/app.AppImage" || fail 'Could not download the AppImage.'
 fetch "${urls[1]}" "$work/app.sha256" || fail 'Could not download its checksum.'
 read -r expected filename < "$work/app.sha256"
-[[ "$expected" =~ ^[0-9a-fA-F]{64}$ && "$filename" == "T3 Code Bar Tauri_${version}_${architecture}.AppImage" ]] || fail 'Invalid checksum file.'
+[[ "$expected" =~ ^[0-9a-fA-F]{64}$ && "$filename" == "T3-Code-Bar-${version}-linux-${architecture}.AppImage" ]] || fail 'Invalid checksum file.'
 actual="$(sha256sum "$work/app.AppImage")"
 [[ "${actual%% *}" == "${expected,,}" ]] || fail 'Checksum mismatch; nothing installed.'
 

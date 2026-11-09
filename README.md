@@ -40,7 +40,7 @@ curl -fsSL https://eliophan.github.io/t3code-bar/install-linux.sh | bash
 
 Installs an AppImage and adds **T3 Code Bar** to your app launcher. Requires curl, Python 3, and `sha256sum`.
 
-Prefer a download? [AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3%20Code%20Bar%20Tauri_2.0.0-alpha.1_amd64.AppImage) · [.deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3%20Code%20Bar%20Tauri_2.0.0-alpha.1_amd64.deb)
+Prefer a download? [AppImage](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage) · [.deb](https://github.com/eliophan/t3code-bar/releases/download/v2.0.0-alpha.1/T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb)
 
 Linux x86_64, built on Ubuntu 24.04. Requires a system tray and an unlocked Secret Service for saved pairing. On GNOME, enable an AppIndicator extension. [Installation details and troubleshooting](docs/USAGE.md#linux-installation).
 

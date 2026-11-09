@@ -97,9 +97,13 @@ def main():
     packages = [*bundle.glob("deb/*.deb"), *bundle.glob("appimage/*.AppImage")]
     if len(packages) != 2 or {p.suffix for p in packages} != {".deb", ".AppImage"}:
         raise RuntimeError("Expected exactly one deb and one AppImage from this build")
+    version = json.loads((ROOT / "desktop/src-tauri/tauri.conf.json").read_text())["version"]
+    machine = platform.machine()
+    if machine not in {"x86_64", "aarch64"}:
+        raise RuntimeError(f"Unsupported release architecture: {machine}")
     artifacts = {}
     for path in packages:
-        dest = output / path.name
+        dest = output / f"T3-Code-Bar-{version}-linux-{machine}{path.suffix}"
         shutil.copy2(path, dest)
         artifacts[dest.name] = {"sha256": sha(dest), "bytes": dest.stat().st_size,
                                 "executable_sha256": packaged_binary_sha(dest)}

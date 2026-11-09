@@ -37,16 +37,16 @@ Download a `.deb` or `.AppImage` and its matching `.sha256` file from [GitHub Re
 For Debian or Ubuntu, run these commands in the download directory. Replace the version and CPU in the filenames when needed:
 
 ```sh
-sha256sum -c 'T3 Code Bar Tauri_2.0.0-alpha.1_amd64.deb.sha256'
-sudo apt install './T3 Code Bar Tauri_2.0.0-alpha.1_amd64.deb'
+sha256sum -c 'T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb.sha256'
+sudo apt install './T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.deb'
 ```
 
 For an AppImage:
 
 ```sh
-sha256sum -c 'T3 Code Bar Tauri_2.0.0-alpha.1_amd64.AppImage.sha256'
-chmod +x 'T3 Code Bar Tauri_2.0.0-alpha.1_amd64.AppImage'
-'./T3 Code Bar Tauri_2.0.0-alpha.1_amd64.AppImage'
+sha256sum -c 'T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage.sha256'
+chmod +x 'T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage'
+'./T3-Code-Bar-2.0.0-alpha.1-linux-x86_64.AppImage'
 ```
 
 Stop if verification exits nonzero or reports `FAILED`. Installation and launch also report failure with a nonzero exit.
