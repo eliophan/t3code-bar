@@ -1,1 +1,19 @@
-{ "bundle": { "targets": ["deb", "appimage"] } }
+{
+  "bundle": {
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "resources": {
+      "src/focus_grab/LICENSE": "licenses/hyprland-focus-grab-v1-LICENSE",
+      "vendor/gtk-layer-shell/": "licenses/gtk-layer-shell/"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libgtk-layer-shell0 (>= 0.6)"
+        ]
+      }
+    }
+  }
+}
