@@ -656,8 +656,9 @@ mod tests {
     fn options(program: PathBuf) -> SshConnectOptions {
         SshConnectOptions {
             ssh_program: program,
-            command_timeout: Duration::from_millis(250),
-            tunnel_start_timeout: Duration::from_millis(250),
+            // Fresh executable validation on macOS can exceed 250 ms.
+            command_timeout: Duration::from_secs(2),
+            tunnel_start_timeout: Duration::from_secs(2),
             ..Default::default()
         }
     }
