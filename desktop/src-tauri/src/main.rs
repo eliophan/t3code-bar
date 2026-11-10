@@ -1062,7 +1062,9 @@ fn map_error(error: ConnectionError) -> RemoteReadError {
                 limits: true,
             }
         }
-        ConnectionError::RelayCredentialUnsupported => RemoteReadError::UnsupportedRoute,
+        ConnectionError::InvalidRoute | ConnectionError::RelayCredentialUnsupported => {
+            RemoteReadError::UnsupportedRoute
+        }
         ConnectionError::Transport => RemoteReadError::Offline,
         _ => RemoteReadError::Protocol,
     }
@@ -3756,6 +3758,64 @@ while True:
     ) -> Result<bar_core::remote::RemoteReadResult, RemoteReadError> {
         let mut attempt = state.hub.lock().unwrap().begin_attempt(id).unwrap();
         read_remote_route(state, id, route, RemoteReadQuery::Snapshot(None), &mut attempt)
+    }
+
+    #[test]
+    fn a_locally_invalid_route_does_not_block_a_paired_tunnel_but_wrong_identity_does() {
+        let root = tempfile::tempdir().unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let id = EnvironmentId::new("remote-b").unwrap();
+        let good = Route::Bearer {
+            connection_id: "relay-directory".into(),
+            http_base_url: Some(format!(
+                "http://127.0.0.1:{}/",
+                fixture("remote-b", "Remote B")
+            )),
+        };
+        // A disallowed HTTP origin is rejected locally, before any network I/O.
+        let unavailable = Route::Bearer {
+            connection_id: "old-private-route".into(),
+            http_base_url: Some("http://192.0.2.1:3773/".into()),
+        };
+        register(&state, &id, vec![unavailable.clone(), good.clone()]);
+        state
+            .remote_pairing_codes
+            .lock()
+            .unwrap()
+            .insert(id.clone(), "JKLM2345NPQR".into());
+        assert!(poll(&state, &id, &good).is_ok());
+        state.remote_supervisors.lock().unwrap().clear();
+        let mut attempt = state.hub.lock().unwrap().begin_attempt(&id).unwrap();
+        let result = read_remote_source(
+            &state,
+            &id,
+            &[unavailable, good.clone()],
+            RemoteReadQuery::Snapshot(None),
+            &mut attempt,
+        );
+        assert!(
+            result.is_ok(),
+            "a locally unusable private route must allow the paired tunnel to serve: {:?}",
+            result.as_ref().err()
+        );
+        let wrong = Route::Bearer {
+            connection_id: "wrong-identity".into(),
+            http_base_url: Some(format!(
+                "http://127.0.0.1:{}/",
+                fixture("other-environment", "Other")
+            )),
+        };
+        let mut attempt = state.hub.lock().unwrap().begin_attempt(&id).unwrap();
+        assert!(matches!(
+            read_remote_source(
+                &state,
+                &id,
+                &[wrong, good],
+                RemoteReadQuery::Snapshot(None),
+                &mut attempt
+            ),
+            Err(RemoteReadError::Protocol)
+        ));
     }
 
     #[test]
