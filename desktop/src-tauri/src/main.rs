@@ -48,7 +48,7 @@ use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
@@ -229,7 +229,6 @@ struct RuntimeState {
     hub: Mutex<EnvironmentHub<usage::UsageContribution, limits::LimitsContribution>>,
     snapshot: Mutex<AppSnapshot>,
     view: Mutex<ViewState>,
-    ids: Mutex<HashSet<ThreadRef>>,
     sources: Mutex<HashMap<EnvironmentId, threads::Configuration>>,
     remote_routes: Mutex<HashMap<EnvironmentId, Vec<Route>>>,
     remote_pairing_codes: Mutex<HashMap<EnvironmentId, String>>,
@@ -1319,11 +1318,6 @@ fn refresh_threads(app: &tauri::AppHandle, state: &SharedState) {
                                 .into_iter()
                                 .filter_map(|item| ScopedThread::new(&environment, item))
                                 .collect();
-                            state
-                                .ids
-                                .lock()
-                                .unwrap()
-                                .extend(rows.iter().map(|row| row.reference().clone()));
                             if let Some(new_alerts) = hub.apply_threads(
                                 &stamp,
                                 rows,
@@ -1408,12 +1402,9 @@ fn refresh_threads(app: &tauri::AppHandle, state: &SharedState) {
                             .into_iter()
                             .filter_map(|item| ScopedThread::new(&environment, item))
                             .collect();
-                        let row_ids: Vec<_> =
-                            rows.iter().map(|row| row.reference().clone()).collect();
                         if let Some(new_alerts) =
                             hub.apply_threads(&stamp, rows, now(&state).timestamp(), muted)
                         {
-                            state.ids.lock().unwrap().extend(row_ids);
                             alerts.extend(
                                 new_alerts
                                     .into_iter()
@@ -2077,25 +2068,31 @@ fn set_environment_selection(
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
-fn runtime_source(
-    state: &RuntimeState,
-    thread: &ThreadRef,
-) -> Result<threads::Configuration, String> {
-    if !state
-        .ids
+/// The hub snapshot is the only authority for which threads exist. Callers must
+/// not hold the snapshot lock, which the hub lock precedes.
+fn ensure_listed(state: &RuntimeState, thread: &ThreadRef) -> Result<(), String> {
+    if state
+        .hub
         .lock()
-        .map_err(|_| "threads unavailable")?
-        .contains(thread)
+        .map_err(|_| "environments unavailable")?
+        .lists_thread(thread)
     {
-        return Err("Unknown thread".into());
+        Ok(())
+    } else {
+        Err("Unknown thread".into())
     }
-    state
+}
+
+fn local_source(
+    state: &RuntimeState,
+    environment: &EnvironmentId,
+) -> Result<Option<threads::Configuration>, String> {
+    Ok(state
         .sources
         .lock()
         .map_err(|_| "sources unavailable")?
-        .get(&thread.environment_id)
-        .cloned()
-        .ok_or_else(|| "Unknown environment".into())
+        .get(environment)
+        .cloned())
 }
 
 fn encode_path_component(value: &str) -> String {
@@ -2116,18 +2113,11 @@ fn runtime_thread_url(
     thread: &ThreadRef,
     browser: bool,
 ) -> Result<String, String> {
-    if let Ok(config) = runtime_source(state, thread) {
+    ensure_listed(state, thread)?;
+    if let Some(config) = local_source(state, &thread.environment_id)? {
         return config
             .thread_url(thread.thread_id.as_str(), browser)
             .map_err(|error| error.to_string());
-    }
-    if !state
-        .ids
-        .lock()
-        .map_err(|_| "threads unavailable")?
-        .contains(thread)
-    {
-        return Err("Unknown thread".into());
     }
     if browser {
         let routes = state
@@ -2185,6 +2175,26 @@ fn new_thread(app: tauri::AppHandle, _state: State<'_, SharedState>) -> Result<(
         .open_url("t3code://new", None::<String>)
         .map_err(|e| e.to_string())
 }
+enum PreviewSource {
+    Local(threads::Configuration),
+    Remote(Vec<Route>),
+}
+
+/// A preview reads only a thread the hub currently lists for its environment.
+fn preview_source(state: &RuntimeState, thread: &ThreadRef) -> Result<PreviewSource, String> {
+    ensure_listed(state, thread)?;
+    if let Some(config) = local_source(state, &thread.environment_id)? {
+        return Ok(PreviewSource::Local(config));
+    }
+    state
+        .remote_routes
+        .lock()
+        .map_err(|_| "remote routes unavailable")?
+        .get(&thread.environment_id)
+        .cloned()
+        .map(PreviewSource::Remote)
+        .ok_or_else(|| "Unknown environment".into())
+}
 #[tauri::command]
 async fn get_preview(
     thread: ThreadRef,
@@ -2203,16 +2213,7 @@ async fn get_preview(
             return Ok(None);
         }
     }
-    let config = runtime_source(&state, &thread).ok();
-    let remote_route = state
-        .remote_routes
-        .lock()
-        .map_err(|_| "remote routes unavailable")?
-        .get(&thread.environment_id)
-        .cloned();
-    if config.is_none() && remote_route.is_none() {
-        return Err("Unknown environment".into());
-    }
+    let source = preview_source(&state, &thread)?;
     let id = thread.thread_id.as_str().to_owned();
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || {
@@ -2224,20 +2225,21 @@ async fn get_preview(
             record("fixture_preview_started", json!({"id":id,"delayMs":delay}));
             thread::sleep(Duration::from_millis(delay));
         }
-        let result = if let Some(config) = config {
-            threads::read_preview(&config, &id).map_err(|e| e.to_string())
-        } else if let Some(route) = remote_route {
-            let mut attempt = state
-                .hub
-                .lock()
-                .map_err(|_| "environments unavailable")?
-                .begin_attempt(&thread.environment_id)
-                .ok_or("Unknown environment")?;
-            read_remote_source(&state, &thread.environment_id, &route, None, &mut attempt)
-                .map(|result| result.previews.get(&id).cloned())
-                .map_err(|error| format!("{error:?}"))
-        } else {
-            Err("Unknown environment".into())
+        let result = match source {
+            PreviewSource::Local(config) => {
+                threads::read_preview(&config, &id).map_err(|e| e.to_string())
+            }
+            PreviewSource::Remote(route) => {
+                let mut attempt = state
+                    .hub
+                    .lock()
+                    .map_err(|_| "environments unavailable")?
+                    .begin_attempt(&thread.environment_id)
+                    .ok_or("Unknown environment")?;
+                read_remote_source(&state, &thread.environment_id, &route, None, &mut attempt)
+                    .map(|result| result.previews.get(&id).cloned())
+                    .map_err(|error| format!("{error:?}"))
+            }
         };
         if state.fixture {
             record(
@@ -2245,25 +2247,19 @@ async fn get_preview(
                 json!({"id":id,"ok":result.is_ok()}),
             );
         }
-        let snapshot = state.snapshot.lock().map_err(|_| "snapshot unavailable")?;
-        if snapshot.revision != revision
-            || !snapshot.settings.shows_previews
-            || !selected(
-                &snapshot.settings.environment_selection,
-                &thread.environment_id,
-            )
-        {
+        let current = {
+            let snapshot = state.snapshot.lock().map_err(|_| "snapshot unavailable")?;
+            snapshot.revision == revision
+                && snapshot.settings.shows_previews
+                && selected(
+                    &snapshot.settings.environment_selection,
+                    &thread.environment_id,
+                )
+        };
+        if !current || ensure_listed(&state, &thread).is_err() {
             return Ok(None);
         }
-        if runtime_source(&state, &thread).is_err()
-            && !state
-                .remote_routes
-                .lock()
-                .map_err(|_| "remote routes unavailable")?
-                .contains_key(&thread.environment_id)
-        {
-            return Err("Unknown environment".into());
-        }
+        preview_source(&state, &thread)?;
         result
     })
     .await
@@ -2481,9 +2477,6 @@ fn forget_remote_access(state: &RuntimeState, environment: &EnvironmentId) -> Re
         .ok()
         .and_then(|mut sessions| sessions.remove(environment));
     drop(session);
-    if let Ok(mut ids) = state.ids.lock() {
-        ids.retain(|thread| &thread.environment_id != environment);
-    }
     let failures = state.credential_gates.serialize(environment, || {
         routes
             .iter()
@@ -2634,7 +2627,6 @@ fn main() {
         }),
         hub: Mutex::new(hub),
         view: Mutex::new(ViewState::default()),
-        ids: Mutex::new(HashSet::new()),
         sources: Mutex::new(HashMap::new()),
         remote_routes: Mutex::new(HashMap::new()),
         remote_pairing_codes: Mutex::new(HashMap::new()),
@@ -2943,8 +2935,7 @@ mod tests {
             hub: Mutex::new(EnvironmentHub::new(settings)),
             snapshot: Mutex::new(AppSnapshot::default()),
             view: Mutex::new(ViewState::default()),
-            ids: Mutex::new(HashSet::new()),
-            sources: Mutex::new(HashMap::new()),
+                sources: Mutex::new(HashMap::new()),
             remote_routes: Mutex::new(HashMap::new()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
@@ -3218,8 +3209,7 @@ while True:
             hub: Mutex::new(EnvironmentHub::new(settings)),
             snapshot: Mutex::new(AppSnapshot::default()),
             view: Mutex::new(ViewState::default()),
-            ids: Mutex::new(HashSet::new()),
-            sources: Mutex::new(HashMap::new()),
+                sources: Mutex::new(HashMap::new()),
             remote_routes: Mutex::new(HashMap::new()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
@@ -3519,6 +3509,31 @@ while True:
         }
     }
 
+    fn thread_row(environment: &EnvironmentId, id: &str) -> ScopedThread {
+        let item = serde_json::from_value(json!({
+            "id":id, "projectId":"p", "projectTitle":"p", "title":id,
+            "createdAt":"2024-01-01T00:00:00Z", "updatedAt":"2024-01-01T00:00:00Z",
+            "pendingUserInputCount":0, "pendingApprovalCount":0, "providers":[],
+            "hasGoal":false, "isPinned":false, "isSettled":false, "isSnoozed":false,
+            "isWoke":false, "pendingGuestMessageCount":0, "isBlockedOnThreadWait":false,
+            "hasRuns":false, "status":"Approval", "priority":0, "isRunning":false,
+            "isAttention":true, "showsLabelInMenuBar":true
+        }))
+        .unwrap();
+        ScopedThread::new(environment, item).unwrap()
+    }
+
+    /// Replaces what the hub lists for a registered environment, as a refresh does.
+    fn list_threads(state: &RuntimeState, environment: &EnvironmentId, ids: &[&str]) {
+        let mut hub = state.hub.lock().unwrap();
+        let stamp = match hub.sources()[environment].stamp.clone() {
+            Some(stamp) => stamp,
+            None => hub.begin_next_source(environment, "test").unwrap(),
+        };
+        let rows = ids.iter().map(|id| thread_row(environment, id)).collect();
+        hub.apply_threads(&stamp, rows, 1, true).unwrap();
+    }
+
     fn runtime() -> tokio::runtime::Runtime {
         tokio::runtime::Runtime::new().unwrap()
     }
@@ -3676,13 +3691,12 @@ while True:
         let tunnel = pids(dir.path()).last().cloned().unwrap().1;
         assert!(alive(&tunnel));
         assert_eq!(state.remote_supervisors.lock().unwrap().len(), 1);
-        {
-            let thread = ThreadRef {
-                environment_id: target.clone(),
-                thread_id: ThreadId::new("same").unwrap(),
-            };
-            state.ids.lock().unwrap().insert(thread);
-        }
+        list_threads(&state, &target, &["same"]);
+        let listed = ThreadRef {
+            environment_id: target.clone(),
+            thread_id: ThreadId::new("same").unwrap(),
+        };
+        assert!(state.hub.lock().unwrap().lists_thread(&listed));
         state
             .remote_pairing_codes
             .lock()
@@ -3700,7 +3714,7 @@ while True:
             .is_none());
         assert!(state.remote_supervisors.lock().unwrap().is_empty());
         assert!(all_gone(dir.path()), "forgetting reaps the owned tunnel");
-        assert!(state.ids.lock().unwrap().is_empty());
+        assert!(!state.hub.lock().unwrap().lists_thread(&listed));
         assert_eq!(direct_server.exchanges.load(Ordering::SeqCst), exchanges);
 
         assert!(matches!(
@@ -3838,24 +3852,16 @@ while True:
             .lock()
             .unwrap()
             .insert(local.clone(), config.clone());
-        register(
-            &state,
-            &remote,
-            vec![Route::Primary {
-                http_base_url: "http://127.0.0.1:4100/".into(),
-            }],
-        );
+        let remote_routes = vec![Route::Primary {
+            http_base_url: "http://127.0.0.1:4100/".into(),
+        }];
+        register_all(&state, &[(&local, vec![]), (&remote, remote_routes)]);
         let reference = |environment: &EnvironmentId, thread: &str| ThreadRef {
             environment_id: environment.clone(),
             thread_id: ThreadId::new(thread).unwrap(),
         };
-        for (environment, thread) in [(&local, "same"), (&remote, "same"), (&remote, "a b")] {
-            state
-                .ids
-                .lock()
-                .unwrap()
-                .insert(reference(environment, thread));
-        }
+        list_threads(&state, &local, &["same"]);
+        list_threads(&state, &remote, &["same", "a b"]);
         let open = |environment: &str, thread: &str| {
             let mut opened = Vec::new();
             let result = open_notification_thread(&state, environment, thread, |url| {
@@ -3903,6 +3909,28 @@ while True:
             Err("opener unavailable".to_owned())
         );
 
+        list_threads(&state, &remote, &["same"]);
+        for browser in [false, true] {
+            assert_eq!(
+                runtime_thread_url(&state, &reference(&remote, "a b"), browser),
+                Err("Unknown thread".to_owned()),
+                "a thread that left the listing cannot be opened or copied"
+            );
+        }
+        let (result, opened) = open("remote-b", "a b");
+        assert_eq!(result, Err("Unknown thread".to_owned()));
+        assert!(opened.is_empty(), "a stale notification opens nothing");
+        assert_eq!(open("remote-b", "same").0, Ok(()));
+
+        list_threads(&state, &local, &[]);
+        assert_eq!(
+            open("local-env", "same").0,
+            Err("Unknown thread".to_owned()),
+            "deleting a local thread does not affect the same ID elsewhere"
+        );
+        assert_eq!(open("remote-b", "same").0, Ok(()));
+        list_threads(&state, &local, &["same"]);
+
         assert_eq!(forget_remote_access(&state, &remote), Ok(()));
         let (result, opened) = open("remote-b", "same");
         assert_eq!(
@@ -3912,5 +3940,66 @@ while True:
         );
         assert!(opened.is_empty());
         assert_eq!(open("local-env", "same").0, Ok(()));
+    }
+
+    #[test]
+    fn previews_read_only_threads_the_current_listing_names() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = ssh_state(directory.path(), Default::default());
+        let local = EnvironmentId::new("local-env").unwrap();
+        let remote = EnvironmentId::new("remote-b").unwrap();
+        state.sources.lock().unwrap().insert(
+            local.clone(),
+            threads::Configuration {
+                base_dir: directory.path().to_path_buf(),
+            },
+        );
+        let routes = vec![Route::Primary {
+            http_base_url: "http://127.0.0.1:4100/".into(),
+        }];
+        register_all(&state, &[(&local, vec![]), (&remote, routes.clone())]);
+        let reference = |environment: &EnvironmentId, thread: &str| ThreadRef {
+            environment_id: environment.clone(),
+            thread_id: ThreadId::new(thread).unwrap(),
+        };
+        let unknown = |thread: ThreadRef| {
+            matches!(
+                preview_source(&state, &thread),
+                Err(error) if error == "Unknown thread"
+            )
+        };
+
+        assert!(
+            unknown(reference(&remote, "same")),
+            "a route alone does not authorize a preview"
+        );
+        list_threads(&state, &remote, &["same"]);
+        assert!(matches!(
+            preview_source(&state, &reference(&remote, "same")),
+            Ok(PreviewSource::Remote(found)) if found == routes
+        ));
+        assert!(
+            unknown(reference(&remote, "never-listed")),
+            "an arbitrary ID is not previewed from a listed environment"
+        );
+        assert!(
+            unknown(reference(&local, "same")),
+            "the same ID listed by another environment does not authorize this one"
+        );
+        list_threads(&state, &local, &["same"]);
+        assert!(matches!(
+            preview_source(&state, &reference(&local, "same")),
+            Ok(PreviewSource::Local(_))
+        ));
+
+        list_threads(&state, &remote, &[]);
+        assert!(
+            unknown(reference(&remote, "same")),
+            "a deleted remote thread is not previewed from stale authorization"
+        );
+        assert!(matches!(
+            preview_source(&state, &reference(&local, "same")),
+            Ok(PreviewSource::Local(_))
+        ));
     }
 }

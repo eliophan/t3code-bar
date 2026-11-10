@@ -404,6 +404,21 @@ impl<U, L> EnvironmentHub<U, L> {
                 _ => &[],
             })
     }
+    /// Whether the current snapshot of the thread's own environment lists it.
+    /// Rows the UI still shows from a stale snapshot count. Replaced, revoked,
+    /// forgotten, disabled or missing sources list nothing.
+    pub fn lists_thread(&self, thread: &ThreadRef) -> bool {
+        self.sources
+            .get(&thread.environment_id)
+            .filter(|source| source.present)
+            .and_then(|source| source.snapshot.as_ref())
+            .is_some_and(|snapshot| match &snapshot.threads {
+                Section::Ready { value, .. } | Section::Stale { value, .. } => {
+                    value.iter().any(|row| row.reference() == thread)
+                }
+                Section::Pending | Section::Unavailable(_) => false,
+            })
+    }
     pub fn apply_threads(
         &mut self,
         stamp: &SourceStamp,
@@ -1211,6 +1226,84 @@ mod remote_runtime_tests {
             generation,
             principal: principal.into(),
         }
+    }
+
+    fn thread_ref(environment: &str, thread: &str) -> ThreadRef {
+        ThreadRef {
+            environment_id: id(environment),
+            thread_id: bar_identity::ThreadId::new(thread).unwrap(),
+        }
+    }
+
+    #[test]
+    fn listed_threads_follow_the_current_snapshot_per_environment() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut hub: EnvironmentHub<String, String> =
+            EnvironmentHub::new(SettingsStore::load(dir.path().join("settings")).unwrap());
+        hub.apply_discovery(Ok(vec![meta("a"), meta("b")]));
+        let a = stamp("a", 1, "grant-a");
+        let b = stamp("b", 1, "grant-b");
+        assert!(hub.begin_source(a.clone()) && hub.begin_source(b.clone()));
+        let rows = |stamp: &SourceStamp, ids: &[&str]| -> Vec<ScopedThread> {
+            ids.iter()
+                .map(|value| ScopedThread::new(&stamp.environment, test_item(value)).unwrap())
+                .collect()
+        };
+        assert!(
+            !hub.lists_thread(&thread_ref("a", "one")),
+            "nothing is listed before a snapshot"
+        );
+        hub.apply_threads(&a, rows(&a, &["one", "same"]), 1, true);
+        hub.apply_threads(&b, rows(&b, &["same"]), 1, true);
+        assert!(hub.lists_thread(&thread_ref("a", "one")));
+        assert!(hub.lists_thread(&thread_ref("a", "same")));
+        assert!(hub.lists_thread(&thread_ref("b", "same")));
+        assert!(
+            !hub.lists_thread(&thread_ref("b", "one")),
+            "an ID listed by another environment does not authorize this one"
+        );
+        assert!(!hub.lists_thread(&thread_ref("missing", "same")));
+
+        hub.apply_threads(&a, rows(&a, &["same"]), 2, true);
+        assert!(
+            !hub.lists_thread(&thread_ref("a", "one")),
+            "a thread that left the listing is no longer authorized"
+        );
+        assert!(hub.lists_thread(&thread_ref("a", "same")));
+        assert!(hub.lists_thread(&thread_ref("b", "same")));
+
+        hub.offline(&b);
+        assert!(
+            hub.lists_thread(&thread_ref("b", "same")),
+            "rows shown from a stale snapshot stay actionable"
+        );
+
+        hub.revoke(&b);
+        assert!(!hub.lists_thread(&thread_ref("b", "same")));
+        hub.forget_access(&a.environment);
+        assert!(!hub.lists_thread(&thread_ref("a", "same")));
+    }
+
+    #[test]
+    fn disabled_and_unavailable_sources_list_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut hub: EnvironmentHub<String, String> =
+            EnvironmentHub::new(SettingsStore::load(dir.path().join("settings")).unwrap());
+        hub.apply_discovery(Ok(vec![meta("a"), meta("b")]));
+        let a = stamp("a", 1, "grant-a");
+        let b = stamp("b", 1, "grant-b");
+        assert!(hub.begin_source(a.clone()) && hub.begin_source(b.clone()));
+        for stamp in [&a, &b] {
+            let row = ScopedThread::new(&stamp.environment, test_item("same")).unwrap();
+            hub.apply_threads(stamp, vec![row], 1, true);
+        }
+        hub.unavailable_sections(&a, true, false, false, UnavailableReason::PermissionDenied);
+        assert!(!hub.lists_thread(&thread_ref("a", "same")));
+        hub.apply_discovery(Ok(vec![meta("a")]));
+        assert!(
+            !hub.lists_thread(&thread_ref("b", "same")),
+            "an environment discovery no longer reports lists nothing"
+        );
     }
 
     #[test]
