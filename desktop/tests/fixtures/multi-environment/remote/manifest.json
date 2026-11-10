@@ -1,0 +1,21 @@
+{
+  "environments": [
+    {
+      "id": "remote-a",
+      "label": "Remote A",
+      "routes": [{"Bearer":{"connection_id":"fixture-a","http_base_url":"http://127.0.0.1:43101/"}}],
+      "pairingCode": "ABCD2345EFGH"
+    },
+    {
+      "id": "remote-b",
+      "label": "Remote B",
+      "routes": [{"Bearer":{"connection_id":"fixture-b","http_base_url":"http://127.0.0.1:43102/"}}],
+      "pairingCode": "JKLM2345NPQR"
+    }
+  ],
+  "contract": {
+    "threadId": "same-thread-id",
+    "usageQuery": {"sinceDay":"2026-01-01","untilDay":"2026-01-31","timeZone":"UTC"},
+    "sourceAwareActions": true
+  }
+}

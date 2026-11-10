@@ -2,6 +2,7 @@ import { chartModel, nearestColumn } from './chart';
 import { resolveProvider, uniqueProviders, statusIcons } from './providers';
 import { limitAgo, limitReset, limitsStaleness } from './limits-format';
 import { ProjectBadge } from './ProjectBadge';
+import { EnvironmentMachineIcon } from './EnvironmentMachineIcon';
 import { MiddleText } from './middle-text';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -44,7 +45,7 @@ export function App() {
   const [period, setPeriod] = useState<Period>('24h');
   const [threadGeneration, setThreadGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [context, setContext] = useState<{ thread: ThreadItem; top: number } | null>(null);
+  const [context, setContext] = useState<{ thread: ThreadItem } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const act = useCallback(async (name: string, args?: Record<string, unknown>) => {
     try { setError(null); await invoke(name, args); }
@@ -98,7 +99,7 @@ export function App() {
         {snapshot.threadError && <Notice warning>{snapshot.threadError}</Notice>}
         {!snapshot.online && <Notice>T3 Code offline · showing saved threads</Notice>}
 
-        {snapshot.loading ? <Empty title="Reading T3 Code data…" /> : snapshot.threads.length === 0 ? <Empty title="Your inbox is clear">No active threads. <button className="text-button" onClick={() => void act('new_thread')}>New thread</button></Empty> : snapshot.threads.map(thread => <ThreadRow key={thread.id} thread={thread} now={Date.parse(snapshot.now)} online={snapshot.online && !snapshot.threadError} previews={snapshot.settings.showsPreviews} onOpen={() => void act('thread_action', { id: thread.id, action: 'open' })} onContext={top => setContext({ thread, top })} />)}
+        {snapshot.loading ? <Empty title="Reading T3 Code data…" /> : snapshot.threads.length === 0 ? <Empty title="Your inbox is clear">No active threads. <button className="text-button" onClick={() => void act('new_thread')}>New thread</button></Empty> : snapshot.threads.map(thread => <ThreadRow key={JSON.stringify(thread.thread)} thread={thread} environment={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)} now={Date.parse(snapshot.now)} online={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)?.status === 'online'} revision={snapshot.revision} previews={snapshot.settings.showsPreviews} onOpen={() => void act('thread_action', { thread: thread.thread, action: 'open' })} onContext={() => setContext({ thread })} />)}
       </main><footer aria-label="Bar navigation"><button className="usage-link" aria-label="Usage" title="Usage" onClick={() => setScreen('usage')}><svg className="usage-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21v-6M12 21V3M19 21V9" /></svg></button><button className="settings-button" aria-label="Settings" title="Settings" onClick={() => setScreen('settings')}><svg className="settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.67 4.14a2 2 0 0 1 4.66 0 2 2 0 0 0 2.88 1.66 2 2 0 0 1 2.33 4.04 2 2 0 0 0 0 3.32 2 2 0 0 1-2.33 4.04 2 2 0 0 0-2.88 1.66 2 2 0 0 1-4.66 0 2 2 0 0 0-2.88-1.66 2 2 0 0 1-2.33-4.04 2 2 0 0 0 0-3.32A2 2 0 0 1 6.79 5.8a2 2 0 0 0 2.88-1.66"/><circle cx="12" cy="12" r="3" /></svg></button></footer>
     </> : <>
       {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{snapshot.connection.status === 'failed' ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
@@ -109,7 +110,7 @@ export function App() {
         {!snapshot.usage && snapshot.usageLoading ? <Empty title="Reading usage…" /> : !snapshot.usage ? <Empty title="No usage data yet">Open T3 Code’s Usage page to populate its saved scan cache.</Empty> : <div className={snapshot.usagePeriod !== period ? 'stale' : ''}><Usage key={metric} report={snapshot.usage} metric={metric} /></div>}
       </>}</main>
     </>}
-    {context && <div role="menu" className="context-menu" style={{ top: Math.min(context.top, 420) }} onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { id: context.thread.id, action }); setContext(null); }}>{title}</button>)}</div>}
+    {context && <div role="menu" className="context-menu" onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { thread: context.thread.thread, action }); setContext(null); }}>{title}</button>)}</div>}
   </div>;
 }
 
@@ -119,12 +120,14 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   const [pending, setPending] = useState(false);
   const unavailable = snapshot.update.status === 'unavailable';
   const updateBusy = snapshot.update.busy;
-  const change = async (key: keyof Settings, value: boolean) => {
+  const change = async (key: Exclude<keyof Settings, 'environmentSelection'>, value: boolean) => {
     setPending(true);
     try { await act('set_setting', { key, value }); } finally { setPending(false); }
   };
-  const toggle = (label: string, key: keyof Settings, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
+  const toggle = (label: string, key: Exclude<keyof Settings, 'environmentSelection'>, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
   return <main className="settings scroll">
+    <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} />{snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}</section>
+    <section><h2>T3 Connect</h2>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
     <section><h2>Preferences</h2>
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}
       {toggle('Hover previews', 'showsPreviews', snapshot.settings.showsPreviews)}
@@ -140,6 +143,83 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
     </section>
     <div className="settings-bottom"><button onClick={() => void act('quit_app')}>Quit T3 Code Bar</button><span className="version">v{snapshot.version}</span></div>
   </main>;
+}
+
+function EnvironmentSelectionOptions({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
+  const [pending, setPending] = useState(false);
+  const selectedId = snapshot.settings.environmentSelection === 'all' ? '' : snapshot.settings.environmentSelection.one;
+  const options = [
+    { id: '', label: 'All environments' },
+    ...snapshot.environments.map(environment => ({ id: environment.id, label: `${environment.label} · ${environment.status}` })),
+    ...(selectedId && !snapshot.environments.some(environment => environment.id === selectedId) ? [{ id: selectedId, label: 'Selected environment unavailable' }] : []),
+  ];
+  return <fieldset className="environment-options" aria-label="Environment"><legend>Show</legend>{options.map(option => <label key={option.id}>
+    <input type="radio" name="environmentSelection" value={option.id} checked={selectedId === option.id} disabled={pending} onChange={async () => {
+      setPending(true);
+      try { await act('set_environment_selection', { selection: option.id ? { one: option.id } : 'all' }); } finally { setPending(false); }
+    }} /><span>{option.label}</span>
+  </label>)}</fieldset>;
+}
+
+type EnvironmentViewModel = import('./contracts').EnvironmentView;
+
+function EnvironmentAccess({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
+  const needsPrompt = environment.status === 'needsAccess' || environment.status === 'permissionDenied';
+  if (!needsPrompt && !environment.canForgetAccess) return null;
+  return <div className="environment-access">
+    {needsPrompt && <EnvironmentAccessPrompt environment={environment} cloudStatus={cloudStatus} act={act} />}
+    {environment.canForgetAccess && <EnvironmentForget environment={environment} act={act} />}
+  </div>;
+}
+
+function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
+  const denied = environment.status === 'permissionDenied';
+  const cloudHint = cloudStatus === 'signedOut' ? 'Sign in below.' : cloudStatus === 'signingIn' ? 'Finish signing in or cancel below.' : 'Sign out and sign in again below if access was revoked.';
+  const denial = (route: string) => denied && <Notice warning>{environment.label} denied access. {route}</Notice>;
+  switch (environment.access) {
+    case 'direct': return <>
+      {denial('Its saved access expired or was revoked. Enter a new pairing key.')}
+      <EnvironmentPairing environment={environment} act={act} />
+    </>;
+    case 'directOrCloud': return <>
+      {denial('Enter a new pairing key, or sign in to T3 Connect again.')}
+      <EnvironmentPairing environment={environment} act={act} />
+      <Notice>{environment.label} can also use T3 Connect{cloudStatus === 'signedOut' ? '. Sign in below.' : '.'}</Notice>
+    </>;
+    case 'cloud': return denied
+      ? <Notice warning>{environment.label} denied T3 Connect access. {cloudHint}</Notice>
+      : <Notice>{environment.label} needs T3 Connect access{cloudStatus === 'signedOut' ? '. Sign in below.' : cloudStatus === 'signingIn' ? '. Finish signing in or cancel below.' : '.'}</Notice>;
+    case 'unsupported': return null;
+    default: { const _exhaustive: never = environment.access; return _exhaustive; }
+  }
+}
+
+function EnvironmentForget({ environment, act }: { environment: EnvironmentViewModel; act: Act }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  if (!confirming) return <button className="secondary-button" onClick={() => setConfirming(true)}>Forget access for {environment.label}…</button>;
+  return <div className="disconnect-confirmation" role="group" aria-label={`Confirm forgetting access for ${environment.label}`}>
+    <p>Remove the access Bar saved for {environment.label}? You will need a new pairing key to connect again. Other environments and T3 Connect are not affected.</p>
+    <div className="settings-actions">
+      <button autoFocus disabled={pending} onClick={() => setConfirming(false)}>Cancel</button>
+      <button className="danger-button" disabled={pending} onClick={async () => {
+        setPending(true);
+        try { await act('forget_environment_access', { environment: environment.id }); setConfirming(false); } finally { setPending(false); }
+      }}>{pending ? 'Removing…' : 'Forget access'}</button>
+    </div>
+  </div>;
+}
+
+function EnvironmentPairing({ environment, act }: { environment: EnvironmentViewModel; act: Act }) {
+  const [token, setToken] = useState('');
+  const [pending, setPending] = useState(false);
+  return <form onSubmit={async event => {
+    event.preventDefault();
+    const input = token;
+    setToken('');
+    setPending(true);
+    try { await act('pair_environment', { environment: environment.id, token: input }); } finally { setPending(false); }
+  }}><label>{environment.label} pairing key <input type="password" value={token} autoComplete="off" maxLength={16384} onChange={event => setToken(event.target.value)} /></label><button disabled={pending || !token.trim()}>{pending ? 'Connecting…' : 'Connect'}</button></form>;
 }
 
 function Connection({ snapshot, act, compact: minimal = false }: { snapshot: AppSnapshot; act: Act; compact?: boolean }) {
@@ -169,25 +249,25 @@ function Connection({ snapshot, act, compact: minimal = false }: { snapshot: App
   </div>;
 }
 
-function ThreadRow({ thread, now, online, previews, onOpen, onContext }: { thread: ThreadItem; now: number; online: boolean; previews: boolean; onOpen: () => void; onContext: (top: number) => void }) {
+function ThreadRow({ thread, environment, now, online, previews, revision, onOpen, onContext }: { thread: ThreadItem; environment: import('./contracts').EnvironmentView | undefined; now: number; online: boolean; previews: boolean; revision: number; onOpen: () => void; onContext: () => void }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const generation = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancel = useCallback(() => { generation.current++; clearTimeout(timer.current); setPreview(null); }, []);
-  useEffect(() => { if (!previews) cancel(); return () => { generation.current++; clearTimeout(timer.current); }; }, [previews, cancel]);
+  useEffect(() => { cancel(); return () => { generation.current++; clearTimeout(timer.current); }; }, [previews, revision, cancel]);
   const hover = () => {
     if (!previews) return;
     const run = ++generation.current;
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => { void invoke<Preview | null>('get_preview', { id: thread.id }).then(p => { if (run === generation.current) setPreview(p); }).catch(() => {}); }, 500);
+    timer.current = setTimeout(() => { void invoke<Preview | null>('get_preview', { thread: thread.thread, revision }).then(p => { if (run === generation.current) setPreview(p); }).catch(() => {}); }, 500);
   };
   const status = online ? thread.status : 'Settled';
   const suffix = status === 'Working' || status === 'Goal' ? duration(thread.activeRunStartedAt, now) : status === 'Limited' ? until(thread.usageLimitResetAt, now) : status === 'Waiting' ? duration(thread.latestRunCompletedAt, now) : null;
   const inFlight = ['Working', 'Goal', 'Approval', 'Input'].includes(status);
   const receded = inFlight || status === 'Settled';
   return <div className="thread-wrapper" data-in-flight={inFlight || undefined} data-receded={receded || undefined} data-status={status} onMouseEnter={hover} onMouseLeave={cancel}>
-    <button className="thread-row" onClick={onOpen} onContextMenu={e => { e.preventDefault(); cancel(); onContext(e.clientY); }} aria-label={`${thread.title}, in ${thread.projectTitle}${thread.branch ? `, on branch ${thread.branch}` : ''}${status !== 'Settled' ? `, ${status}` : ''}`}>
-      <div className="project-line"><ProjectBadge title={thread.projectTitle} icon={thread.projectIcon} favicon={thread.projectFavicon} />{thread.isPinned && <svg className="pin" viewBox="0 0 24 24" aria-label="Pinned"><path fill="currentColor" d="M14 2 22 10 19 11 16 14 16 17 14 19 10 15 4 21 3 20 9 14 5 10 7 8 10 8 13 5Z" /></svg>}<span className="project-title">{thread.projectTitle}</span>{status === 'Settled' ? <time title="Last activity">{relative(thread.latestUserMessageAt ?? thread.updatedAt, now)}</time> : <span className={`status status-${status.toLowerCase()}`} title={status === 'Limited' ? `Usage limit reached${suffix ? `. Resets in ${suffix}` : ''}` : status === 'Done' && thread.latestRunCompletedAt ? `Done · ${new Date(thread.latestRunCompletedAt).toLocaleString()}` : status}><i style={{ maskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)`, WebkitMaskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)` }} />{status}{suffix && <small>{status === 'Limited' ? `· ${suffix}` : suffix}</small>}</span>}</div>
+    <button className="thread-row" onClick={onOpen} onContextMenu={e => { e.preventDefault(); cancel(); onContext(); }} aria-label={`${thread.title}, in ${thread.projectTitle}, ${environment?.label ?? thread.thread.environmentId}${thread.branch ? `, on branch ${thread.branch}` : ''}${status !== 'Settled' ? `, ${status}` : ''}`}>
+      <div className="project-line"><EnvironmentMachineIcon kind={environment?.machine ?? 'server'} source={environment?.label ?? thread.thread.environmentId} /><ProjectBadge title={thread.projectTitle} icon={thread.projectIcon} favicon={thread.projectFavicon} />{thread.isPinned && <svg className="pin" viewBox="0 0 24 24" aria-label="Pinned"><path fill="currentColor" d="M14 2 22 10 19 11 16 14 16 17 14 19 10 15 4 21 3 20 9 14 5 10 7 8 10 8 13 5Z" /></svg>}<span className="project-title">{thread.projectTitle}</span>{status === 'Settled' ? <time title="Last activity">{relative(thread.latestUserMessageAt ?? thread.updatedAt, now)}</time> : <span className={`status status-${status.toLowerCase()}`} title={status === 'Limited' ? `Usage limit reached${suffix ? `. Resets in ${suffix}` : ''}` : status === 'Done' && thread.latestRunCompletedAt ? `Done · ${new Date(thread.latestRunCompletedAt).toLocaleString()}` : status}><i style={{ maskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)`, WebkitMaskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)` }} />{status}{suffix && <small>{status === 'Limited' ? `· ${suffix}` : suffix}</small>}</span>}</div>
       <div className="title-line"><div className="thread-title">{thread.title}</div>{!thread.branch?.trim() && <ProviderIcons providers={thread.providers} modelName={thread.modelName} />}</div>
       {!!thread.branch?.trim() && <div className="branch-line"><span className="branch">{thread.branch}</span><ProviderIcons providers={thread.providers} modelName={thread.modelName} /></div>}
       {preview && <div className="preview" role="tooltip"><p>{preview.text}</p>{preview.updatedAt && <time>Last reply · {relative(preview.updatedAt, now) === 'now' ? 'just now' : `${relative(preview.updatedAt, now)} ago`}</time>}</div>}

@@ -52,6 +52,7 @@ impl Categories {
 pub struct PricedRecord {
     pub cost_usd: f64,
     pub unpriced: bool,
+    pub provider_reported: bool,
     pub categories: Option<Categories>,
     pub speed_premium_usd: f64,
     pub cache_savings_usd: f64,
@@ -86,6 +87,9 @@ fn token_rates(v: &Value, suffix: &str, standard: Option<TokenRates>) -> Option<
     })
 }
 impl PriceBook {
+    pub(crate) fn known_models(&self) -> usize {
+        self.rates.len()
+    }
     pub fn load(directory: &Path) -> Self {
         let read = |name| {
             std::fs::read(directory.join(name))
@@ -276,6 +280,7 @@ impl PriceBook {
             return PricedRecord {
                 cost_usd: reported.unwrap_or(0.0),
                 unpriced: reported.is_none(),
+                provider_reported: reported.is_some(),
                 categories: None,
                 speed_premium_usd: 0.0,
                 cache_savings_usd: 0.0,
@@ -300,6 +305,7 @@ impl PriceBook {
                 return PricedRecord {
                     cost_usd: cost,
                     unpriced: false,
+                    provider_reported: true,
                     categories: None,
                     speed_premium_usd: 0.0,
                     cache_savings_usd: savings,
@@ -310,6 +316,7 @@ impl PriceBook {
         PricedRecord {
             cost_usd: reported.unwrap_or(total),
             unpriced: false,
+            provider_reported: reported.is_some(),
             categories: Some(list.scale(scale)),
             speed_premium_usd: if r.speed == Speed::Standard {
                 0.0

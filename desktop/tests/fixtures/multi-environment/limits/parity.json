@@ -1,0 +1,864 @@
+{
+  "upstreamSha256": "0c34b208248a888df9be938aed07725950cc227c71e58a468b2341e461f7a14f",
+  "now": "2026-09-03T12:00:00Z",
+  "cases": [
+    {
+      "name": "same account and workspace freshest",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "USER@example.invalid",
+                "workspaceId": "team"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T10:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": " user@example.invalid ",
+                "workspaceId": "team"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 40
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            40
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "independent and ambiguous workspaces",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid",
+                "workspaceId": "one"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid",
+                "workspaceId": "two"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 40
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "c",
+          "providers": [
+            {
+              "instanceId": "c",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 60
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 3,
+        "windows": [
+          [
+            20
+          ],
+          [
+            40
+          ],
+          [
+            60
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "unique workspace joins missing",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid",
+                "workspaceId": "one"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 40
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            20
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 20
+          }
+        ]
+      }
+    },
+    {
+      "name": "native and hub email",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": [
+            {
+              "id": "hub",
+              "label": "Hub",
+              "accounts": [
+                {
+                  "id": "h",
+                  "driver": "codex",
+                  "email": "u@example.invalid",
+                  "usageLimits": {
+                    "checkedAt": "2026-09-03T12:01:00Z",
+                    "windows": [
+                      {
+                        "id": "slot",
+                        "kind": "session",
+                        "label": "Session",
+                        "usedPercent": 40
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            40
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "fingerprint fallback",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ],
+                "credentialFingerprint": "fp"
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [],
+          "sources": [
+            {
+              "id": "hub",
+              "label": "Hub",
+              "accounts": [
+                {
+                  "id": "h",
+                  "driver": "codex",
+                  "usageLimits": {
+                    "checkedAt": "2026-09-03T12:01:00Z",
+                    "windows": [
+                      {
+                        "id": "slot",
+                        "kind": "session",
+                        "label": "Session",
+                        "usedPercent": 40
+                      }
+                    ],
+                    "credentialFingerprint": "fp"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            40
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown native identities",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "same",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "same",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 40
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 2,
+        "windows": [
+          [
+            20
+          ],
+          [
+            40
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 30
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown hub identities scoped to environment",
+      "divergence": "Upstream treats hub source and account IDs as global. Bar scopes unidentified reports to their environment.",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [],
+          "sources": [
+            {
+              "id": "hub",
+              "label": "Hub",
+              "accounts": [
+                {
+                  "id": "same",
+                  "driver": "codex",
+                  "usageLimits": {
+                    "checkedAt": "2026-09-03T12:00:00Z",
+                    "windows": [
+                      {
+                        "id": "slot",
+                        "kind": "session",
+                        "label": "Session",
+                        "usedPercent": 20
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "b",
+          "providers": [],
+          "sources": [
+            {
+              "id": "hub",
+              "label": "Hub",
+              "accounts": [
+                {
+                  "id": "same",
+                  "driver": "codex",
+                  "usageLimits": {
+                    "checkedAt": "2026-09-03T12:00:00Z",
+                    "windows": [
+                      {
+                        "id": "slot",
+                        "kind": "session",
+                        "label": "Session",
+                        "usedPercent": 40
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            20
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 20
+          }
+        ]
+      }
+    },
+    {
+      "name": "selection before ownership",
+      "selection": "a",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "u@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:01:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 40
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 1,
+        "windows": [
+          [
+            20
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 20
+          }
+        ]
+      }
+    },
+    {
+      "name": "distinct accounts pool average",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "one@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            },
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "two@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 60
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "c",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "one@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "slot",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 2,
+        "windows": [
+          [
+            20
+          ],
+          [
+            60
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          }
+        ]
+      }
+    },
+    {
+      "name": "window kind and ids",
+      "envs": [
+        {
+          "id": "a",
+          "providers": [
+            {
+              "instanceId": "a",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "one@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "first",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 20
+                  },
+                  {
+                    "id": "second",
+                    "kind": "session",
+                    "label": "Other",
+                    "usedPercent": 30
+                  }
+                ]
+              }
+            },
+            {
+              "instanceId": "b",
+              "driver": "codex",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "two@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "different",
+                    "kind": "session",
+                    "label": "Session",
+                    "usedPercent": 60
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        },
+        {
+          "id": "b",
+          "providers": [
+            {
+              "instanceId": "c",
+              "driver": "cursor",
+              "enabled": true,
+              "installed": true,
+              "auth": {
+                "status": "authenticated",
+                "email": "third@example.invalid"
+              },
+              "usageLimits": {
+                "checkedAt": "2026-09-03T12:00:00Z",
+                "windows": [
+                  {
+                    "id": "autoPercentUsed",
+                    "kind": "monthly",
+                    "label": "Auto",
+                    "usedPercent": 10
+                  },
+                  {
+                    "id": "apiPercentUsed",
+                    "kind": "monthly",
+                    "label": "API",
+                    "usedPercent": 30
+                  }
+                ]
+              }
+            }
+          ],
+          "sources": []
+        }
+      ],
+      "upstream": {
+        "accounts": 3,
+        "windows": [
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ],
+          [
+            60
+          ]
+        ],
+        "pools": [
+          {
+            "driver": "codex",
+            "id": "session",
+            "usedPercent": 40
+          },
+          {
+            "driver": "codex",
+            "id": "session:second",
+            "usedPercent": 30
+          },
+          {
+            "driver": "cursor",
+            "id": "apiPercentUsed",
+            "usedPercent": 30
+          },
+          {
+            "driver": "cursor",
+            "id": "autoPercentUsed",
+            "usedPercent": 10
+          }
+        ]
+      }
+    }
+  ]
+}

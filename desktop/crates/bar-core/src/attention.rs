@@ -19,7 +19,7 @@ impl AttentionAlert {
         }
     }
 }
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AttentionTracker {
     known: Option<HashMap<String, ThreadStatus>>,
 }

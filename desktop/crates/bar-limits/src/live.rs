@@ -1,5 +1,8 @@
-use super::{merge, parse_record, LimitsReader, LimitsSnapshot, LimitsState, Record};
+use super::{
+    merge, parse_record, LimitsContribution, LimitsReader, LimitsSnapshot, LimitsState, Record,
+};
 use async_trait::async_trait;
+use bar_identity::EnvironmentId;
 use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
     Engine,
@@ -223,6 +226,26 @@ struct LiveData {
     sources: Vec<Record>,
     notices: Vec<String>,
 }
+/// Decoder for the existing server configuration stream, without transport or credentials.
+#[derive(Default, Clone)]
+pub struct LiveLimitsParser(LiveData);
+
+impl LiveLimitsParser {
+    pub fn apply(&mut self, event: &Value) -> Result<bool, ConnectionError> {
+        self.0.apply(event)
+    }
+
+    pub fn contribution(&self, environment_id: EnvironmentId) -> LimitsContribution {
+        let mut records = self.0.providers.clone();
+        records.extend(self.0.sources.clone());
+        LimitsContribution {
+            environment_id,
+            records,
+            notices: self.0.notices.clone(),
+            skipped_files: 0,
+        }
+    }
+}
 impl LiveData {
     fn apply(&mut self, v: &Value) -> Result<bool, ConnectionError> {
         if v.get("version").and_then(Value::as_f64) != Some(1.0) {
@@ -238,6 +261,9 @@ impl LiveData {
                 self.providers = providers(c.get("providers"))?;
                 if let Some(s) = c.get("usageLimitSources") {
                     self.decode_sources(s)?;
+                } else {
+                    self.sources.clear();
+                    self.notices.clear();
                 }
             }
             "providerStatuses" => self.providers = providers(v.pointer("/payload/providers"))?,
@@ -284,7 +310,7 @@ impl LiveData {
                 } else {
                     account
                 };
-                let raw = json!({"instanceId":format!("source:{id}:{account}{}", workspace.map(|w| format!(":{w}")).unwrap_or_default()), "driver":driver,"enabled":true,"installed":true,"displayName":if email.is_none(){Some(name)}else{None},"auth":{"status":"authenticated","label":a.get("plan"),"email":email,"workspaceId":workspace},"usageLimits":limits});
+                let raw = json!({"instanceId":format!("source:{}:{id}:{}:{account}:{}", id.len(), account.len(), workspace.map(|w| format!("{}:{w}", w.len())).unwrap_or_else(|| "none".to_owned())), "driver":driver,"enabled":true,"installed":true,"displayName":if email.is_none(){Some(name)}else{None},"auth":{"status":"authenticated","label":a.get("plan"),"email":email,"workspaceId":workspace},"usageLimits":limits});
                 if let Some(mut record) = parse_record(&raw, "source") {
                     record.is_source = true;
                     records.push(record);
@@ -320,6 +346,29 @@ fn providers(v: Option<&Value>) -> Result<Vec<Record>, ConnectionError> {
         .collect())
 }
 impl LimitsReader {
+    /// Return the raw live and cache reports for one environment, before account merging.
+    pub fn live_contribution(
+        &self,
+        connection: &LimitsConnection,
+        environment_id: EnvironmentId,
+    ) -> Option<LimitsContribution> {
+        let state = connection.inner.lock().unwrap();
+        let live = state.live.as_ref()?;
+        let mut entries: Vec<_> = self.entries.iter().collect();
+        entries.sort_by_key(|(k, _)| *k);
+        let cache: Vec<_> = entries.iter().filter_map(|(_, v)| v.2.clone()).collect();
+        let mut records = live.providers.clone();
+        if state.snapshot.status != LiveStatus::Live {
+            records.extend(cache.iter().cloned());
+        }
+        records.extend(live.sources.clone());
+        Some(LimitsContribution {
+            environment_id,
+            records,
+            notices: live.notices.clone(),
+            skipped_files: entries.len() - cache.len(),
+        })
+    }
     pub fn merge_live(&self, connection: &LimitsConnection) -> Option<LimitsSnapshot> {
         let state = connection.inner.lock().unwrap();
         let live = state.live.as_ref()?;

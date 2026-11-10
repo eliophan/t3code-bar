@@ -6,8 +6,9 @@ python3 "$(dirname "${BASH_SOURCE[0]}")/test-install-linux.py"
 cd "$(dirname "${BASH_SOURCE[0]}")/../desktop"
 npm ci
 npm test
+npm run check:contracts
 npm run build
-for crate in bar-threads bar-usage bar-limits bar-updater bar-core; do
+for crate in bar-identity bar-connection bar-threads bar-usage bar-limits bar-updater bar-core; do
   cargo test --locked --manifest-path "crates/${crate}/Cargo.toml"
 done
 cargo test --locked --manifest-path src-tauri/Cargo.toml

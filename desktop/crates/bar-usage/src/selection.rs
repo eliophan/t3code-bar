@@ -155,6 +155,14 @@ impl Dataset {
     pub fn select(
         &self,
         window: &Window,
+        visit: impl FnMut(&str, usize, &Record, Slot),
+    ) -> Selection {
+        self.select_filtered(window, |_, _| true, visit)
+    }
+    pub(crate) fn select_filtered(
+        &self,
+        window: &Window,
+        mut include: impl FnMut(&str, &Record) -> bool,
         mut visit: impl FnMut(&str, usize, &Record, Slot),
     ) -> Selection {
         let order = ["claude", "codex", "grok", "pi", "muse"];
@@ -209,6 +217,9 @@ impl Dataset {
             for file in group {
                 let mut occurrences = HashMap::<SharedKey, usize>::new();
                 for r in &file.records {
+                    if !include(&file.kind, r) {
+                        continue;
+                    }
                     let key = if file.kind == "codex" && shared.contains(&r.session) {
                         let base = SharedKey {
                             session: r.session.clone(),

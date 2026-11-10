@@ -798,6 +798,7 @@ fn scan_provider(
                 sources.push(Source {
                     kind: kind.into(),
                     directory: path.clone(),
+                    volume_id: local_volume_id(&file.url),
                 });
                 provider_files.push(File {
                     path,
@@ -812,6 +813,7 @@ fn scan_provider(
                 sources.push(Source {
                     kind: kind.into(),
                     directory: path.clone(),
+                    volume_id: local_volume_id(&file.url),
                 });
                 provider_files.push(File {
                     path,
@@ -843,6 +845,7 @@ fn scan_provider(
                 sources.push(Source {
                     kind: kind.into(),
                     directory,
+                    volume_id: local_volume_id(&file.root),
                 });
             }
         }
@@ -939,4 +942,15 @@ mod tests {
         assert_eq!(fresh.unwrap().malformed, 3);
         std::fs::remove_file(path).unwrap();
     }
+}
+
+#[cfg(unix)]
+fn local_volume_id(path: &std::path::Path) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::metadata(path).ok().map(|metadata| format!("{}:{}", metadata.dev(), metadata.ino()))
+}
+
+#[cfg(not(unix))]
+fn local_volume_id(_path: &std::path::Path) -> Option<String> {
+    None
 }
