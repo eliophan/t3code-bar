@@ -57,7 +57,7 @@ export function App() {
     let disposed = false;
     const initial = invoke<AppSnapshot>('get_snapshot').then(s => { if (!disposed) { setSnapshot(s); if (s.startupError) setError(s.startupError); } }).catch(e => { if (!disposed) setError(String(e)); });
     const events = listen<AppSnapshot>('bar-snapshot', e => { if (!disposed) setSnapshot(e.payload); });
-    const opened = listen('bar-opened', () => { setScreen('threads'); setContext(null); setThreadGeneration(generation => generation + 1); });
+    const opened = listen('bar-opened', () => { setScreen(current => current === 'settings' ? current : 'threads'); setContext(null); setThreadGeneration(generation => generation + 1); });
     const settings = listen('bar-settings', () => setScreen('settings'));
     void initial;
     return () => { disposed = true; void events.then(stop => stop()); void opened.then(stop => stop()); void settings.then(stop => stop()); };

@@ -226,6 +226,25 @@ describe('new-install pairing', () => {
 });
 
 describe('settings state and actions', () => {
+  it('keeps an environment form and its failure visible when the panel reopens', async () => {
+    await openSettings();
+    act(() => button('Add environment').click());
+    const input = host.querySelector<HTMLInputElement>('input[placeholder="https://server.example"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'https://remote.example');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    let rejectProbe!: (error: string) => void;
+    tauri.invoke.mockImplementation((name: string) => name === 'probe_environment'
+      ? new Promise((_resolve, reject) => { rejectProbe = reject; }) : Promise.resolve(null));
+    await act(async () => button('Check server').click());
+    act(() => tauri.listeners.get('bar-opened')?.());
+    await act(async () => rejectProbe('Could not reach the server.'));
+    expect(host.querySelector('form[aria-label="Add environment"]')).not.toBeNull();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Could not reach the server');
+    expect(host.querySelector<HTMLInputElement>('input[placeholder="https://server.example"]')?.value).toBe('https://remote.example');
+  });
+
   async function openSettings(value = snapshot(true)) {
     await renderSnapshot(value);
     act(() => tauri.listeners.get('bar-settings')?.());

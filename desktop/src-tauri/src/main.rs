@@ -1862,7 +1862,9 @@ pub fn panel_opened(app: &tauri::AppHandle) {
     if !VISIBLE.swap(true, std::sync::atomic::Ordering::AcqRel) {
         if let Some(state) = app.try_state::<SharedState>() {
             if let Ok(mut view) = state.view.lock() {
-                view.screen = "threads".into();
+                if view.screen != "settings" {
+                    view.screen = "threads".into();
+                }
                 view.generation = view.generation.wrapping_add(1);
             }
         }
@@ -1874,7 +1876,9 @@ pub fn panel_closed(app: &tauri::AppHandle) {
     VISIBLE.store(false, std::sync::atomic::Ordering::Release);
     if let Some(state) = app.try_state::<SharedState>() {
         if let Ok(mut view) = state.view.lock() {
-            view.screen = "threads".into();
+            if view.screen != "settings" {
+                view.screen = "threads".into();
+            }
             view.generation = view.generation.wrapping_add(1);
         }
     }
@@ -2501,7 +2505,9 @@ async fn add_environment(
 ) -> Result<(), String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || {
-        save_manual_connection(&state, &input, &environment, token)?;
+        let result = save_manual_connection(&state, &input, &environment, token);
+        record_failure("add_environment", result.clone());
+        result?;
         emit_snapshot(&app, &state);
         refresh_threads(&app, &state);
         Ok(())
@@ -2527,40 +2533,21 @@ fn save_manual_connection(
         .enable_all()
         .build()
         .map_err(|_| "Connection runtime unavailable")?;
-    let attempt = state
-        .hub
-        .lock()
-        .map_err(|_| "environments unavailable")?
-        .begin_attempt(environment);
     state.credential_gates.serialize(environment, || {
-        if let Some(attempt) = &attempt {
-            if !state
-                .hub
-                .lock()
-                .map_err(|_| "environments unavailable")?
-                .attempt_current(attempt)
-            {
-                return Err("Connection changed before pairing. Try again.".to_string());
-            }
-        }
+        // Supersede old reads, but a later poll does not cancel this explicit
+        // transaction. Forgetting access uses the same credential gate, so its
+        // deletion still runs after any in-flight save.
+        state
+            .hub
+            .lock()
+            .map_err(|_| "environments unavailable")?
+            .begin_attempt(environment);
         let prepared = runtime.block_on(bar_core::connection::manual::PreparedConnection::pair(
             input,
             environment,
             token.as_str(),
             &state.ssh_options,
         ))?;
-        if let Some(attempt) = &attempt {
-            if !state
-                .hub
-                .lock()
-                .map_err(|_| "environments unavailable")?
-                .attempt_current(attempt)
-            {
-                return Err(
-                    "Connection changed while pairing. Create a new key and try again.".to_string(),
-                );
-            }
-        }
         // The mutation gate owns this transaction. Keep snapshots and polling
         // responsive while Keychain/Secret Service may wait for the user.
         let mut registry = state
@@ -2589,7 +2576,6 @@ fn save_manual_connection(
     record_failure("discover_after_add", discover_sources_locked(state));
     Ok(())
 }
-
 #[tauri::command]
 async fn remove_saved_environment(
     environment: EnvironmentId,
@@ -2991,7 +2977,13 @@ fn main() {
     });
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            record_failure("single_instance_show", platform::show(app));
+            let handle = app.clone();
+            record_failure(
+                "single_instance_dispatch",
+                app.run_on_main_thread(move || {
+                    record_failure("single_instance_show", platform::show(&handle));
+                }).map_err(|error| error.to_string()),
+            );
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -4035,6 +4027,40 @@ while True:
             .any(|environment| environment.id == id));
     }
 
+    #[test]
+    fn a_background_poll_cannot_discard_a_successfully_redeemed_manual_key() {
+        use bar_core::connection::manual::ConnectionInput;
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-fixture").unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("manual-remote");
+        let route = direct_route(&server);
+        let id = EnvironmentId::new("manual-remote").unwrap();
+        register(&state, &id, vec![route.clone()]);
+        server.hold.store(true, Ordering::SeqCst);
+        let input = ConnectionInput::Direct {
+            address: format!("http://127.0.0.1:{}/", server.port),
+        };
+        let save = {
+            let (state, id) = (state.clone(), id.clone());
+            std::thread::spawn(move || {
+                save_manual_connection(&state, &input, &id, "ABCD2345EFGH".into())
+            })
+        };
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while server.exchanges.load(Ordering::SeqCst) == 0 {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        state.hub.lock().unwrap().begin_attempt(&id).unwrap();
+        server.hold.store(false, Ordering::SeqCst);
+        assert!(
+            save.join().unwrap().is_ok(),
+            "background polling cannot cancel an explicit pairing transaction"
+        );
+        assert_eq!(server.exchanges.load(Ordering::SeqCst), 1);
+        assert!(grant_with(&state, &runtime(), &id, &route, None).is_ok());
+    }
     #[test]
     fn manual_connection_is_discovered_without_a_desktop_route_and_restored_after_restart() {
         use bar_core::connection::manual::{ConnectionInput, ManualRegistry};
