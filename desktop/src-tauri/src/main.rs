@@ -157,6 +157,7 @@ struct UpdateState {
 struct AppSnapshot {
     revision: u64,
     environments: Vec<EnvironmentView>,
+    manual_environment_ids: Vec<EnvironmentId>,
     startup_error: Option<String>,
     cloud_status: String,
     cloud_error: Option<String>,
@@ -180,6 +181,7 @@ impl Default for AppSnapshot {
         Self {
             revision: 0,
             environments: vec![],
+            manual_environment_ids: vec![],
             startup_error: None,
             cloud_status: "signedOut".into(),
             cloud_error: None,
@@ -231,6 +233,9 @@ struct RuntimeState {
     view: Mutex<ViewState>,
     sources: Mutex<HashMap<EnvironmentId, threads::Configuration>>,
     remote_routes: Mutex<HashMap<EnvironmentId, Vec<Route>>>,
+    manual_connections: Mutex<bar_core::connection::manual::ManualRegistry>,
+    catalog_metadata: Mutex<Vec<EnvironmentMetadata>>,
+    manual_connection_gate: Mutex<()>,
     remote_pairing_codes: Mutex<HashMap<EnvironmentId, String>>,
     remote_supervisors: Mutex<HashMap<EnvironmentId, (Route, SourceSupervisor)>>,
     ssh_options: SshConnectOptions,
@@ -522,11 +527,14 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
         None => "unavailable",
     }
     .into();
+    snapshot.manual_environment_ids = state.manual_connections.lock()
+        .map_err(|_| "saved connections unavailable")?.entries().iter().map(|entry| entry.id.clone()).collect();
     let local_sources = state.sources.lock().map_err(|_| "sources unavailable")?;
     let local_id = local_environment(&state.config).ok();
     snapshot.environments = hub
         .sources()
         .values()
+        .filter(|source| source.present || source.metadata.enabled)
         .map(|source| EnvironmentView {
             id: source.metadata.id.clone(),
             label: source.metadata.label.clone(),
@@ -763,6 +771,15 @@ impl FixtureManifest {
 }
 
 fn discover_sources(state: &RuntimeState) -> Result<(), String> {
+    let _gate = state
+        .manual_connection_gate
+        .lock()
+        .map_err(|_| "saved connections unavailable")?;
+    discover_sources_locked(state)
+}
+
+// The caller holds manual_connection_gate across metadata projection and publication.
+fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
     use bar_core::environments::DiscoveryState;
     let local = local_environment(&state.config)?;
     let mut primary = EnvironmentMetadata {
@@ -827,6 +844,29 @@ fn discover_sources(state: &RuntimeState) -> Result<(), String> {
         )
         .map_err(|_| ())
     };
+    let entries = {
+        let mut catalog = state
+            .catalog_metadata
+            .lock()
+            .map_err(|_| "catalog unavailable")?;
+        let registry = state
+            .manual_connections
+            .lock()
+            .map_err(|_| "saved connections unavailable")?;
+        match entries {
+            Ok(entries) => {
+                *catalog = entries.clone();
+                Ok(registry.merge(entries))
+            }
+            Err(_) if !registry.entries().is_empty() || !catalog.is_empty() => {
+                let mut known = catalog.clone();
+                known.retain(|entry| entry.id != local);
+                known.push(primary.clone());
+                Ok(registry.merge(known))
+            }
+            Err(error) => Err(error),
+        }
+    };
     let mut hub = state.hub.lock().map_err(|_| "environments unavailable")?;
     if matches!(hub.discovery_state(), DiscoveryState::Pending)
         || (entries.is_err() && !hub.sources().contains_key(&local))
@@ -861,7 +901,9 @@ fn discover_sources(state: &RuntimeState) -> Result<(), String> {
     let remote_entries: Vec<_> = hub
         .sources()
         .values()
-        .filter(|source| !paths.contains_key(&source.metadata.id))
+        .filter(|source| {
+            source.present && source.metadata.enabled && !paths.contains_key(&source.metadata.id)
+        })
         .map(|source| (source.metadata.id.clone(), source.metadata.routes.clone()))
         .collect();
     drop(hub);
@@ -878,7 +920,6 @@ fn discover_sources(state: &RuntimeState) -> Result<(), String> {
     *state.sources.lock().map_err(|_| "sources unavailable")? = paths;
     Ok(())
 }
-
 fn remote_route_url(route: &Route) -> Option<&str> {
     match route {
         Route::Primary { http_base_url }
@@ -2365,6 +2406,260 @@ async fn connect(
     refresh_threads(&app, &state);
     result
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionCandidate {
+    environment_id: EnvironmentId,
+    label: String,
+    has_pairing_key: bool,
+    destination: String,
+}
+
+fn validate_connection_identity(
+    state: &RuntimeState,
+    environment: &EnvironmentId,
+    route: &Route,
+) -> Result<(), String> {
+    if local_environment(&state.config)? == *environment {
+        return Err(
+            "This is the Local environment. Use the Local T3 Code connection below.".into(),
+        );
+    }
+    if state
+        .remote_routes
+        .lock()
+        .map_err(|_| "remote routes unavailable")?
+        .iter()
+        .any(|(id, routes)| {
+            id != environment
+                && routes
+                    .iter()
+                    .any(|known| bar_core::connection::manual::same_destination(known, route))
+        })
+    {
+        return Err(
+            "This address was already saved for a different environment. No pairing key was sent."
+                .into(),
+        );
+    }
+    if state
+        .manual_connections
+        .lock()
+        .map_err(|_| "saved connections unavailable")?
+        .entries()
+        .iter()
+        .any(|entry| {
+            &entry.id != environment
+                && entry
+                    .routes
+                    .iter()
+                    .any(|known| bar_core::connection::manual::same_destination(known, route))
+        })
+    {
+        return Err(
+            "This address was already saved for a different environment. No pairing key was sent."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn probe_environment(
+    input: bar_core::connection::manual::ConnectionInput,
+    state: State<'_, SharedState>,
+) -> Result<ConnectionCandidate, String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| "Connection runtime unavailable")?;
+        let metadata = runtime.block_on(bar_core::connection::manual::probe(
+            &input,
+            &state.ssh_options,
+        ))?;
+        validate_connection_identity(&state, &metadata.id, &metadata.routes[0])?;
+        Ok(ConnectionCandidate {
+            environment_id: metadata.id,
+            label: metadata.label,
+            has_pairing_key: bar_core::connection::manual::input_has_pairing_key(&input)?,
+            destination: bar_core::connection::manual::destination_label(&metadata.routes[0]),
+        })
+    })
+    .await
+    .map_err(|_| "Could not inspect the environment")?
+}
+
+#[tauri::command]
+async fn add_environment(
+    input: bar_core::connection::manual::ConnectionInput,
+    environment: EnvironmentId,
+    token: String,
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || {
+        save_manual_connection(&state, &input, &environment, token)?;
+        emit_snapshot(&app, &state);
+        refresh_threads(&app, &state);
+        Ok(())
+    })
+    .await
+    .map_err(|_| "Could not add the environment")?
+}
+
+fn save_manual_connection(
+    state: &RuntimeState,
+    input: &bar_core::connection::manual::ConnectionInput,
+    environment: &EnvironmentId,
+    token: String,
+) -> Result<(), String> {
+    let _manual_gate = state
+        .manual_connection_gate
+        .lock()
+        .map_err(|_| "saved connections unavailable")?;
+    let token = bar_core::connection::manual::PairingKey::new(token);
+    let route = bar_core::connection::manual::input_route(input)?;
+    validate_connection_identity(state, environment, &route)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| "Connection runtime unavailable")?;
+    let attempt = state
+        .hub
+        .lock()
+        .map_err(|_| "environments unavailable")?
+        .begin_attempt(environment);
+    state.credential_gates.serialize(environment, || {
+        if let Some(attempt) = &attempt {
+            if !state
+                .hub
+                .lock()
+                .map_err(|_| "environments unavailable")?
+                .attempt_current(attempt)
+            {
+                return Err("Connection changed before pairing. Try again.".to_string());
+            }
+        }
+        let prepared = runtime.block_on(bar_core::connection::manual::PreparedConnection::pair(
+            input,
+            environment,
+            token.as_str(),
+            &state.ssh_options,
+        ))?;
+        if let Some(attempt) = &attempt {
+            if !state
+                .hub
+                .lock()
+                .map_err(|_| "environments unavailable")?
+                .attempt_current(attempt)
+            {
+                return Err(
+                    "Connection changed while pairing. Create a new key and try again.".to_string(),
+                );
+            }
+        }
+        // The mutation gate owns this transaction. Keep snapshots and polling
+        // responsive while Keychain/Secret Service may wait for the user.
+        let mut registry = state
+            .manual_connections
+            .lock()
+            .map_err(|_| "saved connections unavailable")?
+            .clone();
+        prepared.commit(&mut registry, state.remote_credentials.as_ref())?;
+        *state
+            .manual_connections
+            .lock()
+            .map_err(|_| "saved connections unavailable")? = registry;
+        Ok::<(), String>(())
+    })?;
+    state
+        .hub
+        .lock()
+        .map_err(|_| "environments unavailable")?
+        .forget_access(environment);
+    let previous = state
+        .remote_supervisors
+        .lock()
+        .ok()
+        .and_then(|mut sessions| sessions.remove(environment));
+    drop(previous);
+    record_failure("discover_after_add", discover_sources_locked(state));
+    Ok(())
+}
+
+#[tauri::command]
+async fn remove_saved_environment(
+    environment: EnvironmentId,
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || {
+        remove_manual_connection(&state, &environment)?;
+        emit_snapshot(&app, &state);
+        refresh_threads(&app, &state);
+        Ok(())
+    })
+    .await
+    .map_err(|_| "Could not remove the connection")?
+}
+
+fn remove_manual_connection(
+    state: &RuntimeState,
+    environment: &EnvironmentId,
+) -> Result<(), String> {
+    let _manual_gate = state
+        .manual_connection_gate
+        .lock()
+        .map_err(|_| "saved connections unavailable")?;
+    let routes = state
+        .manual_connections
+        .lock()
+        .map_err(|_| "saved connections unavailable")?
+        .entries()
+        .iter()
+        .find(|entry| &entry.id == environment)
+        .ok_or("No saved connection for this environment")?
+        .routes
+        .clone();
+    state
+        .hub
+        .lock()
+        .map_err(|_| "environments unavailable")?
+        .forget_access(environment);
+    let previous = state
+        .remote_supervisors
+        .lock()
+        .ok()
+        .and_then(|mut sessions| sessions.remove(environment));
+    drop(previous);
+    state.credential_gates.serialize(environment, || {
+        for route in &routes {
+            forget_saved_access(environment, route, state.remote_credentials.as_ref()).map_err(
+                |_| {
+                    "Could not remove saved access. Check the system credential store and retry."
+                        .to_string()
+                },
+            )?;
+        }
+        state
+            .manual_connections
+            .lock()
+            .map_err(|_| "saved connections unavailable")?
+            .remove(environment)
+            .map_err(|_| "Could not save the connection removal".to_string())
+    })?;
+    record_failure("discover_after_remove", discover_sources_locked(state));
+    state
+        .hub
+        .lock()
+        .map_err(|_| "environments unavailable")?
+        .dismiss_missing_source(environment);
+    Ok(())
+}
 #[tauri::command]
 async fn pair_environment(
     environment: EnvironmentId,
@@ -2397,8 +2692,8 @@ async fn pair_environment(
 }
 
 /// Replace the saved grant with one from `code`. The attempt supersedes
-/// polling first, and the live session is dropped so it cannot bypass the code.
-/// A rejected code leaves the previous grant in place.
+/// polling first. The old session is held aside so it cannot bypass the code;
+/// a rejected code restores it only if the source and attempt remain current.
 fn pair_remote_environment(
     state: &RuntimeState,
     environment: &EnvironmentId,
@@ -2414,7 +2709,7 @@ fn pair_remote_environment(
         .lock()
         .map_err(|_| "remote sessions unavailable")?
         .remove(environment);
-    drop(session);
+    let previous_session = session;
     state
         .remote_pairing_codes
         .lock()
@@ -2431,9 +2726,30 @@ fn pair_remote_environment(
     if let Ok(mut codes) = state.remote_pairing_codes.lock() {
         codes.remove(environment);
     }
+    if result.is_err() {
+        if let Some((route, supervisor)) = previous_session {
+            if let Ok(hub) = state.hub.lock() {
+                let unchanged = hub.attempt_current(&attempt)
+                    && hub
+                        .sources()
+                        .get(environment)
+                        .and_then(|source| source.stamp.as_ref())
+                        .is_some_and(|stamp| {
+                            stamp.generation == supervisor.stamp().generation
+                                && stamp.principal == supervisor.stamp().principal
+                        });
+                if unchanged {
+                    if let Ok(mut sessions) = state.remote_supervisors.lock() {
+                        sessions
+                            .entry(environment.clone())
+                            .or_insert((route, supervisor));
+                    }
+                }
+            }
+        }
+    }
     result.map(drop).map_err(|error| pairing_failure(&error))
 }
-
 fn pairing_failure(error: &RemoteReadError) -> String {
     match error {
         RemoteReadError::PermissionDenied { .. } => {
@@ -2594,13 +2910,22 @@ fn main() {
     };
     let fixture = fixture_or_env("T3_BAR_FIXTURE_STATE").is_some();
     let settings_file = settings_path(&base);
-    let (settings, startup_error) = match SettingsStore::load(settings_file.clone()) {
+    let (settings, mut startup_error) = match SettingsStore::load(settings_file.clone()) {
         Ok(settings) => (settings, None),
         Err(error) => {
             eprintln!(
                 "Cannot load settings; keeping the existing file and using defaults: {error}"
             );
             (SettingsStore::defaults(settings_file.clone()), Some("Settings could not be loaded. Using defaults for this session; the original file is preserved and setting changes cannot be saved.".into()))
+        }
+    };
+    let connection_file = settings_file.with_extension("connections.json");
+    let manual_connections = match bar_core::connection::manual::ManualRegistry::load(connection_file.clone()) {
+        Ok(registry) => registry,
+        Err(_) => {
+            let message = "Saved connections could not be loaded. The original file is preserved; repair it and restart before adding connections.";
+            startup_error = Some(match startup_error { Some(previous) => format!("{previous} {message}"), None => message.into() });
+            bar_core::connection::manual::ManualRegistry::unavailable(connection_file)
         }
     };
     let namespace = fixture_or_env("T3_BAR_FIXTURE_KEYRING_NAMESPACE");
@@ -2636,6 +2961,9 @@ fn main() {
         view: Mutex::new(ViewState::default()),
         sources: Mutex::new(HashMap::new()),
         remote_routes: Mutex::new(HashMap::new()),
+        manual_connections: Mutex::new(manual_connections),
+        catalog_metadata: Mutex::new(Vec::new()),
+        manual_connection_gate: Mutex::new(()),
         remote_pairing_codes: Mutex::new(HashMap::new()),
         remote_supervisors: Mutex::new(HashMap::new()),
         ssh_options: SshConnectOptions::default(),
@@ -2685,6 +3013,9 @@ fn main() {
             new_thread,
             get_preview,
             open_limit_link,
+            probe_environment,
+            add_environment,
+            remove_saved_environment,
             pair_environment,
             forget_environment_access,
             check_for_updates,
@@ -2944,6 +3275,9 @@ mod tests {
             view: Mutex::new(ViewState::default()),
             sources: Mutex::new(HashMap::new()),
             remote_routes: Mutex::new(HashMap::new()),
+            manual_connections: Mutex::new(bar_core::connection::manual::ManualRegistry::load(root.join("connections.json")).unwrap()),
+            catalog_metadata: Mutex::new(Vec::new()),
+            manual_connection_gate: Mutex::new(()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
             ssh_options: SshConnectOptions::default(),
@@ -3218,6 +3552,9 @@ while True:
             view: Mutex::new(ViewState::default()),
             sources: Mutex::new(HashMap::new()),
             remote_routes: Mutex::new(HashMap::new()),
+            manual_connections: Mutex::new(bar_core::connection::manual::ManualRegistry::load(root.join("connections.json")).unwrap()),
+            catalog_metadata: Mutex::new(Vec::new()),
+            manual_connection_gate: Mutex::new(()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
             ssh_options: options,
@@ -3652,6 +3989,97 @@ while True:
     }
 
     #[test]
+    fn manual_ssh_add_pairs_once_then_reuses_saved_access_on_another_tunnel() {
+        use bar_core::connection::manual::ConnectionInput;
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-fixture").unwrap();
+        let program = root.path().join("ssh-fake");
+        std::fs::write(&program, FAKE_SSH).unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::write(
+            root.path().join("upstream"),
+            fixture("manual-ssh", "SSH fixture").to_string(),
+        )
+        .unwrap();
+        let state = ssh_state(
+            root.path(),
+            SshConnectOptions {
+                ssh_program: program,
+                command_timeout: Duration::from_secs(5),
+                tunnel_start_timeout: Duration::from_secs(5),
+                ..Default::default()
+            },
+        );
+        let id = EnvironmentId::new("manual-ssh").unwrap();
+        let input = ConnectionInput::Ssh {
+            hostname: "box".into(),
+            username: None,
+            port: None,
+        };
+        save_manual_connection(&state, &input, &id, "ABCD2345EFGH".into()).unwrap();
+        assert!(
+            all_gone(root.path()),
+            "the pairing tunnel is owned and reaped"
+        );
+        let route = state.remote_routes.lock().unwrap()[&id][0].clone();
+        assert!(state.remote_pairing_codes.lock().unwrap().is_empty());
+        poll(&state, &id, &route)
+            .expect("saved SSH grant must work on a new tunnel without another key");
+        assert!(pids(root.path()).iter().any(|(_, pid)| alive(pid)));
+        remove_manual_connection(&state, &id).unwrap();
+        assert!(all_gone(root.path()));
+        assert!(!view_snapshot(&state)
+            .unwrap()
+            .environments
+            .iter()
+            .any(|environment| environment.id == id));
+    }
+
+    #[test]
+    fn manual_connection_is_discovered_without_a_desktop_route_and_restored_after_restart() {
+        use bar_core::connection::manual::{ConnectionInput, ManualRegistry};
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-fixture").unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("manual-remote");
+        let input = ConnectionInput::Direct {
+            address: format!("http://127.0.0.1:{}/", server.port),
+        };
+        let id = EnvironmentId::new("manual-remote").unwrap();
+        let rt = runtime();
+        save_manual_connection(&state, &input, &id, "ABCD2345EFGH".into()).unwrap();
+        discover_sources(&state).unwrap();
+        assert!(state.remote_routes.lock().unwrap().contains_key(&id));
+        let view = view_snapshot(&state).unwrap();
+        assert_eq!(view.manual_environment_ids, vec![id.clone()]);
+        assert!(view
+            .environments
+            .iter()
+            .any(|environment| environment.id == id));
+        assert!(!root.path().join("connection-catalog.json").exists());
+        *state.manual_connections.lock().unwrap() =
+            ManualRegistry::load(root.path().join("connections.json")).unwrap();
+        discover_sources(&state).unwrap();
+        let routes = state.remote_routes.lock().unwrap()[&id].clone();
+        assert!(grant_with(&state, &rt, &id, &routes[0], None).is_ok());
+        let endpoint = rt
+            .block_on(VerifiedEndpoint::identify(&format!(
+                "http://127.0.0.1:{}/",
+                server.port
+            )))
+            .unwrap();
+        assert!(endpoint.load_saved_grant(state.remote_credentials.as_ref()).unwrap().is_some());
+        remove_manual_connection(&state, &id).unwrap();
+        assert!(endpoint.load_saved_grant(state.remote_credentials.as_ref()).unwrap().is_none());
+        discover_sources(&state).unwrap();
+        assert!(!view_snapshot(&state)
+            .unwrap()
+            .environments
+            .iter()
+            .any(|environment| environment.id == id));
+        assert!(!root.path().join("connection-catalog.json").exists());
+    }
+    #[test]
     fn forgetting_removes_only_that_environments_access_and_drops_its_session() {
         let dir = tempfile::tempdir().unwrap();
         let program = dir.path().join("ssh-fake");
@@ -3698,6 +4126,9 @@ while True:
         let tunnel = pids(dir.path()).last().cloned().unwrap().1;
         assert!(alive(&tunnel));
         assert_eq!(state.remote_supervisors.lock().unwrap().len(), 1);
+        assert!(pair_remote_environment(&state, &target, &direct, "REJECTED2345".into()).is_err());
+        assert_eq!(state.remote_supervisors.lock().unwrap().len(), 1, "a rejected replacement must preserve the live session");
+        assert!(alive(&tunnel), "a rejected replacement must preserve its SSH tunnel");
         list_threads(&state, &target, &["same"]);
         let listed = ThreadRef {
             environment_id: target.clone(),

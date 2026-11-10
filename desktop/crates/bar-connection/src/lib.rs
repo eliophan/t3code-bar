@@ -2,6 +2,7 @@ pub mod catalog;
 pub mod cloud;
 pub mod cloud_session;
 pub mod credentials;
+pub mod manual;
 pub mod dpop;
 pub mod relay;
 pub mod rpc;
@@ -311,7 +312,7 @@ impl fmt::Debug for Grant {
     }
 }
 
-fn validated_base(route: &str) -> Result<Url, ConnectionError> {
+fn normalized_origin(route: &str) -> Result<Url, ConnectionError> {
     let base = Url::parse(route).map_err(|_| ConnectionError::InvalidRoute)?;
     if !matches!(base.scheme(), "http" | "https")
         || base.host_str().is_none()
@@ -323,6 +324,11 @@ fn validated_base(route: &str) -> Result<Url, ConnectionError> {
     {
         return Err(ConnectionError::InvalidRoute);
     }
+    Ok(base)
+}
+
+fn validated_base(route: &str) -> Result<Url, ConnectionError> {
+    let base = normalized_origin(route)?;
     if base.scheme() == "http"
         && !base.host().is_some_and(|host| {
             let ip = match host {
@@ -344,6 +350,15 @@ fn valid_secret(s: &str) -> bool {
 
 impl VerifiedEndpoint {
     pub async fn discover(route: &str, expected: &EnvironmentId) -> Result<Self, ConnectionError> {
+        let endpoint = Self::identify(route).await?;
+        if endpoint.descriptor.id != *expected {
+            return Err(ConnectionError::WrongEnvironment);
+        }
+        Ok(endpoint)
+    }
+
+    /// Read the public identity of a new destination, without credentials.
+    pub async fn identify(route: &str) -> Result<Self, ConnectionError> {
         let base = validated_base(route)?;
         let client = Client::builder()
             .no_proxy()
@@ -366,9 +381,6 @@ impl VerifiedEndpoint {
                     ConnectionError::Protocol => ConnectionError::InvalidDescriptor,
                     other => other,
                 })?;
-        if wire.environment_id != *expected {
-            return Err(ConnectionError::WrongEnvironment);
-        }
         if wire.label.trim().is_empty()
             || wire.server_version.trim().is_empty()
             || !["darwin", "linux", "windows", "unknown"].contains(&wire.platform.os.as_str())

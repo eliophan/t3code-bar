@@ -29,8 +29,9 @@ Discovery provides metadata and routes; it does not authorize reads. Bar pairs w
 own read grant for direct and SSH routes. T3 Connect currently rejects Bar's
 OAuth access token at the Relay DPoP exchange: the deployed exchange requires a
 Clerk session JWT with the relay audience. Bar reports this as an unsupported
-Relay login. Repeating OAuth sign-in cannot fix it; configure a direct or SSH
-connection in T3 Code and pair Bar with that environment. Synthetic Relay tests
+Relay login. Repeating OAuth sign-in cannot fix it. Use Settings → Add environment in Bar
+with a reachable server address or SSH host, and pair directly with that environment.
+No route needs to be added in T3 Code. Synthetic Relay tests
 exercise the protocol but do not establish production OAuth compatibility.
 Desktop session tokens are not reused. Bar grants stay in Secret Service on
 Linux and Keychain on macOS. Catalog metadata uses the desktop safeStorage key:
@@ -57,8 +58,23 @@ OpenSSH with BatchMode and the existing host-key policy. A locked agent, unknown
 host key or unavailable server appears offline. SSH grant storage is scoped to
 the exact target and environment, independently of the tunnel's temporary port.
 
+Settings → Add environment accepts an HTTPS server origin, a pasted pairing link,
+or an SSH host with optional user and port. Bar checks the server descriptor
+before asking for a key, verifies its environment ID again before redemption,
+and requests only `orchestration:read diagnostics:read`. Supported pasted links
+include server `/pair#token=…`, `t3code://pair?pairingUrl=…`, and the hosted
+`app.t3.codes/pair?host=…#token=…` form. Bar does not register T3's scheme.
+
+Bar-owned metadata is stored beside the settings file in a separate
+`.connections.json` file, with credentials kept in the OS credential store.
+Manual routes merge with the desktop catalog by environment ID and destination;
+removing them never writes the desktop catalog. If the same destination serves a
+different environment, Bar refuses it before submitting a key. Independent remote
+access works even when Local is unpaired. Pairing codes are single-use and expire;
+create a fresh code for Bar instead of reusing one redeemed by T3 Code.
+
 A pairing key entered in Settings replaces any saved direct or SSH grant, and a
-rejected key keeps the previous grant. An expired saved grant asks for new
+rejected key keeps the previous grant and its current live session. An expired saved grant asks for new
 access and lets a later route such as Relay serve; a server denial does not.
 "Forget access" in Settings removes only Bar's own direct and SSH grants for
 that environment, offline and without starting a tunnel. It leaves T3 Connect

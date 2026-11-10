@@ -1,3 +1,4 @@
+import type { EnvironmentId } from './generated-environments';
 import type { EnvironmentSelection, EnvironmentView, ThreadRef } from './generated-environments';
 export type { EnvironmentId, ThreadId, ThreadRef, EnvironmentSelection, EnvironmentMachineKind, EnvironmentAccess, EnvironmentView } from './generated-environments';
 export type Screen = 'threads' | 'usage' | 'settings';
@@ -63,6 +64,7 @@ export interface UpdateState { status: string; message: string; version: string 
 export interface AppSnapshot {
   revision: number;
   environments: EnvironmentView[];
+  manualEnvironmentIds: EnvironmentId[];
   startupError?: string | null;
   cloudStatus: 'signedOut' | 'signingIn' | 'signedIn' | 'recoveryRequired' | 'unavailable';
   cloudError: string | null;
@@ -81,3 +83,6 @@ export interface AppSnapshot {
   update: UpdateState;
   version: string;
 }
+
+export type ConnectionInput = { kind: 'direct'; address: string } | { kind: 'ssh'; hostname: string; username: string | null; port: number | null };
+export interface ConnectionCandidate { environmentId: EnvironmentId; label: string; hasPairingKey: boolean; destination: string }

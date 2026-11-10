@@ -20,7 +20,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 const preview = { text: 'A fresh assistant reply', updatedAt: '2026-11-06T09:07:00Z' };
 const snapshot = (showsPreviews: boolean): AppSnapshot => ({
-  revision: 0, environments: [], cloudStatus: 'signedOut', cloudError: null,
+  revision: 0, environments: [], manualEnvironmentIds: [], cloudStatus: 'signedOut', cloudError: null,
   now: '2026-11-06T09:08:00Z',
   threads: [{
     thread: { environmentId: 'fixture-environment', threadId: 'thread-1' }, projectId: 'project-1', projectTitle: 'Fixture', title: 'Review thread', status: 'Settled',
@@ -292,6 +292,18 @@ describe('settings state and actions', () => {
 });
 
 describe('environment sources', () => {
+  it('shows independently paired remote threads without requiring Local pairing', async () => {
+    const value = snapshot(false);
+    value.connection = { ...value.connection, connected: false, paired: false, status: 'disconnected' };
+    value.environments = [{ id: 'remote', label: 'Independent', machine: 'linux', status: 'online', access: 'direct', isLocal: false, canForgetAccess: true }];
+    value.threads = [{ ...value.threads[0], thread: { environmentId: 'remote', threadId: 'one' }, title: 'Independent thread' }];
+    await renderSnapshot(value);
+    expect(threadRow().textContent).toContain('Independent thread');
+    expect(host.querySelector('.onboarding')).toBeNull();
+    act(() => tauri.listeners.get('bar-snapshot')?.({ payload: { ...value, environments: [{ ...value.environments[0], status: 'offline' }] } }));
+    expect(threadRow().textContent).toContain('Independent thread');
+  });
+
   it('shows the environment icon only for threads owned by another machine', async () => {
     const value = snapshot(false);
     value.environments = [

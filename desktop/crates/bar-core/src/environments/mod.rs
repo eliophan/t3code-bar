@@ -569,6 +569,17 @@ impl<U, L> EnvironmentHub<U, L> {
         true
     }
 
+    /// Hide an explicitly removed manual source once discovery confirms that
+    /// no desktop source owns it. Keep its generations to reject late results.
+    pub fn dismiss_missing_source(&mut self, environment: &EnvironmentId) {
+        if self.sources.get(environment).is_some_and(|source| !source.present) {
+            self.forget_access(environment);
+            if let Some(source) = self.sources.get_mut(environment) {
+                source.metadata.enabled = false;
+            }
+        }
+    }
+
     /// Clear only the sections whose scope was revoked. Thread access can
     /// remain valid when diagnostics access expires, so revocation is not a
     /// source-wide reset.
@@ -1159,6 +1170,27 @@ mod tests {
         hub.apply_discovery(Ok(vec![meta("a")]));
         assert!(!hub.begin_source(first));
         assert!(hub.begin_source(stamp("a", 2, "alice")));
+    }
+    #[test]
+    fn dismissing_manual_source_rejects_late_data_and_can_be_added_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut hub = EnvironmentHub::new(SettingsStore::load(dir.path().join("settings")).unwrap());
+        hub.apply_discovery(Ok(vec![meta("manual")]));
+        let first = stamp("manual", 1, "alice");
+        assert!(hub.begin_source(first.clone()));
+        hub.apply_snapshot(snapshot(first.clone(), &["one"]));
+        let pending = hub.begin_attempt(&id("manual")).unwrap();
+        hub.apply_discovery(Ok(vec![]));
+        hub.dismiss_missing_source(&id("manual"));
+        assert_eq!(hub.selected_threads().count(), 0);
+        assert!(!hub.sources()[&id("manual")].metadata.enabled);
+        assert!(!hub.attempt_current(&pending));
+        assert!(hub.apply_snapshot(snapshot(first.clone(), &["late"])).is_none());
+        hub.apply_discovery(Ok(vec![meta("manual")]));
+        assert!(!hub.begin_source(first));
+        let fresh = hub.begin_next_source(&id("manual"), "alice").unwrap();
+        assert!(hub.apply_snapshot(snapshot(fresh, &["new"])).is_some());
+        assert_eq!(hub.selected_threads().count(), 1);
     }
     #[test]
     fn selection_preserves_seen_history_and_reports_new_selected_threads() {

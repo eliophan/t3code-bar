@@ -6,6 +6,7 @@ import { EnvironmentMachineIcon } from './EnvironmentMachineIcon';
 import { MiddleText } from './middle-text';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ManualConnections } from './ManualConnections';
 import { listen } from '@tauri-apps/api/event';
 import type { AppSnapshot, LimitGroup, Metric, Period, Preview, Screen, Settings, ThreadItem, UsageReport } from './contracts';
 import { compact, currency, duration, providerStyles, relative, until } from './format';
@@ -89,11 +90,14 @@ export function App() {
     return () => window.removeEventListener('keydown', key);
   }, [screen, context, act]);
 
+  const hasThreadAccess = snapshot !== null && (snapshot.connection.paired || snapshot.environments.some(environment =>
+    !environment.isLocal && (environment.status === 'online' || snapshot.threads.some(thread => thread.thread.environmentId === environment.id))));
+
   return <div ref={root} className="app" onClick={() => setContext(null)}>
     {error && <div className="error-banner" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError(null)}>×</button></div>}
     {!snapshot ? <Empty title={error ? 'Could not load T3 Code Bar' : 'Reading T3 Code data…'}><button onClick={() => { void invoke<AppSnapshot>('get_snapshot').then(setSnapshot).catch(e => setError(String(e))); }}>Retry</button></Empty>
     : screen === 'settings' ? <><header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Settings</strong></header><SettingsPage snapshot={snapshot} act={act} /></>
-    : !snapshot.connection.paired ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
+    : !hasThreadAccess ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
       <main key={threadGeneration} className="threads scroll">
         {snapshot.threadError && <Notice warning>{snapshot.threadError}</Notice>}
@@ -126,7 +130,7 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   };
   const toggle = (label: string, key: Exclude<keyof Settings, 'environmentSelection'>, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
   return <main className="settings scroll">
-    <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} />{snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}</section>
+    <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} /><ManualConnections environments={snapshot.environments} savedIds={snapshot.manualEnvironmentIds} />{snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}</section>
     <section><h2>T3 Connect</h2>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
     <section><h2>Preferences</h2>
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}

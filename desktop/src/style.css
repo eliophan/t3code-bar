@@ -411,3 +411,10 @@ h2 small { font-size: var(--bar-font-10, 10px); margin-left: auto; color: #8b8b9
 .environment-options span { overflow-wrap: anywhere; }
 .linux-desktop .environment-options legend { color: var(--linux-secondary); }
 .linux-desktop .environment-options input { accent-color: var(--linux-fg); }
+
+.manual-connections { display: grid; gap: 8px; margin: 10px 0; }
+.manual-connection { display: grid; gap: 10px; padding: 12px; border: 1px solid #ffffff18; border-radius: 6px; }
+.manual-connection label { display: grid; gap: 6px; font-size: var(--bar-font-11, 11px); }
+.manual-connection select { width: 100%; padding: 7px; border: 1px solid #ffffff20; border-radius: 5px; background: var(--linux-panel, #171719); color: inherit; font: inherit; }
+
+.connection-destination { overflow-wrap: anywhere; user-select: text; }

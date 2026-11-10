@@ -113,6 +113,13 @@ impl SshTunnel {
         Ok(endpoint)
     }
 
+    /// Identify a new SSH destination without reading or sending credentials.
+    pub async fn identify_endpoint(&self) -> Result<VerifiedEndpoint, ConnectionError> {
+        let mut endpoint = VerifiedEndpoint::identify(&self.http_base_url()).await?;
+        endpoint.credential_identity = Some(self.identity.clone());
+        Ok(endpoint)
+    }
+
     /// Whether the owned OpenSSH child is still running.
     pub fn is_running(&mut self) -> bool {
         self.child
