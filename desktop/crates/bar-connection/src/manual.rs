@@ -516,6 +516,8 @@ mod tests {
                         }
                         Err(error) => panic!("{error}"),
                     };
+                    // Accepted sockets inherit O_NONBLOCK on macOS/BSD.
+                    stream.set_nonblocking(false).unwrap();
                     stream
                         .set_read_timeout(Some(Duration::from_secs(5)))
                         .unwrap();
@@ -579,6 +581,22 @@ mod tests {
             self.thread.take().unwrap().join().unwrap();
         }
     }
+    #[test]
+    fn fixture_waits_for_a_slow_client_request() {
+        let server = FixtureServer::new();
+        let address = Url::parse(&server.address).unwrap();
+        let mut client = std::net::TcpStream::connect(("127.0.0.1", address.port().unwrap())).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        thread::sleep(Duration::from_millis(300));
+        client.write_all(b"GET /.well-known/t3/environment HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").unwrap();
+        let mut response = String::new();
+        client.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.contains("fixture-manual"));
+    }
+
     struct FixtureDir(PathBuf);
     impl FixtureDir {
         fn new() -> Self {
