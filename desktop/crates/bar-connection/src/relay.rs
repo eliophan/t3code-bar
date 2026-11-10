@@ -5,6 +5,7 @@
 //! any environment credential is sent.
 
 use crate::{
+    catalog::{EnvironmentMetadata, Route},
     cloud::{CloudConfig, CloudGrant},
     credentials::{CredentialScope, CredentialStore},
     decode_response,
@@ -94,6 +95,37 @@ impl RelayClient {
 
     pub fn origin(&self) -> &str {
         self.origin.as_str()
+    }
+
+    /// OAuth authorizes directory lookup. Each environment still requires a
+    /// separate Bar pairing grant; the cloud bearer is never sent to its tunnel.
+    pub async fn list_environments(
+        &self,
+        cloud: &CloudGrant,
+    ) -> Result<Vec<EnvironmentMetadata>, ConnectionError> {
+        if cloud.expires_unix_seconds() <= now_unix() {
+            return Err(ConnectionError::PermissionDenied);
+        }
+        let response = self
+            .client
+            .get(
+                self.origin
+                    .join("v1/environments")
+                    .map_err(|_| ConnectionError::InvalidRoute)?,
+            )
+            .bearer_auth(cloud.access_token())
+            .send()
+            .await
+            .map_err(|_| ConnectionError::Transport)?;
+        match response.status() {
+            StatusCode::OK => (),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                return Err(ConnectionError::PermissionDenied)
+            }
+            _ => return Err(ConnectionError::Transport),
+        }
+        let directory: DirectoryResponse = decode_response(response).await?;
+        directory_entries(directory, self.origin.scheme() == "http")
     }
 
     pub async fn connect(
@@ -296,6 +328,65 @@ impl RelayClient {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DirectoryRecord {
+    environment_id: EnvironmentId,
+    label: String,
+    endpoint: RelayEndpoint,
+}
+
+#[derive(Deserialize)]
+struct DirectoryResponse {
+    environments: Vec<DirectoryRecord>,
+}
+
+fn directory_entries(
+    directory: DirectoryResponse,
+    fixture: bool,
+) -> Result<Vec<EnvironmentMetadata>, ConnectionError> {
+    if directory.environments.len() > 128 {
+        return Err(ConnectionError::Protocol);
+    }
+    let mut entries: Vec<EnvironmentMetadata> = Vec::new();
+    for record in directory.environments {
+        validate_endpoint(&record.endpoint)?;
+        let origin = crate::normalized_origin(&record.endpoint.http_base_url)?;
+        if (!fixture && origin.scheme() != "https")
+            || (fixture
+                && origin.scheme() == "http"
+                && !origin
+                    .host_str()
+                    .and_then(|host| host.parse::<IpAddr>().ok())
+                    .is_some_and(|ip| ip.is_loopback()))
+            || record.label.trim().is_empty()
+            || record.label.len() > 256
+        {
+            return Err(ConnectionError::InvalidDescriptor);
+        }
+        let route = Route::Bearer {
+            connection_id: "relay-directory".into(),
+            http_base_url: Some(origin.to_string()),
+        };
+        if entries.iter().any(|entry| {
+            entry.id == record.environment_id
+                || entry
+                    .routes
+                    .iter()
+                    .any(|known| crate::manual::same_destination(known, &route))
+        }) {
+            return Err(ConnectionError::InvalidDescriptor);
+        }
+        entries.push(EnvironmentMetadata {
+            id: record.environment_id,
+            label: record.label,
+            enabled: true,
+            routes: vec![route],
+        });
+    }
+    Ok(entries)
+}
+
 fn validate_endpoint(endpoint: &RelayEndpoint) -> Result<(), ConnectionError> {
     let http =
         Url::parse(&endpoint.http_base_url).map_err(|_| ConnectionError::InvalidDescriptor)?;
@@ -476,6 +567,125 @@ mod tests {
             h["jwk"]["y"].as_str().unwrap()
         );
         URL_SAFE_NO_PAD.encode(Sha256::digest(canonical.as_bytes()))
+    }
+
+    #[tokio::test]
+    async fn oauth_directory_exposes_pairable_routes_without_a_dpop_exchange() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}/", listener.local_addr().unwrap());
+        let server_origin = origin.clone();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let (head, _) = request(&mut stream).await;
+            assert!(head.starts_with("GET /v1/environments "));
+            assert_eq!(header(&head, "authorization"), "Bearer cloud-fixture");
+            assert!(!head
+                .lines()
+                .any(|line| line.to_ascii_lowercase().starts_with("dpop:")));
+            respond(&mut stream, "200 OK", &serde_json::json!({"environments":[{
+                "environmentId":"public-tunnel", "label":"Public tunnel", "linkedAt":"2026-01-01T00:00:00Z",
+                "endpoint":{"httpBaseUrl":server_origin, "wsBaseUrl":server_origin.replace("http:","ws:"), "providerKind":"cloudflare_tunnel"}
+            }]}).to_string()).await;
+        });
+        let entries = RelayClient::loopback_fixture(&origin)
+            .unwrap()
+            .list_environments(&CloudGrant::fixture())
+            .await
+            .unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id.as_str(), "public-tunnel");
+        assert!(
+            matches!(&entries[0].routes[0], Route::Bearer { http_base_url: Some(url), .. } if url == &origin)
+        );
+        server.await.unwrap();
+    }
+
+    fn directory_record(id: &str, origin: &str) -> serde_json::Value {
+        serde_json::json!({"environmentId":id, "label":"Remote", "endpoint":{
+            "httpBaseUrl":origin, "wsBaseUrl":origin.replace("https:","wss:").replace("http:","ws:"),
+            "providerKind":"cloudflare_tunnel"
+        }})
+    }
+
+    #[test]
+    fn directory_rejects_unsafe_routes_and_ambiguous_identities() {
+        let project = |records: Vec<serde_json::Value>| {
+            directory_entries(
+                serde_json::from_value(serde_json::json!({"environments":records})).unwrap(),
+                false,
+            )
+        };
+        for origin in [
+            "http://127.0.0.1:3773/",
+            "https://user:secret@remote.example/",
+            "https://remote.example/?token=secret",
+            "https://remote.example/#secret",
+            "https://remote.example/prefix/",
+        ] {
+            assert!(
+                project(vec![directory_record("a", origin)]).is_err(),
+                "unsafe origin was accepted"
+            );
+        }
+        let mut mismatched = directory_record("a", "https://remote.example/");
+        mismatched["endpoint"]["wsBaseUrl"] = "wss://other.example/".into();
+        assert!(project(vec![mismatched]).is_err());
+        let mut blank = directory_record("a", "https://remote.example/");
+        blank["label"] = "  ".into();
+        assert!(project(vec![blank]).is_err());
+        assert!(project(vec![
+            directory_record("a", "https://a.example/"),
+            directory_record("a", "https://b.example/")
+        ])
+        .is_err());
+        assert!(project(vec![
+            directory_record("a", "https://a.example/"),
+            directory_record("b", "https://a.example/")
+        ])
+        .is_err());
+        assert_eq!(
+            project(vec![directory_record("a", "https://remote.example/")])
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(matches!(
+            project(
+                (0..129)
+                    .map(|i| directory_record(
+                        &format!("env-{i}"),
+                        &format!("https://host-{i}.example/")
+                    ))
+                    .collect()
+            ),
+            Err(ConnectionError::Protocol)
+        ));
+    }
+
+    #[tokio::test]
+    async fn directory_rejection_does_not_attempt_a_dpop_exchange() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}/", listener.local_addr().unwrap());
+        let cloud = CloudGrant::fixture();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let (head, _) = request(&mut stream).await;
+            assert!(head.starts_with("GET /v1/environments "));
+            respond(&mut stream, "401 Unauthorized", "{}").await;
+            assert!(
+                tokio::time::timeout(Duration::from_millis(150), listener.accept())
+                    .await
+                    .is_err()
+            );
+        });
+        assert!(matches!(
+            RelayClient::loopback_fixture(&origin)
+                .unwrap()
+                .list_environments(&cloud)
+                .await,
+            Err(ConnectionError::PermissionDenied)
+        ));
+        server.await.unwrap();
     }
 
     #[tokio::test]

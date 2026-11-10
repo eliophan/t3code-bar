@@ -387,7 +387,7 @@ describe('environment sources', () => {
     expect(forms.join('|')).toContain('Mixed box pairing key');
     expect(forms.join('|')).not.toContain('Relay box pairing key');
     expect(forms.join('|')).not.toContain('Ssh box pairing key');
-    expect(host.textContent).toContain('Relay box needs T3 Connect access. Sign in below.');
+    expect(host.textContent).toContain('Relay box: Sign in below to find its HTTPS address, then pair with this environment.');
     expect(host.textContent).not.toContain('Ssh box needs');
     expect([...host.querySelectorAll('button')].some(b => b.textContent === 'Sign in to T3 Connect')).toBe(true);
   });
@@ -398,7 +398,7 @@ describe('environment sources', () => {
     value.environments = [{ id: 'r', label: 'Relay box', machine: 'cloud', status: 'unsupported', access: 'cloud', isLocal: false, canForgetAccess: false }];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
-    expect(host.textContent).toContain('T3 Connect cannot connect Relay box with this login. Add a direct or SSH connection in T3 Code, then pair Bar with that environment.');
+    expect(host.textContent).toContain('T3 Connect has not provided a pairing address for Relay box. Use Add environment in Bar with a reachable HTTPS address or SSH host.');
     expect(host.textContent).not.toContain('Sign out and sign in again');
   });
 
@@ -415,8 +415,8 @@ describe('environment sources', () => {
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
     const text = host.textContent ?? '';
     expect(text).toContain('Bar could not authorize access to Direct box. Enter a pairing key from this environment.');
-    expect(text).toContain('Bar could not authorize access to Mixed box. Enter a pairing key from this environment, or use T3 Connect.');
-    expect(text).toContain('Relay box denied T3 Connect access. Sign out and sign in again below if access was revoked.');
+    expect(text).toContain('Bar could not authorize access to Mixed box. Enter a new pairing key from this environment.');
+    expect(text).toContain('T3 Connect could not authorize Relay box. Waiting for its HTTPS address. If unavailable, use Add environment with a server address or SSH host.');
     const forms = [...host.querySelectorAll('form')].map(form => form.textContent).join('|');
     expect(forms).toContain('Direct box pairing key');
     expect(forms).toContain('Mixed box pairing key');

@@ -131,7 +131,7 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   const toggle = (label: string, key: Exclude<keyof Settings, 'environmentSelection'>, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
   return <main className="settings scroll">
     <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} /><ManualConnections environments={snapshot.environments} savedIds={snapshot.manualEnvironmentIds} />{snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}</section>
-    <section><h2>T3 Connect</h2>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
+    <section><h2>T3 Connect</h2><Notice>Sign in to find linked environments. Pair once with each environment to read through its public HTTPS tunnel. Tailscale is not required.</Notice>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
     <section><h2>Preferences</h2>
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}
       {toggle('Hover previews', 'showsPreviews', snapshot.settings.showsPreviews)}
@@ -179,7 +179,7 @@ function EnvironmentAccess({ environment, cloudStatus, act }: { environment: Env
 
 function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
   const denied = environment.status === 'permissionDenied';
-  const cloudHint = cloudStatus === 'signedOut' ? 'Sign in below.' : cloudStatus === 'signingIn' ? 'Finish signing in or cancel below.' : 'Sign out and sign in again below if access was revoked.';
+  const cloudHint = cloudStatus === 'signedOut' ? 'Sign in below to find its HTTPS address, then pair with this environment.' : cloudStatus === 'signingIn' ? 'Finish signing in or cancel below.' : 'Waiting for its HTTPS address. If unavailable, use Add environment with a server address or SSH host.';
   const denial = (route: string) => denied && <Notice warning>Bar could not authorize access to {environment.label}. {route}</Notice>;
   switch (environment.access) {
     case 'direct': return <>
@@ -187,15 +187,15 @@ function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environmen
       <EnvironmentPairing environment={environment} act={act} />
     </>;
     case 'directOrCloud': return <>
-      {denial('Enter a pairing key from this environment, or use T3 Connect.')}
+      {denial('Enter a new pairing key from this environment.')}
       <EnvironmentPairing environment={environment} act={act} />
-      <Notice>{environment.label} can also use T3 Connect{cloudStatus === 'signedOut' ? '. Sign in below.' : '.'}</Notice>
+      <Notice>Sign in to T3 Connect to find a public HTTPS address for {environment.label}, then pair with that address.</Notice>
     </>;
     case 'cloud': return environment.status === 'unsupported'
-      ? <Notice warning>T3 Connect cannot connect {environment.label} with this login. Add a direct or SSH connection in T3 Code, then pair Bar with that environment.</Notice>
+      ? <Notice warning>T3 Connect has not provided a pairing address for {environment.label}. Use Add environment in Bar with a reachable HTTPS address or SSH host.</Notice>
       : denied
-      ? <Notice warning>{environment.label} denied T3 Connect access. {cloudHint}</Notice>
-      : <Notice>{environment.label} needs T3 Connect access{cloudStatus === 'signedOut' ? '. Sign in below.' : cloudStatus === 'signingIn' ? '. Finish signing in or cancel below.' : '.'}</Notice>;
+      ? <Notice warning>T3 Connect could not authorize {environment.label}. {cloudHint}</Notice>
+      : <Notice>{environment.label}: {cloudHint}</Notice>;
     case 'unsupported': return null;
     default: { const _exhaustive: never = environment.access; return _exhaustive; }
   }

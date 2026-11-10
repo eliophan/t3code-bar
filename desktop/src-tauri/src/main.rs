@@ -226,6 +226,13 @@ struct ViewState {
     generation: u64,
     usage_window: Option<usage::Window>,
 }
+#[derive(Default)]
+struct CloudDirectory {
+    generation: u64,
+    next_refresh: Option<std::time::Instant>,
+    entries: Vec<EnvironmentMetadata>,
+}
+
 struct RuntimeState {
     config: threads::Configuration,
     hub: Mutex<EnvironmentHub<usage::UsageContribution, limits::LimitsContribution>>,
@@ -235,6 +242,7 @@ struct RuntimeState {
     remote_routes: Mutex<HashMap<EnvironmentId, Vec<Route>>>,
     manual_connections: Mutex<bar_core::connection::manual::ManualRegistry>,
     catalog_metadata: Mutex<Vec<EnvironmentMetadata>>,
+    cloud_directory: Mutex<CloudDirectory>,
     manual_connection_gate: Mutex<()>,
     remote_pairing_codes: Mutex<HashMap<EnvironmentId, String>>,
     remote_supervisors: Mutex<HashMap<EnvironmentId, (Route, SourceSupervisor)>>,
@@ -770,7 +778,99 @@ impl FixtureManifest {
     }
 }
 
+fn refresh_cloud_directory(state: &RuntimeState) {
+    use std::sync::atomic::Ordering;
+    let generation = state.cloud_generation.load(Ordering::Acquire);
+    let Some(controller) = state.cloud.as_ref().filter(|controller| {
+        !state.fixture && controller.status().ok() == Some(LoginStatus::SignedIn)
+    }) else {
+        if let Ok(mut cache) = state.cloud_directory.lock() {
+            *cache = CloudDirectory::default();
+        }
+        return;
+    };
+    if let Ok(mut cache) = state.cloud_directory.lock() {
+        if cache.generation == generation
+            && cache
+                .next_refresh
+                .is_some_and(|next| std::time::Instant::now() < next)
+        {
+            return;
+        }
+        if cache.generation != generation {
+            cache.entries.clear();
+        }
+        cache.generation = generation;
+        // Coalesce concurrent polls while the bounded network request is running.
+        cache.next_refresh = Some(std::time::Instant::now() + Duration::from_secs(15));
+    }
+    let result = (|| {
+        let (grant, lease) = controller
+            .load_session()?
+            .ok_or(ConnectionError::PermissionDenied)?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| ConnectionError::Transport)?;
+        runtime.block_on(async {
+            let grant = if grant.expires_unix_seconds() <= Utc::now().timestamp().max(0) as u64 + 60
+            {
+                controller.config().refresh(&grant, &lease).await?
+            } else {
+                grant
+            };
+            RelayClient::production()?.list_environments(&grant).await
+        })
+    })();
+    let Ok(mut cache) = state.cloud_directory.lock() else {
+        return;
+    };
+    if generation != state.cloud_generation.load(Ordering::Acquire) {
+        return;
+    }
+    if cache.generation != generation {
+        cache.entries.clear();
+    }
+    cache.generation = generation;
+    cache.next_refresh =
+        Some(std::time::Instant::now() + Duration::from_secs(if result.is_ok() { 60 } else { 15 }));
+    match result {
+        Ok(entries) => { cache.entries = entries; cloud_error(state, None); }
+        Err(_) => cloud_error(state, Some("Could not refresh linked environments from T3 Connect. Saved environment access was kept.")),
+    }
+}
+
+fn merge_cloud_directory(
+    entries: &mut Vec<EnvironmentMetadata>,
+    directory: Vec<EnvironmentMetadata>,
+    local: &EnvironmentId,
+) {
+    for discovered in directory {
+        if &discovered.id == local {
+            continue;
+        }
+        if let Some(entry) = entries.iter_mut().find(|entry| entry.id == discovered.id) {
+            // The directory's public tunnel supports an independent pairing grant.
+            // Do not retry the incompatible OAuth-to-DPoP bootstrap for this route.
+            entry.routes.retain(|route| !matches!(route, Route::Relay));
+            for route in discovered.routes {
+                if !entry
+                    .routes
+                    .iter()
+                    .any(|known| bar_core::connection::manual::same_destination(known, &route))
+                {
+                    entry.routes.push(route);
+                }
+            }
+        } else {
+            entries.push(discovered);
+        }
+    }
+}
+
 fn discover_sources(state: &RuntimeState) -> Result<(), String> {
+    // No hub or manual-connection lock is held during network or credential I/O.
+    refresh_cloud_directory(state);
     let _gate = state
         .manual_connection_gate
         .lock()
@@ -844,6 +944,9 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
         )
         .map_err(|_| ())
     };
+    let directory = state.cloud_directory.lock().ok()
+        .filter(|cache| cache.generation == state.cloud_generation.load(std::sync::atomic::Ordering::Acquire))
+        .map(|cache| cache.entries.clone()).unwrap_or_default();
     let entries = {
         let mut catalog = state
             .catalog_metadata
@@ -854,14 +957,21 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
             .lock()
             .map_err(|_| "saved connections unavailable")?;
         match entries {
-            Ok(entries) => {
+            Ok(mut entries) => {
                 *catalog = entries.clone();
+                merge_cloud_directory(&mut entries, directory, &local);
                 Ok(registry.merge(entries))
             }
             Err(_) if !registry.entries().is_empty() || !catalog.is_empty() => {
                 let mut known = catalog.clone();
                 known.retain(|entry| entry.id != local);
                 known.push(primary.clone());
+                merge_cloud_directory(&mut known, directory, &local);
+                Ok(registry.merge(known))
+            }
+            Err(_) if !directory.is_empty() => {
+                let mut known = vec![primary.clone()];
+                merge_cloud_directory(&mut known, directory, &local);
                 Ok(registry.merge(known))
             }
             Err(error) => Err(error),
@@ -1910,6 +2020,7 @@ fn cloud_error(state: &RuntimeState, message: Option<&str>) {
 }
 
 fn invalidate_cloud_sources(state: &RuntimeState) {
+    if let Ok(mut cache) = state.cloud_directory.lock() { *cache = CloudDirectory::default(); }
     if let Ok(mut supervisors) = state.remote_supervisors.lock() {
         supervisors.retain(|_, (route, _)| !matches!(route, Route::Relay));
     }
@@ -2949,6 +3060,7 @@ fn main() {
         remote_routes: Mutex::new(HashMap::new()),
         manual_connections: Mutex::new(manual_connections),
         catalog_metadata: Mutex::new(Vec::new()),
+        cloud_directory: Mutex::new(CloudDirectory::default()),
         manual_connection_gate: Mutex::new(()),
         remote_pairing_codes: Mutex::new(HashMap::new()),
         remote_supervisors: Mutex::new(HashMap::new()),
@@ -3227,6 +3339,50 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
     #[test]
+    fn cloud_directory_merges_without_a_catalog_and_preserves_disabled_sources() {
+        let local = EnvironmentId::new("local").unwrap();
+        let remote = EnvironmentId::new("remote").unwrap();
+        let public = Route::Bearer {
+            connection_id: "relay-directory".into(),
+            http_base_url: Some("https://tunnel.example/".into()),
+        };
+        let directory = vec![
+            EnvironmentMetadata {
+                id: local.clone(),
+                label: "This machine".into(),
+                enabled: true,
+                routes: vec![public.clone()],
+            },
+            EnvironmentMetadata {
+                id: remote.clone(),
+                label: "Cloud label".into(),
+                enabled: true,
+                routes: vec![public.clone()],
+            },
+        ];
+        let mut entries = vec![EnvironmentMetadata {
+            id: local.clone(),
+            label: "Local".into(),
+            enabled: true,
+            routes: vec![],
+        }];
+        merge_cloud_directory(&mut entries, directory.clone(), &local);
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].routes.is_empty());
+        assert_eq!(
+            environment_access(&entries[1].routes),
+            EnvironmentAccess::Direct
+        );
+        entries[1].label = "Desktop label".into();
+        entries[1].enabled = false;
+        entries[1].routes.push(Route::Relay);
+        merge_cloud_directory(&mut entries, directory, &local);
+        assert!(!entries[1].enabled);
+        assert_eq!(entries[1].label, "Desktop label");
+        assert_eq!(entries[1].routes, vec![public]);
+    }
+
+    #[test]
     fn environment_access_matches_available_authorization_paths() {
         let direct = Route::Bearer {
             connection_id: "fixture".into(),
@@ -3269,6 +3425,7 @@ mod tests {
             remote_routes: Mutex::new(HashMap::new()),
             manual_connections: Mutex::new(bar_core::connection::manual::ManualRegistry::load(root.join("connections.json")).unwrap()),
             catalog_metadata: Mutex::new(Vec::new()),
+            cloud_directory: Mutex::new(CloudDirectory::default()),
             manual_connection_gate: Mutex::new(()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
@@ -3308,7 +3465,11 @@ mod tests {
             view_snapshot(&state).unwrap().cloud_error.as_deref(),
             Some("Sign in failed.")
         );
+        state.cloud_directory.lock().unwrap().entries.push(EnvironmentMetadata {
+            id: EnvironmentId::new("old-account-only").unwrap(), label: "Old account".into(), enabled: true, routes: vec![],
+        });
         invalidate_cloud_sources(&state);
+        assert!(state.cloud_directory.lock().unwrap().entries.is_empty());
         assert_eq!(view_snapshot(&state).unwrap().cloud_status, "signedOut");
         let id = EnvironmentId::new("remote").unwrap();
         {
@@ -3546,6 +3707,7 @@ while True:
             remote_routes: Mutex::new(HashMap::new()),
             manual_connections: Mutex::new(bar_core::connection::manual::ManualRegistry::load(root.join("connections.json")).unwrap()),
             catalog_metadata: Mutex::new(Vec::new()),
+            cloud_directory: Mutex::new(CloudDirectory::default()),
             manual_connection_gate: Mutex::new(()),
             remote_pairing_codes: Mutex::new(HashMap::new()),
             remote_supervisors: Mutex::new(HashMap::new()),
@@ -4061,6 +4223,53 @@ while True:
         assert_eq!(server.exchanges.load(Ordering::SeqCst), 1);
         assert!(grant_with(&state, &runtime(), &id, &route, None).is_ok());
     }
+    #[test]
+    fn directory_only_environment_can_pair_and_a_late_old_account_cannot_supply_routes() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-fixture").unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("directory-remote");
+        let id = EnvironmentId::new("directory-remote").unwrap();
+        let route = direct_route(&server);
+        state.cloud_directory.lock().unwrap().entries = vec![EnvironmentMetadata {
+            id: id.clone(),
+            label: "Cloud remote".into(),
+            enabled: true,
+            routes: vec![route.clone()],
+        }];
+        discover_sources_locked(&state).unwrap();
+        let view = view_snapshot(&state).unwrap();
+        assert!(view.manual_environment_ids.is_empty());
+        assert!(view
+            .environments
+            .iter()
+            .any(|entry| entry.id == id && entry.access == EnvironmentAccess::Direct));
+        assert_eq!(
+            state.remote_routes.lock().unwrap()[&id],
+            vec![route.clone()]
+        );
+        let rt = runtime();
+        assert!(grant_with(&state, &rt, &id, &route, Some("ABCD2345EFGH")).is_ok());
+        assert!(grant_with(&state, &rt, &id, &route, None).is_ok());
+        assert!(!root.path().join("connection-catalog.json").exists());
+        state
+            .cloud_generation
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        discover_sources_locked(&state).unwrap();
+        assert!(!state.remote_routes.lock().unwrap().contains_key(&id));
+        // Signing out removes directory access, not an independent environment grant.
+        let endpoint = rt
+            .block_on(VerifiedEndpoint::discover(
+                &format!("http://127.0.0.1:{}/", server.port),
+                &id,
+            ))
+            .unwrap();
+        assert!(endpoint
+            .load_saved_grant(state.remote_credentials.as_ref())
+            .unwrap()
+            .is_some());
+    }
+
     #[test]
     fn manual_connection_is_discovered_without_a_desktop_route_and_restored_after_restart() {
         use bar_core::connection::manual::{ConnectionInput, ManualRegistry};

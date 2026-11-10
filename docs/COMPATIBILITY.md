@@ -26,13 +26,19 @@ deleted, delegated and side-chat threads from both local and remote sources.
 
 Linux and macOS discovery project the installed T3 desktop connection catalog.
 Discovery provides metadata and routes; it does not authorize reads. Bar pairs with its
-own read grant for direct and SSH routes. T3 Connect currently rejects Bar's
-OAuth access token at the Relay DPoP exchange: the deployed exchange requires a
-Clerk session JWT with the relay audience. Bar reports this as an unsupported
-Relay login. Repeating OAuth sign-in cannot fix it. Use Settings → Add environment in Bar
-with a reachable server address or SSH host, and pair directly with that environment.
-No route needs to be added in T3 Code. Synthetic Relay tests
-exercise the protocol but do not establish production OAuth compatibility.
+own read grant for direct, public HTTPS tunnel and SSH routes. T3 Connect sign-in
+uses Bar's OAuth token to list linked environments and their public tunnel
+addresses. These appear in Settings with a pairing field. A fresh code grants
+Bar read access to that environment over HTTPS; Tailscale is not required.
+The directory refreshes once a minute. A failed refresh keeps same-login metadata
+and saved access, and account changes discard the directory cache.
+
+The deployed Relay DPoP exchange accepts a Clerk session JWT, not Bar's OAuth
+access token. Bar uses the directory and normal environment pairing instead;
+OAuth sign-in alone does not grant thread access. Settings → Add environment also
+accepts an HTTPS address or SSH host without cloud sign-in. No route needs to be
+added in T3 Code. Synthetic Relay tests cover directory validation and the DPoP
+protocol separately.
 Desktop session tokens are not reused. Bar grants stay in Secret Service on
 Linux and Keychain on macOS. Catalog metadata uses the desktop safeStorage key:
 Linux v11 with PBKDF2-SHA1/1, macOS v10 with PBKDF2-SHA1/1003. macOS looks up only
