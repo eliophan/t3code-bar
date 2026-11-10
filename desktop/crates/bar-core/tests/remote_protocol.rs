@@ -221,7 +221,9 @@ async fn upstream_snapshot_projection_usage_limits_and_repeated_reads() {
         assert!(row.is_running);
         assert_eq!(row.branch.as_deref(), Some("feature"));
         assert_eq!(row.model_name.as_deref(), Some("gpt-5.4"));
-        assert_eq!(result.previews["projection"].text, "Projection preview");
+        assert!(!result.previews.contains_key("projection"));
+        let preview = source.read_preview("projection").await.unwrap();
+        assert_eq!(preview.previews["projection"].text, "Projection preview");
         assert_eq!(result.previews["visible"].text, "Shell preview");
         let merged = bar_core::limits::merge_contributions(
             &[result.limits.unwrap()],

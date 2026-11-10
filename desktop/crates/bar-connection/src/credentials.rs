@@ -457,6 +457,7 @@ mod tests {
                 server_version: "1".into(),
             },
             credential_identity: None,
+            orchestration_protocol_version: 1,
         }
     }
     fn envelope(id: &str, origin: &str, expires_unix_ms: u64) -> Vec<u8> {

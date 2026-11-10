@@ -1008,11 +1008,17 @@ fn take_reusable_ssh(
         .then_some(supervisor)
 }
 
+#[derive(Clone)]
+enum RemoteReadQuery {
+    Snapshot(Option<usage::UsageQuery>),
+    Preview(String),
+}
+
 fn read_remote_source(
     state: &RuntimeState,
     environment: &EnvironmentId,
     routes: &[Route],
-    query: Option<usage::UsageQuery>,
+    query: RemoteReadQuery,
     attempt: &mut SourceAttempt,
 ) -> Result<bar_core::remote::RemoteReadResult, RemoteReadError> {
     let mut last = RemoteReadError::UnsupportedRoute;
@@ -1052,7 +1058,7 @@ fn read_remote_route(
     state: &RuntimeState,
     environment: &EnvironmentId,
     route: &Route,
-    query: Option<usage::UsageQuery>,
+    query: RemoteReadQuery,
     attempt: &mut SourceAttempt,
 ) -> Result<bar_core::remote::RemoteReadResult, RemoteReadError> {
     static REMOTE_RUNTIME: std::sync::OnceLock<tokio::runtime::Runtime> =
@@ -1170,7 +1176,12 @@ fn read_remote_route(
                 )
             }),
     };
-    let result = runtime.block_on(async { supervisor.read(query.as_ref()).await });
+    let result = runtime.block_on(async {
+        match &query {
+            RemoteReadQuery::Snapshot(usage) => supervisor.read(usage.as_ref()).await,
+            RemoteReadQuery::Preview(thread) => supervisor.read_preview(thread).await,
+        }
+    });
     {
         let mut hub = state.hub.lock().map_err(|_| RemoteReadError::Offline)?;
         if !hub.attempt_current(attempt) {
@@ -1365,7 +1376,7 @@ fn refresh_threads(app: &tauri::AppHandle, state: &SharedState) {
             else {
                 continue;
             };
-            match read_remote_source(&state, &environment, &route, query, &mut attempt) {
+            match read_remote_source(&state, &environment, &route, RemoteReadQuery::Snapshot(query), &mut attempt) {
                 Ok(result) => {
                     let stamp = SourceStamp {
                         environment: result.stamp.environment.clone(),
@@ -1719,7 +1730,7 @@ fn refresh_visible(app: &tauri::AppHandle, state: &SharedState) {
                 &state,
                 &environment,
                 &route,
-                Some(query.clone()),
+                RemoteReadQuery::Snapshot(Some(query.clone())),
                 &mut attempt,
             ) {
                 Ok(result) => {
@@ -2236,7 +2247,7 @@ async fn get_preview(
                     .map_err(|_| "environments unavailable")?
                     .begin_attempt(&thread.environment_id)
                     .ok_or("Unknown environment")?;
-                read_remote_source(&state, &thread.environment_id, &route, None, &mut attempt)
+                read_remote_source(&state, &thread.environment_id, &route, RemoteReadQuery::Preview(id.clone()), &mut attempt)
                     .map(|result| result.previews.get(&id).cloned())
                     .map_err(|error| format!("{error:?}"))
             }
@@ -2418,7 +2429,7 @@ fn pair_remote_environment(
         state,
         environment,
         std::slice::from_ref(route),
-        None,
+        RemoteReadQuery::Snapshot(None),
         &mut attempt,
     );
     if let Ok(mut codes) = state.remote_pairing_codes.lock() {
@@ -2998,7 +3009,7 @@ mod tests {
         ];
         let mut attempt = state.hub.lock().unwrap().begin_attempt(&id).unwrap();
         assert!(matches!(
-            read_remote_source(&state, &id, &routes, None, &mut attempt),
+            read_remote_source(&state, &id, &routes, RemoteReadQuery::Snapshot(None), &mut attempt),
             Err(RemoteReadError::NeedsPairing)
         ));
         let mut attempt = state.hub.lock().unwrap().begin_attempt(&id).unwrap();
@@ -3009,7 +3020,7 @@ mod tests {
             },
         ];
         assert!(matches!(
-            read_remote_source(&state, &id, &routes, None, &mut attempt),
+            read_remote_source(&state, &id, &routes, RemoteReadQuery::Snapshot(None), &mut attempt),
             Err(RemoteReadError::NeedsPairing)
         ));
         assert!(retry_remote_route(&RemoteReadError::NeedsPairing));
@@ -3257,7 +3268,7 @@ while True:
         route: &Route,
     ) -> Result<bar_core::remote::RemoteReadResult, RemoteReadError> {
         let mut attempt = state.hub.lock().unwrap().begin_attempt(id).unwrap();
-        read_remote_route(state, id, route, None, &mut attempt)
+        read_remote_route(state, id, route, RemoteReadQuery::Snapshot(None), &mut attempt)
     }
 
     #[test]
@@ -3637,7 +3648,7 @@ while True:
         grant_with(&state, &rt, &id, &direct, Some("SHRT2345WXYZ")).unwrap();
         std::thread::sleep(Duration::from_millis(1300));
         let mut attempt = state.hub.lock().unwrap().begin_attempt(&id).unwrap();
-        let result = read_remote_source(&state, &id, &[direct, Route::Relay], None, &mut attempt);
+        let result = read_remote_source(&state, &id, &[direct, Route::Relay], RemoteReadQuery::Snapshot(None), &mut attempt);
         assert!(
             matches!(result, Err(RemoteReadError::Protocol)),
             "the Relay route was tried (it has no cloud controller here): {result:?}"

@@ -132,7 +132,7 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}
       {toggle('Hover previews', 'showsPreviews', snapshot.settings.showsPreviews)}
     </section>
-    <section><h2>T3 Code connection</h2><Connection snapshot={snapshot} act={act} />
+    <section><h2>Local T3 Code connection</h2><Notice>Pairing here connects Bar to T3 Code on this machine. For another machine, use its named pairing field above.</Notice><Connection snapshot={snapshot} act={act} />
       {snapshot.connection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
     </section>
     <section><h2>Updates</h2>
@@ -175,14 +175,14 @@ function EnvironmentAccess({ environment, cloudStatus, act }: { environment: Env
 function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
   const denied = environment.status === 'permissionDenied';
   const cloudHint = cloudStatus === 'signedOut' ? 'Sign in below.' : cloudStatus === 'signingIn' ? 'Finish signing in or cancel below.' : 'Sign out and sign in again below if access was revoked.';
-  const denial = (route: string) => denied && <Notice warning>{environment.label} denied access. {route}</Notice>;
+  const denial = (route: string) => denied && <Notice warning>Bar could not authorize access to {environment.label}. {route}</Notice>;
   switch (environment.access) {
     case 'direct': return <>
-      {denial('Its saved access expired or was revoked. Enter a new pairing key.')}
+      {denial('Enter a pairing key from this environment.')}
       <EnvironmentPairing environment={environment} act={act} />
     </>;
     case 'directOrCloud': return <>
-      {denial('Enter a new pairing key, or sign in to T3 Connect again.')}
+      {denial('Enter a pairing key from this environment, or use T3 Connect.')}
       <EnvironmentPairing environment={environment} act={act} />
       <Notice>{environment.label} can also use T3 Connect{cloudStatus === 'signedOut' ? '. Sign in below.' : '.'}</Notice>
     </>;
@@ -242,7 +242,7 @@ function Connection({ snapshot, act, compact: minimal = false }: { snapshot: App
       {snapshot.connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
       {!snapshot.connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
       {expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
-        <label className="sr-only" htmlFor="access-token">Pairing key</label><input id="access-token" type="password" value={token} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
+        <label className="sr-only" htmlFor="access-token">Local pairing key</label><input id="access-token" type="password" value={token} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Local pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
         <div className="connection-actions"><button className="primary-button" type="submit" disabled={!token.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button></div>
       </form>}
     </>}

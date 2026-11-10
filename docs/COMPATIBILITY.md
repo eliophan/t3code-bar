@@ -27,6 +27,16 @@ own read grant for direct and SSH routes, or signs into T3 Connect for Relay.
 Desktop session tokens are not reused. Credentials stay in Secret Service.
 Other platforms currently discover only the configured local source.
 
+Direct HTTP is allowed only on loopback or a numeric Tailscale peer address
+confirmed by the local running Tailscale daemon. This requires the Tailscale CLI
+in a standard system or Homebrew location. Private LAN addresses and unverified
+CGNAT addresses are rejected; other direct routes require HTTPS. Bar supports
+orchestration protocol versions 1 and 2 and rejects unknown versions.
+
+Remote thread lists use the server's shell snapshot without downloading every
+conversation history. Hovering a listed thread fetches only that thread's
+preview.
+
 SSH reads metadata for an already running remote T3 server and owns a local
 loopback tunnel. It does not provision or start a remote server. It uses
 OpenSSH with BatchMode and the existing host-key policy. A locked agent, unknown

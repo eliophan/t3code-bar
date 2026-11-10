@@ -193,7 +193,7 @@ describe('new-install pairing', () => {
     await renderSnapshot(value);
     expect(host.querySelector('.onboarding')).not.toBeNull();
     expect(host.querySelector('.thread-row')).toBeNull();
-    expect(host.querySelector('input[type="password"]')?.getAttribute('placeholder')).toBe('Pairing key');
+    expect(host.querySelector('input[type="password"]')?.getAttribute('placeholder')).toBe('Local pairing key');
     expect(host.textContent).not.toContain('Auto-Generate');
 
     const input = host.querySelector<HTMLInputElement>('input[type="password"]')!;
@@ -311,6 +311,18 @@ describe('environment sources', () => {
     expect(rows[1].querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Linux box: Linux/WSL');
   });
 
+  it('identifies the local pairing target while a remote environment is selected', async () => {
+    const value = snapshot(false);
+    value.connection = { ...value.connection, connected: false, paired: false, status: 'disconnected' };
+    value.settings.environmentSelection = { one: 'remote' };
+    value.environments = [{ id: 'remote', label: 'Remote Mac', machine: 'laptop', status: 'needsAccess', access: 'direct', canForgetAccess: false }];
+    await renderSnapshot(value);
+    act(() => [...host.querySelectorAll('button')].find(button => button.textContent === 'Settings')!.click());
+    expect(host.textContent).toContain('Local T3 Code connection');
+    expect(host.querySelector('label[for="access-token"]')?.textContent).toBe('Local pairing key');
+    expect(host.textContent).toContain('Remote Mac pairing key');
+  });
+
   it('routes needsAccess by route capability without leaking pairing forms', async () => {
     const value = snapshot(false);
     value.cloudStatus = 'signedOut';
@@ -345,8 +357,8 @@ describe('environment sources', () => {
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
     const text = host.textContent ?? '';
-    expect(text).toContain('Direct box denied access. Its saved access expired or was revoked. Enter a new pairing key.');
-    expect(text).toContain('Mixed box denied access. Enter a new pairing key, or sign in to T3 Connect again.');
+    expect(text).toContain('Bar could not authorize access to Direct box. Enter a pairing key from this environment.');
+    expect(text).toContain('Bar could not authorize access to Mixed box. Enter a pairing key from this environment, or use T3 Connect.');
     expect(text).toContain('Relay box denied T3 Connect access. Sign out and sign in again below if access was revoked.');
     const forms = [...host.querySelectorAll('form')].map(form => form.textContent).join('|');
     expect(forms).toContain('Direct box pairing key');

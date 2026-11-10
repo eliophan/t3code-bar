@@ -85,6 +85,14 @@ impl SourceSupervisor {
     }
 
     pub async fn read(&mut self, query: Option<&UsageQuery>) -> Result<RemoteReadResult, RemoteReadError> {
+        self.read_requested(query, None).await
+    }
+
+    pub async fn read_preview(&mut self, thread_id: &str) -> Result<RemoteReadResult, RemoteReadError> {
+        self.read_requested(None, Some(thread_id)).await
+    }
+
+    async fn read_requested(&mut self, query: Option<&UsageQuery>, preview_thread: Option<&str>) -> Result<RemoteReadResult, RemoteReadError> {
         let mut session = match self.session.take() {
             Some(session) => session,
             None => {
@@ -92,7 +100,7 @@ impl SourceSupervisor {
                 ReadSession::connect(endpoint, grant).await?
             }
         };
-        let result = self.read_session(&mut session, query).await;
+        let result = self.read_session(&mut session, query, preview_thread).await;
         match result {
             Ok(result) => {
                 self.session = Some(session);
@@ -110,6 +118,7 @@ impl SourceSupervisor {
         &self,
         session: &mut ReadSession,
         query: Option<&UsageQuery>,
+        preview_thread: Option<&str>,
     ) -> Result<RemoteReadResult, RemoteReadError> {
         let (orchestration_read, diagnostics_read) = {
             let (_, grant) = self.connection.parts();
@@ -169,7 +178,7 @@ impl SourceSupervisor {
                             let mut ids = Vec::new();
                             collect_threads(&value, &mut threads, &mut ids, &HashMap::new());
                             collect_shell_previews(&value, &mut previews);
-                            for id in ids {
+                            for id in ids.into_iter().filter(|id| preview_thread == Some(id.as_str())) {
                                 if !projection_queue.contains(&id) && !projections.values().any(|existing| existing == &id) {
                                     projection_queue.push_back(id);
                                 }
@@ -628,10 +637,45 @@ fn parse_usage(environment: &EnvironmentId, label: &str, value: &Value, query: &
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
+#[path = "../../bar-connection/examples/remote_fixture_server.rs"]
+mod fixture_server;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use bar_identity::EnvironmentId;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn lists_without_hydrating_history_and_fetches_only_the_requested_preview() {
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        let projections = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}/", listener.local_addr().unwrap());
+        let observed = projections.clone();
+        let server = tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                tokio::spawn(super::fixture_server::handle_counting_projections(stream, "remote", "Remote", 20, observed.clone()));
+            }
+        });
+        let environment = EnvironmentId::new("remote").unwrap();
+        let endpoint = VerifiedEndpoint::discover(&origin, &environment).await.unwrap();
+        let grant = endpoint.pair("ABCD2345EFGH").await.unwrap();
+        let stamp = SourceStamp { environment, generation: 1, principal: "synthetic".into() };
+        let mut source = SourceSupervisor::new(RemoteConnection::Direct { endpoint, grant }, stamp, "Remote");
+        let listing = source.read(None).await.unwrap();
+        assert_eq!(listing.threads.len(), 1);
+        assert_eq!(projections.load(Ordering::SeqCst), 0, "listing must not download conversation history");
+        let preview = source.read_preview("same-thread-id").await.unwrap();
+        assert_eq!(preview.previews["same-thread-id"].text, "Preview for Remote");
+        assert_eq!(projections.load(Ordering::SeqCst), 1);
+        let unlisted = source.read_preview("not-listed").await.unwrap();
+        assert!(!unlisted.previews.contains_key("not-listed"));
+        assert_eq!(projections.load(Ordering::SeqCst), 1, "unlisted IDs must not trigger a history read");
+        server.abort();
+    }
 
     #[test]
     fn parses_colliding_thread_ids_as_source_payloads() {

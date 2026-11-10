@@ -28,10 +28,20 @@ async fn serve(port: u16, id: &'static str, label: &'static str, used: i64) {
     }
 }
 pub(crate) async fn handle(
+    stream: TcpStream,
+    id: &'static str,
+    label: &'static str,
+    used: i64,
+) {
+    handle_counting_projections(stream, id, label, used, std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0))).await;
+}
+
+pub(crate) async fn handle_counting_projections(
     mut stream: TcpStream,
     id: &'static str,
     label: &'static str,
     used: i64,
+    projections: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 ) {
     if offline(id) {
         return;
@@ -73,7 +83,10 @@ pub(crate) async fn handle(
             let request_id = request["id"].as_u64().unwrap();
             match request["tag"].as_str().unwrap_or_default() {
                 "orchestration.subscribeShell" => send_chunk(&mut socket, request_id, json!([{"kind":"snapshot","snapshot":{"schemaVersion":1,"snapshotSequence":1,"projects":[{"id":format!("project-{id}"),"title":label}],"threads":[thread(id, label)],"archivedThreads":[]}}])).await,
-                "orchestration.getThreadProjection" => send_success(&mut socket, request_id, json!({"thread":thread(id, label),"messages":[{"role":"assistant","text":format!("Preview for {label}"),"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]})).await,
+                "orchestration.getThreadProjection" => {
+                    projections.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    send_success(&mut socket, request_id, json!({"thread":thread(id, label),"messages":[{"role":"assistant","text":format!("Preview for {label}"),"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]})).await;
+                },
                 "server.getConfig" => send_success(&mut socket, request_id, config(id, used)).await,
                 "subscribeServerConfig" => send_chunk(&mut socket, request_id, json!([json!({"version":1,"type":"snapshot","config":config(id, used)})])).await,
                 "server.getUsageSummary" => send_success(&mut socket, request_id, usage(id, used, &request["payload"])).await,

@@ -6,6 +6,7 @@ pub mod dpop;
 pub mod relay;
 pub mod rpc;
 pub mod ssh;
+mod tailscale;
 
 // Direct T3 environment connection boundary.
 //
@@ -76,7 +77,7 @@ mod tests {
 
     fn descriptor(id: &str) -> String {
         format!(
-            r#"{{"environmentId":"{id}","label":"Test","platform":{{"os":"linux","arch":"x64","machine":"mac-mini"}},"serverVersion":"1","capabilities":{{}}}}"#
+            r#"{{"environmentId":"{id}","label":"Test","platform":{{"os":"linux","arch":"x64","machine":"mac-mini"}},"serverVersion":"1","orchestrationProtocolVersion":2,"capabilities":{{}}}}"#
         )
     }
 
@@ -175,6 +176,9 @@ mod tests {
             Some(EnvironmentMachineKind::MacMini)
         );
         let grant = endpoint.pair("ABCD2345EFGH").await.unwrap();
+        assert_eq!(endpoint.websocket_url(&grant, "synthetic-ticket").unwrap()
+            .query_pairs().find(|(name, _)| name == "orchestrationProtocol")
+            .map(|(_, value)| value.into_owned()), Some("2".into()));
         assert!(grant.orchestration_read);
         assert!(!grant.diagnostics_read);
         assert!(!format!("{grant:?}").contains("synthetic-token"));
@@ -217,6 +221,8 @@ struct DescriptorWire {
     platform: PlatformWire,
     server_version: String,
     capabilities: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    orchestration_protocol_version: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -236,6 +242,7 @@ pub struct VerifiedEndpoint {
     /// Stable credential identity for transports whose local origin is
     /// ephemeral. Only `ssh::SshTunnel::verified_endpoint` sets it.
     credential_identity: Option<String>,
+    orchestration_protocol_version: u32,
 }
 
 /// A Bar-owned grant, kept secret when formatted or dropped.
@@ -305,17 +312,25 @@ impl fmt::Debug for Grant {
 
 fn validated_base(route: &str) -> Result<Url, ConnectionError> {
     let base = Url::parse(route).map_err(|_| ConnectionError::InvalidRoute)?;
-    let loopback = base
-        .host_str()
-        .and_then(|h| h.parse::<IpAddr>().ok())
-        .is_some_and(|ip| ip.is_loopback());
-    if !(base.scheme() == "https" || base.scheme() == "http" && loopback)
+    if !matches!(base.scheme(), "http" | "https")
         || base.host_str().is_none()
         || !base.username().is_empty()
         || base.password().is_some()
         || base.path() != "/"
         || base.query().is_some()
         || base.fragment().is_some()
+    {
+        return Err(ConnectionError::InvalidRoute);
+    }
+    if base.scheme() == "http"
+        && !base.host().is_some_and(|host| {
+            let ip = match host {
+                url::Host::Ipv4(ip) => IpAddr::V4(ip),
+                url::Host::Ipv6(ip) => IpAddr::V6(ip),
+                url::Host::Domain(_) => return false,
+            };
+            ip.is_loopback() || tailscale::is_verified_peer(ip)
+        })
     {
         return Err(ConnectionError::InvalidRoute);
     }
@@ -360,6 +375,10 @@ impl VerifiedEndpoint {
         {
             return Err(ConnectionError::InvalidDescriptor);
         }
+        let orchestration_protocol_version = wire.orchestration_protocol_version.unwrap_or(1);
+        if !matches!(orchestration_protocol_version, 1 | 2) {
+            return Err(ConnectionError::InvalidDescriptor);
+        }
         let _ = wire.capabilities;
         let machine = wire
             .platform
@@ -384,6 +403,7 @@ impl VerifiedEndpoint {
                 server_version: wire.server_version.trim().to_owned(),
             },
             credential_identity: None,
+            orchestration_protocol_version,
         })
     }
 
@@ -681,6 +701,9 @@ impl VerifiedEndpoint {
         let mut url = self.ws_base.clone();
         if url.path().is_empty() || url.path() == "/" {
             url.set_path("/ws");
+        }
+        if self.orchestration_protocol_version == 2 {
+            url.query_pairs_mut().append_pair("orchestrationProtocol", "2");
         }
         url.query_pairs_mut().append_pair("wsTicket", ticket);
         if let Some(signer) = grant.dpop_signer() {
