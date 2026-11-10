@@ -911,6 +911,7 @@ fn map_error(error: ConnectionError) -> RemoteReadError {
                 limits: true,
             }
         }
+        ConnectionError::RelayCredentialUnsupported => RemoteReadError::UnsupportedRoute,
         ConnectionError::Transport => RemoteReadError::Offline,
         _ => RemoteReadError::Protocol,
     }

@@ -361,6 +361,16 @@ describe('environment sources', () => {
     expect([...host.querySelectorAll('button')].some(b => b.textContent === 'Sign in to T3 Connect')).toBe(true);
   });
 
+  it('explains an unsupported Relay login without asking the user to sign out', async () => {
+    const value = snapshot(false);
+    value.cloudStatus = 'signedIn';
+    value.environments = [{ id: 'r', label: 'Relay box', machine: 'cloud', status: 'unsupported', access: 'cloud', isLocal: false, canForgetAccess: false }];
+    await renderSnapshot(value);
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
+    expect(host.textContent).toContain('T3 Connect cannot connect Relay box with this login. Add a direct or SSH connection in T3 Code, then pair Bar with that environment.');
+    expect(host.textContent).not.toContain('Sign out and sign in again');
+  });
+
   it('offers new access with a clear notice when saved access was denied', async () => {
     const value = snapshot(false);
     value.environments = [

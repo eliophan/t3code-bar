@@ -26,7 +26,12 @@ deleted, delegated and side-chat threads from both local and remote sources.
 
 Linux and macOS discovery project the installed T3 desktop connection catalog.
 Discovery provides metadata and routes; it does not authorize reads. Bar pairs with its
-own read grant for direct and SSH routes, or signs into T3 Connect for Relay.
+own read grant for direct and SSH routes. T3 Connect currently rejects Bar's
+OAuth access token at the Relay DPoP exchange: the deployed exchange requires a
+Clerk session JWT with the relay audience. Bar reports this as an unsupported
+Relay login. Repeating OAuth sign-in cannot fix it; configure a direct or SSH
+connection in T3 Code and pair Bar with that environment. Synthetic Relay tests
+exercise the protocol but do not establish production OAuth compatibility.
 Desktop session tokens are not reused. Bar grants stay in Secret Service on
 Linux and Keychain on macOS. Catalog metadata uses the desktop safeStorage key:
 Linux v11 with PBKDF2-SHA1/1, macOS v10 with PBKDF2-SHA1/1003. macOS looks up only
@@ -37,7 +42,8 @@ unavailable key leaves Local and any previously discovered sources available.
 
 Direct HTTP is allowed only on loopback or a numeric Tailscale peer address
 confirmed by the local running Tailscale daemon. This requires the Tailscale CLI
-in a standard system or Homebrew location. Private LAN addresses and unverified
+in a standard system or Homebrew location, or the installed macOS Tailscale app.
+Private LAN addresses and unverified
 CGNAT addresses are rejected; other direct routes require HTTPS. Bar supports
 orchestration protocol versions 1 and 2 and rejects unknown versions.
 

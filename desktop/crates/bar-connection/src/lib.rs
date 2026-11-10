@@ -31,6 +31,7 @@ pub enum ConnectionError {
     InvalidDescriptor,
     PairingRejected,
     PermissionDenied,
+    RelayCredentialUnsupported,
     /// A saved grant passed its local expiry. The server did not reject it.
     GrantExpired,
     Protocol,

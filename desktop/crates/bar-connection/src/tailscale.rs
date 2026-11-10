@@ -45,6 +45,7 @@ pub(crate) fn is_verified_peer(ip: IpAddr) -> bool {
         "/usr/bin/tailscale",
         "/opt/homebrew/bin/tailscale",
         "/usr/local/bin/tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
     ]
     .into_iter()
     .find(|path| std::path::Path::new(path).is_file()) else {

@@ -242,7 +242,21 @@ impl RelayClient {
             .await
             .map_err(|_| ConnectionError::Transport)?;
         if !response.status().is_success() {
-            return Err(if response.status().is_client_error() {
+            let status = response.status();
+            if status == StatusCode::UNAUTHORIZED {
+                #[derive(Deserialize)]
+                struct Rejection {
+                    #[serde(rename = "_tag")]
+                    tag: String,
+                    reason: String,
+                }
+                if decode_response::<Rejection>(response).await.is_ok_and(|error| {
+                    error.tag == "RelayAuthInvalidError" && error.reason == "invalid_bearer"
+                }) {
+                    return Err(ConnectionError::RelayCredentialUnsupported);
+                }
+            }
+            return Err(if status.is_client_error() {
                 ConnectionError::PermissionDenied
             } else {
                 ConnectionError::Transport
@@ -694,6 +708,31 @@ mod tests {
             )
             .await;
         assert!(matches!(result, Err(ConnectionError::Protocol)));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejected_oauth_subject_is_unsupported_without_removing_saved_access() {
+        struct ReadOnlyStore;
+        impl CredentialStore for ReadOnlyStore {
+            fn load(&self, _: &CredentialScope) -> Result<Option<Zeroizing<Vec<u8>>>, ConnectionError> { Ok(None) }
+            fn save(&self, _: &CredentialScope, _: &[u8]) -> Result<(), ConnectionError> { panic!("rejected exchange must not save") }
+            fn delete(&self, _: &CredentialScope) -> Result<(), ConnectionError> { panic!("rejected exchange must not delete") }
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}/", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let (head, _) = request(&mut stream).await;
+            assert!(head.starts_with("POST /v1/client/dpop-token "));
+            respond(&mut stream, "401 Unauthorized", r#"{"_tag":"RelayAuthInvalidError","code":"auth_invalid","reason":"invalid_bearer"}"#).await;
+        });
+        let signer = CloudConfig::loopback_fixture(&origin, &origin).unwrap()
+            .signer(&MemoryCredentialStore::default()).unwrap();
+        let result = RelayClient::loopback_fixture(&origin).unwrap().connect(
+            &EnvironmentId::new("env-a").unwrap(), &CloudGrant::fixture(), &signer, &ReadOnlyStore,
+        ).await;
+        assert!(matches!(result, Err(ConnectionError::RelayCredentialUnsupported)));
         server.await.unwrap();
     }
 

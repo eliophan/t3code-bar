@@ -147,7 +147,7 @@ impl CloudSessionController {
             config: Arc::new(config),
             shared,
         };
-        if !recovery_required && controller.load().unwrap_or(None).is_some() {
+        if !recovery_required && controller.load()?.is_some() {
             controller
                 .shared
                 .state
@@ -421,6 +421,22 @@ mod tests {
         });
         (origin, seen_rx, release_tx, handle)
     }
+    #[test]
+    fn keychain_read_failure_is_not_a_signed_out_session() {
+        struct DeniedGrantStore;
+        impl CredentialStore for DeniedGrantStore {
+            fn load(&self, scope: &CredentialScope) -> Result<Option<Zeroizing<Vec<u8>>>, ConnectionError> {
+                if scope.is_cloud_owned() { Err(ConnectionError::Storage) } else { Ok(None) }
+            }
+            fn save(&self, _: &CredentialScope, _: &[u8]) -> Result<(), ConnectionError> { panic!("startup must not save") }
+            fn delete(&self, _: &CredentialScope) -> Result<(), ConnectionError> { panic!("startup must not delete") }
+        }
+        let controller = CloudSessionController::new(
+            CloudConfig::production().unwrap(), Arc::new(DeniedGrantStore),
+        );
+        assert!(matches!(controller, Err(ConnectionError::Storage)));
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn login_restart_duplicate_cancel_and_disconnect_during_exchange() {
         let (origin, seen, release, server_thread) = server();

@@ -164,7 +164,8 @@ function EnvironmentSelectionOptions({ snapshot, act }: { snapshot: AppSnapshot;
 type EnvironmentViewModel = import('./contracts').EnvironmentView;
 
 function EnvironmentAccess({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
-  const needsPrompt = environment.status === 'needsAccess' || environment.status === 'permissionDenied';
+  const needsPrompt = environment.status === 'needsAccess' || environment.status === 'permissionDenied'
+    || (environment.status === 'unsupported' && (environment.access === 'cloud' || environment.access === 'directOrCloud'));
   if (!needsPrompt && !environment.canForgetAccess) return null;
   return <div className="environment-access">
     {needsPrompt && <EnvironmentAccessPrompt environment={environment} cloudStatus={cloudStatus} act={act} />}
@@ -186,7 +187,9 @@ function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environmen
       <EnvironmentPairing environment={environment} act={act} />
       <Notice>{environment.label} can also use T3 Connect{cloudStatus === 'signedOut' ? '. Sign in below.' : '.'}</Notice>
     </>;
-    case 'cloud': return denied
+    case 'cloud': return environment.status === 'unsupported'
+      ? <Notice warning>T3 Connect cannot connect {environment.label} with this login. Add a direct or SSH connection in T3 Code, then pair Bar with that environment.</Notice>
+      : denied
       ? <Notice warning>{environment.label} denied T3 Connect access. {cloudHint}</Notice>
       : <Notice>{environment.label} needs T3 Connect access{cloudStatus === 'signedOut' ? '. Sign in below.' : cloudStatus === 'signingIn' ? '. Finish signing in or cancel below.' : '.'}</Notice>;
     case 'unsupported': return null;
