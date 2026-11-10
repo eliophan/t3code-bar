@@ -206,7 +206,7 @@ fn sql_excludes_all_hidden_shapes() {
 }
 
 #[test]
-fn delegated_threads_are_hidden_but_main_threads_remain_in_both_schemas() {
+fn sidebar_visibility_is_consistent_in_both_schemas() {
     for fallback in [false, true] {
         let (_dir, c) = fixture();
         let db = Connection::open(c.base_dir.join("statev2.sqlite")).unwrap();
@@ -216,6 +216,7 @@ fn delegated_threads_are_hidden_but_main_threads_remain_in_both_schemas() {
         }
         for (id, payload) in [
             ("main-missing-lineage", r#"{"createdBy":"user"}"#),
+            ("settled-override", r#"{"settledOverride":"settled"}"#),
             ("main-null-delegation", r#"{"delegatedFrom":null}"#),
             (
                 "main-agent-created",
@@ -244,10 +245,10 @@ fn delegated_threads_are_hidden_but_main_threads_remain_in_both_schemas() {
                 "main thread {id} missing (fallback={fallback})"
             );
         }
-        for id in ["delegated-no-lineage", "delegated-null-lineage"] {
+        for id in ["delegated-no-lineage", "delegated-null-lineage", "settled-override"] {
             assert!(
                 !ids.contains(&id),
-                "delegated thread {id} visible (fallback={fallback})"
+                "hidden thread {id} visible (fallback={fallback})"
             );
         }
     }

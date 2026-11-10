@@ -19,7 +19,10 @@ Settings selects All environments or one environment. The selection applies to
 threads, Usage, Limits and notifications, and survives restart. A missing
 selected environment stays selected. Thread actions use both environment and
 thread IDs. Environment icons follow the T3 setting override, server machine
-metadata, then the Server fallback.
+metadata, then the Server fallback. Only threads belonging to another
+environment show that icon; the current local environment has no machine icon.
+The Bar shows the main sidebar list, excluding settled, snoozed, archived,
+deleted, delegated and side-chat threads from both local and remote sources.
 
 Linux discovery projects the installed T3 desktop connection catalog. Discovery
 provides metadata and routes; it does not authorize reads. Bar pairs with its

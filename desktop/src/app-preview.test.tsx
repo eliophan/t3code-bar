@@ -292,11 +292,27 @@ describe('settings state and actions', () => {
 });
 
 describe('environment sources', () => {
+  it('shows the environment icon only for threads owned by another machine', async () => {
+    const value = snapshot(false);
+    value.environments = [
+      { id: 'here', label: 'This machine', isLocal: true, machine: 'linux', status: 'online', access: 'direct', canForgetAccess: false },
+      { id: 'away', label: 'Other machine', isLocal: false, machine: 'laptop', status: 'online', access: 'direct', canForgetAccess: true },
+    ];
+    value.threads = [
+      { ...value.threads[0], thread: { environmentId: 'here', threadId: 'same' }, title: 'Local thread' },
+      { ...value.threads[0], thread: { environmentId: 'away', threadId: 'same' }, title: 'Remote thread' },
+    ];
+    await renderSnapshot(value);
+    const rows = host.querySelectorAll<HTMLButtonElement>('.thread-row');
+    expect(rows[0].querySelector('.environment-icon')).toBeNull();
+    expect(rows[1].querySelector('.environment-icon')?.getAttribute('aria-label')).toBe('Other machine: Laptop');
+  });
+
   it('shows each source icon and label for threads with the same ID', async () => {
     const value = snapshot(false);
     value.environments = [
-      { id: 'a', label: 'Studio', machine: 'mac-mini', status: 'online', access: 'direct', canForgetAccess: false },
-      { id: 'b', label: 'Linux box', machine: 'linux', status: 'offline', access: 'direct', canForgetAccess: false },
+      { id: 'a', label: 'Studio', machine: 'mac-mini', status: 'online', access: 'direct', isLocal: false, canForgetAccess: false },
+      { id: 'b', label: 'Linux box', machine: 'linux', status: 'offline', access: 'direct', isLocal: false, canForgetAccess: false },
     ];
     value.threads = [
       { ...value.threads[0], thread: { environmentId: 'a', threadId: 'same' }, title: 'First' },
@@ -315,7 +331,7 @@ describe('environment sources', () => {
     const value = snapshot(false);
     value.connection = { ...value.connection, connected: false, paired: false, status: 'disconnected' };
     value.settings.environmentSelection = { one: 'remote' };
-    value.environments = [{ id: 'remote', label: 'Remote Mac', machine: 'laptop', status: 'needsAccess', access: 'direct', canForgetAccess: false }];
+    value.environments = [{ id: 'remote', label: 'Remote Mac', machine: 'laptop', status: 'needsAccess', access: 'direct', isLocal: false, canForgetAccess: false }];
     await renderSnapshot(value);
     act(() => [...host.querySelectorAll('button')].find(button => button.textContent === 'Settings')!.click());
     expect(host.textContent).toContain('Local T3 Code connection');
@@ -327,10 +343,10 @@ describe('environment sources', () => {
     const value = snapshot(false);
     value.cloudStatus = 'signedOut';
     value.environments = [
-      { id: 'r', label: 'Relay box', machine: 'cloud', status: 'needsAccess', access: 'cloud', canForgetAccess: false },
-      { id: 'd', label: 'Direct box', machine: 'linux', status: 'needsAccess', access: 'direct', canForgetAccess: false },
-      { id: 'm', label: 'Mixed box', machine: 'server', status: 'needsAccess', access: 'directOrCloud', canForgetAccess: false },
-      { id: 's', label: 'Ssh box', machine: 'server', status: 'needsAccess', access: 'unsupported', canForgetAccess: false },
+      { id: 'r', label: 'Relay box', machine: 'cloud', status: 'needsAccess', access: 'cloud', isLocal: false, canForgetAccess: false },
+      { id: 'd', label: 'Direct box', machine: 'linux', status: 'needsAccess', access: 'direct', isLocal: false, canForgetAccess: false },
+      { id: 'm', label: 'Mixed box', machine: 'server', status: 'needsAccess', access: 'directOrCloud', isLocal: false, canForgetAccess: false },
+      { id: 's', label: 'Ssh box', machine: 'server', status: 'needsAccess', access: 'unsupported', isLocal: false, canForgetAccess: false },
     ];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
@@ -348,10 +364,10 @@ describe('environment sources', () => {
   it('offers new access with a clear notice when saved access was denied', async () => {
     const value = snapshot(false);
     value.environments = [
-      { id: 'd', label: 'Direct box', machine: 'linux', status: 'permissionDenied', access: 'direct', canForgetAccess: true },
-      { id: 'm', label: 'Mixed box', machine: 'server', status: 'permissionDenied', access: 'directOrCloud', canForgetAccess: true },
-      { id: 'r', label: 'Relay box', machine: 'cloud', status: 'permissionDenied', access: 'cloud', canForgetAccess: false },
-      { id: 'o', label: 'Online box', machine: 'server', status: 'online', access: 'direct', canForgetAccess: false },
+      { id: 'd', label: 'Direct box', machine: 'linux', status: 'permissionDenied', access: 'direct', isLocal: false, canForgetAccess: true },
+      { id: 'm', label: 'Mixed box', machine: 'server', status: 'permissionDenied', access: 'directOrCloud', isLocal: false, canForgetAccess: true },
+      { id: 'r', label: 'Relay box', machine: 'cloud', status: 'permissionDenied', access: 'cloud', isLocal: false, canForgetAccess: false },
+      { id: 'o', label: 'Online box', machine: 'server', status: 'online', access: 'direct', isLocal: false, canForgetAccess: false },
     ];
     value.cloudStatus = 'signedIn';
     await renderSnapshot(value);
@@ -377,9 +393,9 @@ describe('environment sources', () => {
   it('forgets one environment after confirmation without using the primary disconnect', async () => {
     const value = snapshot(false);
     value.environments = [
-      { id: 'a', label: 'Studio', machine: 'mac-mini', status: 'online', access: 'direct', canForgetAccess: true },
-      { id: 'b', label: 'Linux box', machine: 'linux', status: 'offline', access: 'directOrCloud', canForgetAccess: true },
-      { id: 'local', label: 'Local', machine: 'linux', status: 'online', access: 'direct', canForgetAccess: false },
+      { id: 'a', label: 'Studio', machine: 'mac-mini', status: 'online', access: 'direct', isLocal: false, canForgetAccess: true },
+      { id: 'b', label: 'Linux box', machine: 'linux', status: 'offline', access: 'directOrCloud', isLocal: false, canForgetAccess: true },
+      { id: 'local', label: 'Local', machine: 'linux', status: 'online', access: 'direct', isLocal: true, canForgetAccess: false },
     ];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
@@ -397,7 +413,7 @@ describe('environment sources', () => {
   it('shows Cancel for a Relay-only source while cloud sign-in is running', async () => {
     const value = snapshot(false);
     value.cloudStatus = 'signingIn';
-    value.environments = [{ id: 'r', label: 'Relay box', machine: 'cloud', status: 'needsAccess', access: 'cloud', canForgetAccess: false }];
+    value.environments = [{ id: 'r', label: 'Relay box', machine: 'cloud', status: 'needsAccess', access: 'cloud', isLocal: false, canForgetAccess: false }];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
     expect(host.querySelectorAll('form')).toHaveLength(0);
@@ -407,7 +423,7 @@ describe('environment sources', () => {
 
   it('selects one environment and returns to All through inline controls', async () => {
     const value = snapshot(false);
-    value.environments = [{ id: 'remote', label: 'Remote', machine: 'linux', status: 'online', access: 'direct', canForgetAccess: false }];
+    value.environments = [{ id: 'remote', label: 'Remote', machine: 'linux', status: 'online', access: 'direct', isLocal: false, canForgetAccess: false }];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
     const group = host.querySelector('[aria-label="Environment"]');
@@ -421,7 +437,7 @@ describe('environment sources', () => {
   it('keeps a missing selected environment in the selector', async () => {
     const value = snapshot(false);
     value.settings.environmentSelection = { one: 'missing' };
-    value.environments = [{ id: 'local', label: 'Local', machine: 'linux', status: 'offline', access: 'direct', canForgetAccess: false }];
+    value.environments = [{ id: 'local', label: 'Local', machine: 'linux', status: 'offline', access: 'direct', isLocal: true, canForgetAccess: false }];
     await renderSnapshot(value);
     act(() => host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!.click());
     const group = host.querySelector('[aria-label="Environment"]');

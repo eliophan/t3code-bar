@@ -275,6 +275,7 @@ impl SourceSupervisor {
 
         threads.sort_by(|a, b| a.updated_at.cmp(&b.updated_at).reverse().then_with(|| a.id.cmp(&b.id)));
         threads.dedup_by(|a, b| a.id == b.id);
+        previews.retain(|id, _| threads.iter().any(|thread| thread.id == *id));
         let machine = self.connection.parts().0.descriptor().machine;
         Ok(RemoteReadResult {
             stamp: self.stamp.clone(),
@@ -330,10 +331,8 @@ fn collect_threads(
                         }
                     }
                 }
-                for key in ["threads", "archivedThreads"] {
-                    if let Some(child) = snapshot.get(key) {
-                        collect_threads(child, out, ids, &project_map);
-                    }
+                if let Some(child) = snapshot.get("threads") {
+                    collect_threads(child, out, ids, &project_map);
                 }
                 return;
             }
@@ -349,14 +348,18 @@ fn collect_threads(
                 return;
             }
             if let Ok(thread) = serde_json::from_value::<ThreadItem>(value.clone()) {
-                out.push(thread);
+                if !thread.is_settled && !thread.is_snoozed {
+                    out.push(thread);
+                }
                 return;
             }
-            if let Some(thread) = shell_thread(value, projects) {
-                if needs_projection(&thread, value) {
-                    ids.push(thread.id.clone());
+            if object.contains_key("projectId") && object.contains_key("title") {
+                if let Some(thread) = shell_thread(value, projects) {
+                    if needs_projection(&thread, value) {
+                        ids.push(thread.id.clone());
+                    }
+                    out.push(thread);
                 }
-                out.push(thread);
                 return;
             }
             if let Some(id) = object
@@ -384,6 +387,15 @@ fn needs_projection(_thread: &ThreadItem, value: &Value) -> bool {
 fn shell_thread(value: &Value, projects: &HashMap<String, ProjectInfo>) -> Option<ThreadItem> {
     let object = value.as_object()?;
     let id = object.get("id")?.as_str()?.to_owned();
+    if id.starts_with("thread:")
+        || ["archivedAt", "deletedAt", "settledAt", "delegatedFrom"]
+            .iter().any(|key| object.get(*key).is_some_and(|value| !value.is_null()))
+        || object.get("settledOverride").and_then(Value::as_str) == Some("settled")
+        || value.pointer("/lineage/sideChat").and_then(Value::as_bool) == Some(true)
+        || value.pointer("/lineage/relationshipToParent").and_then(Value::as_str) == Some("subagent")
+    {
+        return None;
+    }
     let project_id = object.get("projectId")?.as_str()?.to_owned();
     let title = object.get("title")?.as_str()?.to_owned();
     let created_at = date(object.get("createdAt"))?;
@@ -428,17 +440,16 @@ fn shell_thread(value: &Value, projects: &HashMap<String, ProjectInfo>) -> Optio
     let is_snoozed = snoozed_until.is_some_and(|at| at > now)
         && pending_user_input_count == 0
         && pending_approval_count == 0;
+    if is_snoozed {
+        return None;
+    }
     let is_woke = snoozed_until.is_some_and(|at| at <= now && last_visited_at.map_or(true, |visited| visited < at));
     let latest_failure_class = object
         .get("lastErrorClass")
         .and_then(Value::as_str)
         .map(str::to_owned);
     let usage_limit_reset_at = date(object.get("usageLimitResetAt"));
-    let is_settled = object
-        .get("settledOverride")
-        .and_then(Value::as_str)
-        .is_some_and(|state| state == "settled")
-        || object.get("settledAt").is_some_and(|at| !at.is_null());
+    let is_settled = false;
     let status = if pending_approval_count > 0 {
         ThreadStatus::Approval
     } else if pending_user_input_count > 0 {
@@ -675,6 +686,42 @@ mod tests {
         assert!(!unlisted.previews.contains_key("not-listed"));
         assert_eq!(projections.load(Ordering::SeqCst), 1, "unlisted IDs must not trigger a history read");
         server.abort();
+    }
+
+    #[test]
+    fn remote_sidebar_excludes_hidden_threads_before_preview_reads() {
+        let visible = json!({"id":"visible","projectId":"p","title":"Visible","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","status":"idle","itemCount":0});
+        let mut items = vec![visible.clone()];
+        for (id, patch) in [
+            ("settled", json!({"settledOverride":"settled"})),
+            ("settled-legacy", json!({"settledAt":"2026-01-01T00:00:00Z"})),
+            ("snoozed", json!({"snoozedUntil":"2099-01-01T00:00:00Z"})),
+            ("archived", json!({"archivedAt":"2026-01-01T00:00:00Z"})),
+            ("deleted", json!({"deletedAt":"2026-01-01T00:00:00Z"})),
+            ("delegated", json!({"delegatedFrom":{"threadId":"parent"}})),
+            ("side-chat", json!({"lineage":{"sideChat":true}})),
+            ("subagent", json!({"lineage":{"relationshipToParent":"subagent"}})),
+            ("thread:internal", json!({})),
+        ] {
+            let mut item = visible.clone();
+            item["id"] = json!(id);
+            item.as_object_mut().unwrap().extend(patch.as_object().unwrap().clone());
+            items.push(item);
+        }
+        // The typed legacy payload must obey the same visibility rules.
+        let typed = shell_thread(&visible, &HashMap::new()).unwrap();
+        for field in ["isSettled", "isSnoozed"] {
+            let mut item = serde_json::to_value(&typed).unwrap();
+            item["id"] = json!(field);
+            item[field] = json!(true);
+            items.push(item);
+        }
+        let envelope = json!({"kind":"snapshot","snapshot":{"threads":items,"archivedThreads":[{ "id":"archive-bucket", "projectId":"p", "title":"Archived", "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z" }]}});
+        let mut threads = Vec::new();
+        let mut ids = Vec::new();
+        collect_threads(&envelope, &mut threads, &mut ids, &HashMap::new());
+        assert_eq!(threads.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["visible"]);
+        assert_eq!(ids, ["visible"], "hidden threads cannot enqueue projection reads");
     }
 
     #[test]

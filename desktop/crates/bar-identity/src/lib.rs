@@ -118,6 +118,7 @@ pub enum EnvironmentAccess {
 pub struct EnvironmentView {
     pub id: EnvironmentId,
     pub label: String,
+    pub is_local: bool,
     pub machine: EnvironmentMachineKind,
     pub status: String,
     pub access: EnvironmentAccess,

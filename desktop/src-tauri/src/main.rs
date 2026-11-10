@@ -523,12 +523,14 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
     }
     .into();
     let local_sources = state.sources.lock().map_err(|_| "sources unavailable")?;
+    let local_id = local_environment(&state.config).ok();
     snapshot.environments = hub
         .sources()
         .values()
         .map(|source| EnvironmentView {
             id: source.metadata.id.clone(),
             label: source.metadata.label.clone(),
+            is_local: local_id.as_ref() == Some(&source.metadata.id),
             machine: source.machine,
             access: environment_access(&source.metadata.routes),
             can_forget_access: !local_sources.contains_key(&source.metadata.id)
