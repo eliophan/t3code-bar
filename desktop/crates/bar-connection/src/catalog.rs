@@ -111,26 +111,133 @@ enum Profile {
     },
 }
 
-/// Read the Linux Chromium safeStorage catalog. Only metadata escapes this function.
-pub fn discover_linux(
+#[derive(Clone, Copy)]
+enum SafeStorage {
+    #[cfg(any(target_os = "linux", test))]
+    Linux,
+    #[cfg(any(target_os = "macos", test))]
+    MacOs,
+}
+
+impl SafeStorage {
+    fn parameters(self) -> (&'static [u8; 3], u32) {
+        match self {
+            #[cfg(any(target_os = "linux", test))]
+            Self::Linux => (b"v11", 1),
+            #[cfg(any(target_os = "macos", test))]
+            Self::MacOs => (b"v10", 1003),
+        }
+    }
+}
+
+/// Read the desktop safeStorage catalog. Only route metadata escapes this boundary.
+pub fn discover(
     path: &Path,
     primary: EnvironmentMetadata,
 ) -> Result<Vec<EnvironmentMetadata>, CatalogError> {
     let envelope = fs::read(path).map_err(|_| CatalogError::Io)?;
-    let mut child = Command::new("/usr/bin/secret-tool")
-        .args(["lookup", "application", "t3code"])
+    #[cfg(target_os = "linux")]
+    {
+        let password = read_password(
+            "/usr/bin/secret-tool",
+            &["lookup", "application", "t3code"],
+            Duration::from_secs(5),
+        )?;
+        decrypt_and_project(&envelope, &password, primary, SafeStorage::Linux)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        discover_macos(&envelope, primary)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let _ = (envelope, primary);
+        Err(CatalogError::UnsupportedEncryption)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn discover_macos(
+    envelope: &[u8],
+    primary: EnvironmentMetadata,
+) -> Result<Vec<EnvironmentMetadata>, CatalogError> {
+    use std::sync::{Mutex, OnceLock};
+    struct KeyCache {
+        password: Option<Zeroizing<Vec<u8>>>,
+        retry_after: Instant,
+    }
+    static CACHE: OnceLock<Mutex<KeyCache>> = OnceLock::new();
+    let mut cache = CACHE
+        .get_or_init(|| {
+            Mutex::new(KeyCache {
+                password: None,
+                retry_after: Instant::now(),
+            })
+        })
+        .lock()
+        .map_err(|_| CatalogError::KeyUnavailable)?;
+    if cache.password.is_none() {
+        if Instant::now() < cache.retry_after {
+            return Err(CatalogError::KeyUnavailable);
+        }
+        // Discovery runs on the refresh worker, never the AppKit thread. The child
+        // is bounded and reaped; denying a prompt backs off instead of re-prompting.
+        let password = read_password(
+            "/usr/bin/security",
+            &[
+                "find-generic-password",
+                "-w",
+                "-s",
+                "t3code Safe Storage",
+                "-a",
+                "t3code Key",
+            ],
+            Duration::from_secs(30),
+        );
+        cache.retry_after = Instant::now() + Duration::from_secs(60);
+        cache.password = Some(password?);
+    }
+    let result = decrypt_and_project(
+        envelope,
+        cache
+            .password
+            .as_deref()
+            .ok_or(CatalogError::KeyUnavailable)?,
+        primary,
+        SafeStorage::MacOs,
+    );
+    if matches!(result, Err(CatalogError::InvalidCatalog)) {
+        // A rotated desktop key must be looked up again, without a prompt loop.
+        cache.password = None;
+        cache.retry_after = Instant::now() + Duration::from_secs(60);
+    }
+    result
+}
+
+fn read_password(
+    binary: &str,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<Zeroizing<Vec<u8>>, CatalogError> {
+    let mut child = Command::new(binary)
+        .args(args)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .map_err(|_| CatalogError::KeyUnavailable)?;
-    let stdout = child.stdout.take().ok_or(CatalogError::KeyUnavailable)?;
+    let Some(stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(CatalogError::KeyUnavailable);
+    };
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let mut bytes = Zeroizing::new(Vec::new());
         let result = stdout.take(16385).read_to_end(&mut bytes).map(|_| bytes);
         let _ = sender.send(result);
     });
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + timeout;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break Some(status),
@@ -155,14 +262,15 @@ pub fn discover_linux(
     if password.is_empty() {
         return Err(CatalogError::KeyUnavailable);
     }
-    decrypt_and_project(&envelope, &password, primary)
+    Ok(password)
 }
 
-/// Decrypt a v11 safeStorage envelope using its keyring password and project only route metadata.
-pub fn decrypt_and_project(
+/// Decrypt with the platform's safeStorage format and discard desktop credentials.
+fn decrypt_and_project(
     envelope: &[u8],
     password: &[u8],
     primary: EnvironmentMetadata,
+    storage: SafeStorage,
 ) -> Result<Vec<EnvironmentMetadata>, CatalogError> {
     let envelope: Envelope =
         serde_json::from_slice(envelope).map_err(|_| CatalogError::InvalidCatalog)?;
@@ -174,11 +282,12 @@ pub fn decrypt_and_project(
             .decode(envelope.encrypted_catalog)
             .map_err(|_| CatalogError::InvalidCatalog)?,
     );
-    if !ciphertext.starts_with(b"v11") {
+    let (prefix, iterations) = storage.parameters();
+    if !ciphertext.starts_with(prefix) {
         return Err(CatalogError::UnsupportedEncryption);
     }
     let mut key = Zeroizing::new([0u8; 16]);
-    pbkdf2::pbkdf2_hmac::<sha1::Sha1>(password, b"saltysalt", 1, &mut *key);
+    pbkdf2::pbkdf2_hmac::<sha1::Sha1>(password, b"saltysalt", iterations, &mut *key);
     let mut plaintext = Zeroizing::new(ciphertext[3..].to_vec());
     let bytes = cbc::Decryptor::<Aes128>::new(&(*key).into(), &[b' '; 16].into())
         .decrypt_padded_mut::<Pkcs7>(&mut plaintext)
@@ -302,16 +411,114 @@ mod tests {
         )
         .unwrap()
     }
+    #[cfg(unix)]
+    #[test]
+    fn key_lookup_strips_only_output_newline_and_rejects_failed_or_hung_commands() {
+        let key = read_password(
+            "/bin/sh",
+            &["-c", "printf 'synthetic key\\n'"],
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(key.as_slice(), b"synthetic key");
+        for script in ["exit 1", "exit 0"] {
+            assert_eq!(
+                read_password("/bin/sh", &["-c", script], Duration::from_secs(5)),
+                Err(CatalogError::KeyUnavailable)
+            );
+        }
+        assert_eq!(
+            read_password(
+                "/bin/sh",
+                &["-c", "exec sleep 10"],
+                Duration::from_millis(100)
+            ),
+            Err(CatalogError::KeyUnavailable)
+        );
+    }
+
+    #[test]
+    fn malformed_and_unknown_safe_storage_formats_are_rejected() {
+        for (ciphertext, expected) in [
+            (
+                b"v12invalid".as_slice(),
+                CatalogError::UnsupportedEncryption,
+            ),
+            (b"v10".as_slice(), CatalogError::InvalidCatalog),
+            (b"v10truncated".as_slice(), CatalogError::InvalidCatalog),
+        ] {
+            let encrypted = serde_json::to_vec(
+                &serde_json::json!({"version":1,"encryptedCatalog":STANDARD.encode(ciphertext)}),
+            )
+            .unwrap();
+            assert_eq!(
+                decrypt_and_project(&encrypted, b"synthetic", primary(), SafeStorage::MacOs),
+                Err(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn macos_safe_storage_catalog_projects_remote_environments_without_credentials() {
+        let document = br#"{"schemaVersion":1,"targets":[{"_tag":"RelayConnectionTarget","environmentId":"remote","label":"Other machine"}],"profiles":[],"credentials":[{"credential":{"token":"synthetic-desktop-secret"}}]}"#;
+        let mut key = [0u8; 16];
+        pbkdf2::pbkdf2_hmac::<sha1::Sha1>(b"synthetic-mac-key", b"saltysalt", 1003, &mut key);
+        let mut bytes = b"v10".to_vec();
+        bytes.extend(
+            cbc::Encryptor::<Aes128>::new(&key.into(), &[b' '; 16].into())
+                .encrypt_padded_vec_mut::<Pkcs7>(document),
+        );
+        let encrypted = serde_json::to_vec(
+            &serde_json::json!({"version":1,"encryptedCatalog":STANDARD.encode(bytes)}),
+        )
+        .unwrap();
+        let result = decrypt_and_project(
+            &encrypted,
+            b"synthetic-mac-key",
+            primary(),
+            SafeStorage::MacOs,
+        )
+        .unwrap();
+        assert_eq!(
+            decrypt_and_project(
+                &encrypted,
+                b"synthetic-mac-key",
+                primary(),
+                SafeStorage::Linux
+            ),
+            Err(CatalogError::UnsupportedEncryption),
+        );
+        let linux = envelope(r#"{"schemaVersion":1,"targets":[],"profiles":[]}"#);
+        assert_eq!(
+            decrypt_and_project(&linux, b"synthetic", primary(), SafeStorage::MacOs),
+            Err(CatalogError::UnsupportedEncryption),
+        );
+        assert_eq!(result.len(), 2);
+        assert!(matches!(result[1].routes.as_slice(), [Route::Relay]));
+        assert!(!format!("{result:?}").contains("synthetic-desktop-secret"));
+        assert_eq!(
+            decrypt_and_project(&encrypted, b"wrong-key", primary(), SafeStorage::MacOs),
+            Err(CatalogError::InvalidCatalog)
+        );
+    }
+
     #[test]
     fn decrypts_and_projects_routes_without_credentials() {
         let encrypted = envelope(
             r#"{"schemaVersion":1,"targets":[{"_tag":"RelayConnectionTarget","environmentId":"remote","label":"Remote"},{"_tag":"BearerConnectionTarget","environmentId":"remote","label":"Remote","connectionId":"direct"},{"_tag":"SshConnectionTarget","environmentId":"remote","label":"Remote","connectionId":"ssh"}],"profiles":[{"_tag":"BearerConnectionProfile","connectionId":"direct","environmentId":"remote","httpBaseUrl":"https://example.test/","wsBaseUrl":"wss://example.test/"},{"_tag":"SshConnectionProfile","connectionId":"ssh","environmentId":"remote","target":{"alias":"box","hostname":"host","username":null,"port":22}}],"credentials":[{"credential":{"token":"synthetic-secret"}}],"remoteDpopTokens":[],"disabledEnvironmentIds":["remote"]}"#,
         );
-        let result = decrypt_and_project(&encrypted, b"synthetic", primary()).unwrap();
+        let result =
+            decrypt_and_project(&encrypted, b"synthetic", primary(), SafeStorage::Linux).unwrap();
         assert_eq!(result.len(), 2);
         let mut offline_primary = primary();
         offline_primary.routes.clear();
-        let offline = decrypt_and_project(&encrypted, b"synthetic", offline_primary).unwrap();
+        let offline = decrypt_and_project(
+            &encrypted,
+            b"synthetic",
+            offline_primary,
+            SafeStorage::Linux,
+        )
+        .unwrap();
         assert_eq!(offline.len(), 2);
         assert!(offline
             .iter()
@@ -327,7 +534,7 @@ mod tests {
         );
         assert!(!format!("{result:?}").contains("synthetic-secret"));
         assert_eq!(
-            decrypt_and_project(&encrypted, b"wrong", primary()),
+            decrypt_and_project(&encrypted, b"wrong", primary(), SafeStorage::Linux),
             Err(CatalogError::InvalidCatalog)
         );
     }
@@ -345,9 +552,13 @@ mod tests {
                 "targets": [{"_tag": "BearerConnectionTarget", "environmentId": "remote", "label": "Remote", "connectionId": "direct"}],
                 "profiles": [{"_tag": "BearerConnectionProfile", "connectionId": "direct", "environmentId": "remote", "httpBaseUrl": url}]
             });
-            let result =
-                decrypt_and_project(&envelope(&document.to_string()), b"synthetic", primary())
-                    .unwrap();
+            let result = decrypt_and_project(
+                &envelope(&document.to_string()),
+                b"synthetic",
+                primary(),
+                SafeStorage::Linux,
+            )
+            .unwrap();
             let serialized = serde_json::to_string(&result).unwrap();
             assert!(!serialized.contains("secret"));
             assert!(matches!(
@@ -364,7 +575,7 @@ mod tests {
         }];
         let document = envelope(r#"{"schemaVersion":1,"targets":[],"profiles":[]}"#);
         assert_eq!(
-            decrypt_and_project(&document, b"synthetic", unsafe_primary),
+            decrypt_and_project(&document, b"synthetic", unsafe_primary, SafeStorage::Linux),
             Err(CatalogError::InvalidCatalog)
         );
     }
@@ -374,14 +585,14 @@ mod tests {
             r#"{"schemaVersion":1,"targets":[],"profiles":[],"credentials":[],"remoteDpopTokens":[]}"#,
         );
         assert_eq!(
-            decrypt_and_project(&encrypted, b"synthetic", primary())
+            decrypt_and_project(&encrypted, b"synthetic", primary(), SafeStorage::Linux)
                 .unwrap()
                 .len(),
             1
         );
         let bad = envelope(r#"{"schemaVersion":2,"targets":[],"profiles":[]}"#);
         assert_eq!(
-            decrypt_and_project(&bad, b"synthetic", primary()),
+            decrypt_and_project(&bad, b"synthetic", primary(), SafeStorage::Linux),
             Err(CatalogError::InvalidCatalog)
         );
     }
@@ -397,7 +608,13 @@ mod tests {
             enabled: true,
             routes: vec![],
         };
-        let result = decrypt_and_project(&encrypted, b"synthetic", local_without_runtime).unwrap();
+        let result = decrypt_and_project(
+            &encrypted,
+            b"synthetic",
+            local_without_runtime,
+            SafeStorage::Linux,
+        )
+        .unwrap();
         assert_eq!(result.len(), 2);
         assert!(result[0].routes.is_empty());
         assert!(matches!(result[1].routes.as_slice(), [Route::Relay]));

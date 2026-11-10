@@ -821,18 +821,11 @@ fn discover_sources(state: &RuntimeState) -> Result<(), String> {
             Ok(vec![primary.clone()])
         }
     } else {
-        #[cfg(target_os = "linux")]
-        {
-            bar_core::connection::catalog::discover_linux(
-                &state.config.base_dir.join("connection-catalog.json"),
-                primary.clone(),
-            )
-            .map_err(|_| ())
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            Ok(vec![primary.clone()])
-        }
+        bar_core::connection::catalog::discover(
+            &state.config.base_dir.join("connection-catalog.json"),
+            primary.clone(),
+        )
+        .map_err(|_| ())
     };
     let mut hub = state.hub.lock().map_err(|_| "environments unavailable")?;
     if matches!(hub.discovery_state(), DiscoveryState::Pending)

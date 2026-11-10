@@ -13,7 +13,7 @@ Wayland compositors control positioning and decorations. The app applies a proce
 The Tauri bundle identity and credential namespace differ from Swift v1. Existing Swift preferences and tokens are not migrated. Older GitHub v1 release assets and installers are not Tauri artifacts.
 
 
-## Multiple environments on Linux
+## Multiple environments on Linux and macOS
 
 Settings selects All environments or one environment. The selection applies to
 threads, Usage, Limits and notifications, and survives restart. A missing
@@ -24,11 +24,16 @@ environment show that icon; the current local environment has no machine icon.
 The Bar shows the main sidebar list, excluding settled, snoozed, archived,
 deleted, delegated and side-chat threads from both local and remote sources.
 
-Linux discovery projects the installed T3 desktop connection catalog. Discovery
-provides metadata and routes; it does not authorize reads. Bar pairs with its
+Linux and macOS discovery project the installed T3 desktop connection catalog.
+Discovery provides metadata and routes; it does not authorize reads. Bar pairs with its
 own read grant for direct and SSH routes, or signs into T3 Connect for Relay.
-Desktop session tokens are not reused. Credentials stay in Secret Service.
-Other platforms currently discover only the configured local source.
+Desktop session tokens are not reused. Bar grants stay in Secret Service on
+Linux and Keychain on macOS. Catalog metadata uses the desktop safeStorage key:
+Linux v11 with PBKDF2-SHA1/1, macOS v10 with PBKDF2-SHA1/1003. macOS looks up only
+`t3code Safe Storage` / `t3code Key`, with a bounded background lookup and a
+one-minute retry delay after denial. The key is zeroized when discarded and
+cached only in process memory. A Keychain approval may be required; a denied or
+unavailable key leaves Local and any previously discovered sources available.
 
 Direct HTTP is allowed only on loopback or a numeric Tailscale peer address
 confirmed by the local running Tailscale daemon. This requires the Tailscale CLI
