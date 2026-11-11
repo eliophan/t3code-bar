@@ -28,6 +28,7 @@ const snapshot = (showsPreviews: boolean): AppSnapshot => ({
     activeRunStartedAt: null, usageLimitResetAt: null, projectIcon: null, projectFavicon: null,
   }],
   online: true, threadError: null, loading: false,
+  environments: [],
   connection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null, linkedEnvironments: 0 },
   usage: null, usageError: null, usageLoading: false, usagePeriod: '24h', limits: null,
   settings: { notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },

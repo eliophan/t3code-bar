@@ -228,6 +228,10 @@ fn linked_environment_cache_is_discovery_only_and_excludes_local_laptop() {
     )
     .unwrap();
     assert_eq!(config.linked_environment_count(), 2);
+    let catalog = config.environment_catalog();
+    assert_eq!(catalog[0].source, "local");
+    assert_eq!(catalog[1].environment_id, "server");
+    assert_eq!(catalog[2].label, "mini");
 }
 
 #[test]

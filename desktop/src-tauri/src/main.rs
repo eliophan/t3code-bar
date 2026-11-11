@@ -139,6 +139,7 @@ struct AppSnapshot {
     thread_error: Option<String>,
     loading: bool,
     connection: ConnectionState,
+    environments: Vec<threads::EnvironmentInfo>,
     usage: Option<UsageReport>,
     usage_error: Option<String>,
     usage_loading: bool,
@@ -167,6 +168,7 @@ impl Default for AppSnapshot {
                 updated_at: None,
                 linked_environments: 0,
             },
+            environments: vec![],
             usage: None,
             usage_error: None,
             usage_loading: false,
@@ -482,6 +484,7 @@ fn refresh_threads(app: &tauri::AppHandle, state: &SharedState) {
         }
         let mut alerts = Vec::new();
         if let Ok(mut snap) = state.snapshot.lock() {
+            snap.environments = state.config.environment_catalog();
             match result {
                 Ok(v) => {
                     alerts = state.attention.lock().unwrap().update(
@@ -828,6 +831,19 @@ fn new_thread(app: tauri::AppHandle, _state: State<'_, SharedState>) -> Result<(
         .map_err(|e| e.to_string())
 }
 #[tauri::command]
+fn open_environment(environment_id: String, state: State<'_, SharedState>, app: tauri::AppHandle) -> Result<(), String> {
+    let known = state
+        .config
+        .environment_catalog()
+        .into_iter()
+        .any(|environment| environment.environment_id == environment_id && environment.present);
+    if !known { return Err("Environment is unavailable or not in the current catalog".into()); }
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(format!("t3code://threads/{environment_id}/new"), None::<String>)
+        .map_err(|e| e.to_string())
+}
+#[tauri::command]
 async fn get_preview(
     id: String,
     state: State<'_, SharedState>,
@@ -1104,6 +1120,7 @@ fn main() {
             set_setting,
             quit_app,
             thread_action,
+            open_environment,
             new_thread,
             get_preview,
             open_limit_link,

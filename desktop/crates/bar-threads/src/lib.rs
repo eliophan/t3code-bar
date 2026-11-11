@@ -38,6 +38,15 @@ fn sql_error(e: rusqlite::Error) -> DomainError {
 pub struct Configuration {
     pub base_dir: PathBuf,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentInfo {
+    pub environment_id: String,
+    pub label: String,
+    pub machine: String,
+    pub present: bool,
+    pub source: String,
+}
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Runtime {
@@ -92,21 +101,24 @@ impl Configuration {
     /// the local T3 Code server; cached rows must never be treated as live
     /// remote connections.
     pub fn linked_environment_count(&self) -> usize {
-        let path = self
-            .base_dir
-            .join("tauri-bar-settings.json.environments-cache-v1");
-        let Ok(bytes) = std::fs::read(path) else { return 0 };
-        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return 0 };
-        value
-            .get("sources")
-            .and_then(serde_json::Value::as_array)
-            .map(|sources| {
-                sources
-                    .iter()
-                    .filter(|source| source.get("machine").and_then(serde_json::Value::as_str).is_some_and(|machine| machine != "laptop"))
-                    .count()
+        self.environment_catalog().iter().filter(|e| e.source == "linked").count()
+    }
+
+    pub fn environment_catalog(&self) -> Vec<EnvironmentInfo> {
+        let path = self.base_dir.join("tauri-bar-settings.json.environments-cache-v1");
+        let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return Vec::new() };
+        value.get("sources").and_then(serde_json::Value::as_array).map(|sources| sources.iter().filter_map(|source| {
+            let id = source.get("id")?.as_str()?.trim();
+            let machine = source.get("machine").and_then(serde_json::Value::as_str).unwrap_or("unknown");
+            Some(EnvironmentInfo {
+                environment_id: id.to_owned(),
+                label: source.get("label").and_then(serde_json::Value::as_str).unwrap_or(id).to_owned(),
+                machine: machine.to_owned(),
+                present: source.get("present").and_then(serde_json::Value::as_bool).unwrap_or(false),
+                source: if machine == "laptop" { "local" } else { "linked" }.to_owned(),
             })
-            .unwrap_or(0)
+        }).collect()).unwrap_or_default()
     }
     pub fn server_port(&self) -> Result<u16, DomainError> {
         let runtime = self.runtime().ok_or(DomainError::MissingRuntime)?;
