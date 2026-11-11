@@ -16,4 +16,4 @@ Use the visible pairing form and its labels. Generate the pairing key in T3 Code
 
 ## Gotchas
 
-The transport is loopback-only. A pairing key from Linux or a remote `omarchy` endpoint does not make the Mac Bar a remote client. `environments: []` in `tauri-bar-settings.connections.json` means no Bar-owned environment is connected.
+Local pairing is loopback-only. A pairing key from Linux or a remote `omarchy` endpoint is not proof of relay connectivity. Cloud login is a separate path described in `environments.md`.

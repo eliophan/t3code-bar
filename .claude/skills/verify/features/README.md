@@ -3,7 +3,8 @@
 | Feature | Journey |
 | --- | --- |
 | Pairing and reconnect | [pairing.md](pairing.md) |
+| Linked environments | [environments.md](environments.md) |
 | Threads | [threads.md](threads.md) |
 | Usage and settings | [usage-settings.md](usage-settings.md) |
 
-The map covers the user-visible desktop surfaces. Remote linked environments remain a T3 Code feature; the Bar reads the local T3 Code instance only.
+The map covers the user-visible desktop surfaces. Linked environments use a separate OAuth and relay journey from local pairing.

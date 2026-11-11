@@ -16,4 +16,4 @@ Capture each screen and record whether values are live, cached, partial, or unav
 
 ## Gotchas
 
-The Usage screen can show cached local data while the live connection is down. Remote environment rows cached by T3 Code do not prove that the Bar can connect to those environments.
+The Usage screen can show cached local data while the live connection is down. When a remote environment is selected, local Usage and Limits must be cleared and marked unavailable until a remote usage contract exists.

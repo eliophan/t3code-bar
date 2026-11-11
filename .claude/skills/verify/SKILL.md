@@ -5,7 +5,7 @@ description: Drive the T3 Code Bar macOS or Linux tray app through its real pair
 
 # Verify T3 Code Bar
 
-Use this skill for a real UI check of the T3 Code Bar desktop app. The Bar can read a local server or a linked environment through the T3 relay. Remote access uses a persisted Clerk session, a relay-issued DPoP credential, and the selected environment endpoint; it must never fall back to the local server.
+Use this skill for a real UI check of the T3 Code Bar desktop app. The Bar can read a local server or a linked environment through the T3 relay. Remote access uses a persisted Clerk session, a relay-issued DPoP credential, and the selected environment endpoint; it must never fall back to the local server. Read `features/README.md` and the relevant feature file before driving a journey.
 
 ## Launch
 
@@ -61,6 +61,10 @@ Store proof under `/tmp/t3-code-bar-verify/<timestamp>/`. Capture:
 - the final process and port ownership check.
 
 The proof must exercise the real menu bar path and verify the resulting visible state. A cached thread list is not proof of a live connection. For a remote environment claim, also record the T3 Code environment ID, relay status, selected endpoint, and live shell snapshot separately. Do not claim that the Bar connected to a remote environment merely because T3 Code lists it. Usage and limits remain separate evidence and must be labelled unavailable when the selected remote API does not expose them.
+
+## Helpers
+
+Run `scripts/verify-environment-catalog.sh <path>` before a catalog journey. It validates the same stable-ID and duplicate-label invariants used by the environment registry and prints a redacted inventory. It is read-only and does not replace the real UI journey.
 
 ## Cleanup
 
