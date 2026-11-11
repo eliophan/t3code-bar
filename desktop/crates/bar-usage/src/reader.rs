@@ -60,6 +60,74 @@ impl UsageReader {
         now: DateTime<Utc>,
         timezone: Tz,
     ) -> Result<UsageReport, UsageError> {
+        let (dataset, local_sources, located) = self.read_dataset(now)?;
+        let mut report = UsageReport::build(
+            &dataset,
+            &Window::new(period, now, timezone),
+            &PriceBook::load(&self.state_dir),
+        );
+        report.local_sources = local_sources;
+        report.cache_modified = located
+            .as_ref()
+            .map(|(_, modified)| DateTime::<Utc>::from(*modified));
+        report.scan_cache_missing = located.is_none();
+        self.last_good = Some(report.clone());
+        Ok(report)
+    }
+    /// Read and normalize local records before presentation aggregation.
+    pub fn read_contribution(
+        &mut self,
+        window: &Window,
+        filter: Option<crate::UsageModelFilter>,
+        provenance: &crate::LocalProvenance,
+        environment_id: bar_identity::EnvironmentId,
+        label: String,
+        now: DateTime<Utc>,
+    ) -> Result<crate::LocalContribution, UsageError> {
+        let (dataset, _, _) = self.read_dataset(now)?;
+        let prices = PriceBook::load(&self.state_dir);
+        let fetched_at = std::fs::read(self.state_dir.join("usage-model-rates.json"))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|doc| doc.get("fetchedAtMs").and_then(|v| v.as_i64()))
+            .and_then(DateTime::<Utc>::from_timestamp_millis)
+            .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+        let known_models = prices.known_models();
+        let pricing = crate::UsagePricing {
+            status: if known_models == 0 {
+                "unavailable"
+            } else {
+                "cached"
+            }
+            .into(),
+            source: "local cache".into(),
+            fetched_at,
+            known_models,
+        };
+        crate::contribution::build_local(
+            &dataset,
+            &prices,
+            pricing,
+            window,
+            filter,
+            provenance,
+            environment_id,
+            label,
+            now,
+        )
+        .map_err(|_| UsageError::Unreadable)
+    }
+    fn read_dataset(
+        &mut self,
+        now: DateTime<Utc>,
+    ) -> Result<
+        (
+            Dataset,
+            Vec<crate::LocalStatus>,
+            Option<(PathBuf, SystemTime)>,
+        ),
+        UsageError,
+    > {
         let located = match locate(&self.state_dir) {
             Ok(v) => Some(v),
             Err(UsageError::Missing) => None,
@@ -113,18 +181,7 @@ impl UsageReader {
         {
             return Err(UsageError::Missing);
         }
-        let mut report = UsageReport::build(
-            &dataset,
-            &Window::new(period, now, timezone),
-            &PriceBook::load(&self.state_dir),
-        );
-        report.local_sources = local_sources;
-        report.cache_modified = located
-            .as_ref()
-            .map(|(_, modified)| DateTime::<Utc>::from(*modified));
-        report.scan_cache_missing = located.is_none();
-        self.last_good = Some(report.clone());
-        Ok(report)
+        Ok((dataset, local_sources, located))
     }
 }
 fn generation(name: &str) -> Option<u64> {

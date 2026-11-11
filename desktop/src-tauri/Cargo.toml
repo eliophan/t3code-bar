@@ -1,10 +1,12 @@
 [package]
 name = "t3-code-bar-desktop"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.3"
 edition = "2021"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+cc = "1"
+pkg-config = "0.3"
 
 [features]
 cargo-clippy = []
@@ -13,6 +15,7 @@ cargo-clippy = []
 tauri = { version = "2", features = ["tray-icon", "unstable"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 iana-time-zone = "0.1"
@@ -20,6 +23,7 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 bar-core = { path = "../crates/bar-core" }
+bar-identity = { path = "../crates/bar-identity" }
 bar-updater = { path = "../crates/bar-updater" }
 tauri-plugin-updater = "2.10"
 url = "2"
@@ -27,10 +31,6 @@ tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-p256 = { version = "0.13", features = ["ecdsa", "jwk"] }
-sha2 = "0.10"
-rand = "0.8"
 
 [patch.crates-io]
 notify-rust = { path = "../vendor/notify-rust" }
@@ -39,9 +39,16 @@ notify-rust = { path = "../vendor/notify-rust" }
 cocoa = "0.26"
 objc = "0.2"
 block = "0.1"
-keyring = { version = "3", features = ["apple-native"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "4.4", features = ["blocking"] }
+tray-icon = { version = "=0.25.1", default-features = false, features = ["ksni"] }
 gtk = "0.18"
-keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+toml = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "sync", "time"] }
+tokio-tungstenite = "0.26"
+futures-util = { version = "0.3", features = ["sink"] }
+tempfile = "3"
+bar-connection = { path = "../crates/bar-connection" }

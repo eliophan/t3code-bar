@@ -35,7 +35,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev libgtk-layer-shell-dev librsvg2-dev patchelf
       - name: Pinned Rust toolchain
         working-directory: desktop
         run: |
@@ -43,13 +43,33 @@ jobs:
           cargo --version
       - name: Tests and frontend build
         run: bash scripts/check.sh
-      - name: Build macOS app
+      - name: Build macOS release packages
         if: runner.os == 'macOS'
-        working-directory: desktop
-        run: npm run tauri -- build --bundles app
-      - name: Build Linux deb
+        run: |
+          rustup target add aarch64-apple-darwin
+          python3 scripts/package-macos.py adhoc --target darwin-aarch64 --output /tmp/t3-macos-packages
+          git rev-parse HEAD > /tmp/t3-macos-packages/revision.txt
+      - name: Upload macOS packages
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages-${{ github.sha }}
+          path: |
+            /tmp/t3-macos-packages/*.app.*
+            /tmp/t3-macos-packages/metadata.json
+            /tmp/t3-macos-packages/revision.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build Linux packages and source receipt
         if: runner.os == 'Linux'
-        working-directory: desktop
-        run: npm run tauri -- build --config src-tauri/tauri.linux.conf.json --bundles deb
+        run: python3 scripts/package-linux.py --output /tmp/t3-linux-packages
+      - name: Upload Linux packages
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-${{ github.sha }}
+          path: /tmp/t3-linux-packages/
+          if-no-files-found: error
+          retention-days: 14
       - name: Script syntax
         run: bash -n scripts/check.sh scripts/setup_hooks.sh

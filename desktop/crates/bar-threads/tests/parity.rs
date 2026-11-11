@@ -206,6 +206,55 @@ fn sql_excludes_all_hidden_shapes() {
 }
 
 #[test]
+fn sidebar_visibility_is_consistent_in_both_schemas() {
+    for fallback in [false, true] {
+        let (_dir, c) = fixture();
+        let db = Connection::open(c.base_dir.join("statev2.sqlite")).unwrap();
+        if fallback {
+            db.execute_batch("DROP TABLE orchestration_v2_projection_turn_items")
+                .unwrap();
+        }
+        for (id, payload) in [
+            ("main-missing-lineage", r#"{"createdBy":"user"}"#),
+            ("settled-override", r#"{"settledOverride":"settled"}"#),
+            ("main-null-delegation", r#"{"delegatedFrom":null}"#),
+            (
+                "main-agent-created",
+                r#"{"createdBy":"agent","creationSource":"mcp"}"#,
+            ),
+            (
+                "delegated-no-lineage",
+                r#"{"delegatedFrom":{"threadId":"parent","environmentId":"local","title":"Parent"}}"#,
+            ),
+            (
+                "delegated-null-lineage",
+                r#"{"delegatedFrom":{"threadId":"parent"},"lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":null},"pinnedAt":"2026-11-04T00:00:00Z"}"#,
+            ),
+        ] {
+            db.execute("INSERT INTO orchestration_v2_projection_threads VALUES (?1,'fixture','fixture-project','2026-11-04T00:00:00Z','2026-11-04T00:00:00Z',?2,'default',NULL,NULL)",rusqlite::params![id,payload]).unwrap();
+        }
+        let snapshot = read_threads(&c, now()).unwrap();
+        let ids: Vec<_> = snapshot.threads.iter().map(|t| t.id.as_str()).collect();
+        for id in [
+            "main-missing-lineage",
+            "main-null-delegation",
+            "main-agent-created",
+        ] {
+            assert!(
+                ids.contains(&id),
+                "main thread {id} missing (fallback={fallback})"
+            );
+        }
+        for id in ["delegated-no-lineage", "delegated-null-lineage", "settled-override"] {
+            assert!(
+                !ids.contains(&id),
+                "hidden thread {id} visible (fallback={fallback})"
+            );
+        }
+    }
+}
+
+#[test]
 fn connection_port_uses_runtime_precedence_and_rejects_invalid_values() {
     let (_dir, config) = fixture();
     for (json, expected) in [

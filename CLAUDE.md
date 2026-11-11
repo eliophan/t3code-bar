@@ -11,7 +11,7 @@ T3 Code Bar is a Tauri v2 desktop companion for T3 Code on macOS and Linux. The 
 Run from the repository root:
 
 ```sh
-bash scripts/check.sh       # frontend tests/build, five Rust crates and Tauri host tests
+bash scripts/check.sh       # frontend tests/build, contract check, seven Rust crates and Tauri host tests
 bash scripts/setup_hooks.sh # enable the local pre-push checks
 ```
 
@@ -37,6 +37,8 @@ Rust is pinned by `desktop/rust-toolchain.toml`. Native Tauri prerequisites are 
 
 - `desktop/src/`: React UI, presentation models and frontend tests.
 - `desktop/src-tauri/src/`: typed IPC, native panel/tray adapters, notifications and updater integration.
+- `desktop/crates/bar-identity`: environment/thread identity types and exported TypeScript contracts.
+- `desktop/crates/bar-connection`: remote environment discovery, routes, pairing credentials and transports.
 - `desktop/crates/bar-threads`: read-only thread data and hover previews.
 - `desktop/crates/bar-usage`: usage caches, pricing and local-provider readers.
 - `desktop/crates/bar-limits`: live/cache Limits, pairing and OS credential storage.

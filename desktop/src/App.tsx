@@ -2,11 +2,13 @@ import { chartModel, nearestColumn } from './chart';
 import { resolveProvider, uniqueProviders, statusIcons } from './providers';
 import { limitAgo, limitReset, limitsStaleness } from './limits-format';
 import { ProjectBadge } from './ProjectBadge';
+import { EnvironmentMachineIcon } from './EnvironmentMachineIcon';
 import { MiddleText } from './middle-text';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { ManualConnections } from './ManualConnections';
 import { listen } from '@tauri-apps/api/event';
-import type { AppSnapshot, LimitGroup, Metric, Period, Preview, Screen, Settings, ThreadItem, UsageReport } from './contracts';
+import type { AppSnapshot, ConnectionState, LimitGroup, Metric, Period, Preview, Screen, Settings, ThreadItem, UsageReport } from './contracts';
 import { compact, currency, duration, providerStyles, relative, until } from './format';
 import { costProviderDetail, footnotes, modelRows, sessions, slices, tokenProviderDetail, unpricedNote, usageProviderIcon, usageProviderLabel, visibleModels, modelToggleTitle, type Slice } from './usage-presentation';
 
@@ -44,7 +46,7 @@ export function App() {
   const [period, setPeriod] = useState<Period>('24h');
   const [threadGeneration, setThreadGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [context, setContext] = useState<{ thread: ThreadItem; top: number } | null>(null);
+  const [context, setContext] = useState<{ thread: ThreadItem } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const act = useCallback(async (name: string, args?: Record<string, unknown>) => {
     try { setError(null); await invoke(name, args); }
@@ -55,7 +57,7 @@ export function App() {
     let disposed = false;
     const initial = invoke<AppSnapshot>('get_snapshot').then(s => { if (!disposed) { setSnapshot(s); if (s.startupError) setError(s.startupError); } }).catch(e => { if (!disposed) setError(String(e)); });
     const events = listen<AppSnapshot>('bar-snapshot', e => { if (!disposed) setSnapshot(e.payload); });
-    const opened = listen('bar-opened', () => { setScreen('threads'); setContext(null); setThreadGeneration(generation => generation + 1); });
+    const opened = listen('bar-opened', () => { setScreen(current => current === 'settings' ? current : 'threads'); setContext(null); setThreadGeneration(generation => generation + 1); });
     const settings = listen('bar-settings', () => setScreen('settings'));
     void initial;
     return () => { disposed = true; void events.then(stop => stop()); void opened.then(stop => stop()); void settings.then(stop => stop()); };
@@ -88,21 +90,24 @@ export function App() {
     return () => window.removeEventListener('keydown', key);
   }, [screen, context, act]);
 
+  const hasThreadAccess = snapshot !== null && (snapshot.connection.paired || snapshot.environments.some(environment =>
+    !environment.isLocal && (environment.status === 'online' || snapshot.threads.some(thread => thread.thread.environmentId === environment.id))));
+
   return <div ref={root} className="app" onClick={() => setContext(null)}>
     {error && <div className="error-banner" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError(null)}>×</button></div>}
     {!snapshot ? <Empty title={error ? 'Could not load T3 Code Bar' : 'Reading T3 Code data…'}><button onClick={() => { void invoke<AppSnapshot>('get_snapshot').then(setSnapshot).catch(e => setError(String(e))); }}>Retry</button></Empty>
     : screen === 'settings' ? <><header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Settings</strong></header><SettingsPage snapshot={snapshot} act={act} /></>
-    : !snapshot.connection.paired ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
+    : !hasThreadAccess ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
       <EnvironmentPicker snapshot={snapshot} act={act} />
       <main key={threadGeneration} className="threads scroll">
         {snapshot.threadError && <Notice warning>{snapshot.threadError}</Notice>}
         {!snapshot.online && <Notice>T3 Code offline · showing saved threads</Notice>}
 
-        {snapshot.loading ? <Empty title="Reading T3 Code data…" /> : snapshot.threads.length === 0 ? <Empty title="Your inbox is clear">No active threads. <button className="text-button" onClick={() => void act('new_thread')}>New thread</button></Empty> : snapshot.threads.map(thread => <ThreadRow key={thread.id} thread={thread} now={Date.parse(snapshot.now)} online={snapshot.online && !snapshot.threadError} previews={snapshot.settings.showsPreviews} onOpen={() => void act('thread_action', { id: thread.id, action: 'open' })} onContext={top => setContext({ thread, top })} />)}
+        {snapshot.loading ? <Empty title="Reading T3 Code data…" /> : snapshot.threads.length === 0 ? <Empty title="Your inbox is clear">No active threads. <button className="text-button" onClick={() => void act('new_thread')}>New thread</button></Empty> : snapshot.threads.map(thread => <ThreadRow key={JSON.stringify(thread.thread)} thread={thread} environment={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)} now={Date.parse(snapshot.now)} online={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)?.status === 'online'} revision={snapshot.revision} previews={snapshot.settings.showsPreviews} onOpen={() => void act('thread_action', { thread: thread.thread, action: 'open' })} onContext={() => setContext({ thread })} />)}
       </main><footer aria-label="Bar navigation"><button className="usage-link" aria-label="Usage" title="Usage" onClick={() => setScreen('usage')}><svg className="usage-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21v-6M12 21V3M19 21V9" /></svg></button><button className="settings-button" aria-label="Settings" title="Settings" onClick={() => setScreen('settings')}><svg className="settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.67 4.14a2 2 0 0 1 4.66 0 2 2 0 0 0 2.88 1.66 2 2 0 0 1 2.33 4.04 2 2 0 0 0 0 3.32 2 2 0 0 1-2.33 4.04 2 2 0 0 0-2.88 1.66 2 2 0 0 1-4.66 0 2 2 0 0 0-2.88-1.66 2 2 0 0 1-2.33-4.04 2 2 0 0 0 0-3.32A2 2 0 0 1 6.79 5.8a2 2 0 0 0 2.88-1.66"/><circle cx="12" cy="12" r="3" /></svg></button></footer>
     </> : <>
-      {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{snapshot.connection.status === 'failed' ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
+      {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{['failed', 'restoring', 'credentialUnavailable'].includes(snapshot.connection.status) ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
       <header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Usage</strong>{metric !== 'limits' && <div className="segments periods" aria-label="Usage period">{(['24h', '7d', '30d', '90d'] as Period[]).map(p => <button key={p} aria-pressed={period === p} onClick={() => setPeriod(p)}>{p}</button>)}</div>}</header>
       <EnvironmentPicker snapshot={snapshot} act={act} />
       <div className="tab-bar"><nav className="segments tabs" aria-label="Usage metric">{(['cost', 'tokens', 'limits'] as Metric[]).map(m => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</nav></div>
@@ -111,20 +116,19 @@ export function App() {
         {!snapshot.usage && snapshot.usageLoading ? <Empty title="Reading usage…" /> : !snapshot.usage ? <Empty title="No usage data yet">Open T3 Code’s Usage page to populate its saved scan cache.</Empty> : <div className={snapshot.usagePeriod !== period ? 'stale' : ''}><Usage key={metric} report={snapshot.usage} metric={metric} /></div>}
       </>}</main>
     </>}
-    {context && <div role="menu" className="context-menu" style={{ top: Math.min(context.top, 420) }} onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { id: context.thread.id, action }); setContext(null); }}>{title}</button>)}</div>}
+    {context && <div role="menu" className="context-menu" onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { thread: context.thread.thread, action }); setContext(null); }}>{title}</button>)}</div>}
   </div>;
 }
 
 function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   if (snapshot.environments.length < 2) return snapshot.environments.length === 0 ? <div className="environment-picker"><span>No environments found.</span><button className="text-button" onClick={() => void act('login_cloud')}>Sign in to T3 Code</button></div> : null;
-  const selected = snapshot.environments.find(environment => environment.environmentId === snapshot.selectedEnvironmentId);
+  const selectedId = snapshot.settings.environmentSelection === 'all' ? '' : snapshot.settings.environmentSelection.one;
   return <div className="environment-picker" aria-label="Environment selector">
     <label htmlFor="environment-select">Environment</label>
-    <select id="environment-select" value={snapshot.selectedEnvironmentId ?? ''} onChange={event => void act('select_environment', { environmentId: event.target.value })}>
-      {snapshot.environments.map(environment => <option key={environment.environmentId} value={environment.environmentId} disabled={!environment.enabled}>{environment.label} · {environment.machine} · {environment.status}</option>)}
+    <select id="environment-select" value={selectedId} onChange={event => void act('set_environment_selection', { selection: event.target.value ? { one: event.target.value } : 'all' })}>
+      <option value="">All environments</option>
+      {snapshot.environments.map(environment => <option key={environment.id} value={environment.id}>{environment.label} · {environment.machine} · {environment.status}</option>)}
     </select>
-    {selected && selected.status === 'Unsupported' && <small>This environment cannot be reached by the relay.</small>}
-    {selected && selected.status === 'Disconnected' && <button className="text-button" onClick={() => void act('connect_environment', { environmentId: selected.environmentId })}>Connect</button>}
   </div>;
 }
 
@@ -134,18 +138,20 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   const [pending, setPending] = useState(false);
   const unavailable = snapshot.update.status === 'unavailable';
   const updateBusy = snapshot.update.busy;
-  const change = async (key: keyof Settings, value: boolean) => {
+  const change = async (key: Exclude<keyof Settings, 'environmentSelection'>, value: boolean) => {
     setPending(true);
     try { await act('set_setting', { key, value }); } finally { setPending(false); }
   };
-  const toggle = (label: string, key: keyof Settings, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
+  const toggle = (label: string, key: Exclude<keyof Settings, 'environmentSelection'>, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
   return <main className="settings scroll">
+    <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} /><ManualConnections environments={snapshot.environments} savedIds={snapshot.manualEnvironmentIds} />{snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}</section>
+    <section><h2>T3 Connect</h2><Notice>Sign in to find linked environments. Pair once with each environment to read through its public HTTPS tunnel. Tailscale is not required.</Notice>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
     <section><h2>Preferences</h2>
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}
       {toggle('Hover previews', 'showsPreviews', snapshot.settings.showsPreviews)}
     </section>
-    <section><h2>T3 Code connection</h2><Connection snapshot={snapshot} act={act} />
-      {snapshot.connection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
+    <section><h2>Local T3 Code connection</h2><Notice>Pairing here connects Bar to T3 Code on this machine. For another machine, use its named pairing field above.</Notice><Connection snapshot={snapshot} act={act} local />
+      {snapshot.localConnection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
     </section>
     <section><h2>Updates</h2>
       {toggle('Check automatically', 'automaticallyChecksForUpdates', snapshot.settings.automaticallyChecksForUpdates, unavailable || updateBusy)}
@@ -157,52 +163,138 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   </main>;
 }
 
-function Connection({ snapshot, act, compact: minimal = false }: { snapshot: AppSnapshot; act: Act; compact?: boolean }) {
-  const [token, setToken] = useState('');
-  const [expanded, setExpanded] = useState(!minimal && !snapshot.connection.paired);
+function EnvironmentSelectionOptions({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   const [pending, setPending] = useState(false);
-  const busy = pending || ['connecting', 'retrying'].includes(snapshot.connection.status);
-  useEffect(() => { if (snapshot.connection.connected) { setToken(''); setExpanded(false); } }, [snapshot.connection.connected]);
-  useEffect(() => { if (!snapshot.connection.paired && !minimal) setExpanded(true); }, [snapshot.connection.paired, minimal]);
+  const selectedId = snapshot.settings.environmentSelection === 'all' ? '' : snapshot.settings.environmentSelection.one;
+  const options = [
+    { id: '', label: 'All environments' },
+    ...snapshot.environments.map(environment => ({ id: environment.id, label: `${environment.label} · ${environment.status}` })),
+    ...(selectedId && !snapshot.environments.some(environment => environment.id === selectedId) ? [{ id: selectedId, label: 'Selected environment unavailable' }] : []),
+  ];
+  return <fieldset className="environment-options" aria-label="Environment"><legend>Show</legend>{options.map(option => <label key={option.id}>
+    <input type="radio" name="environmentSelection" value={option.id} checked={selectedId === option.id} disabled={pending} onChange={async () => {
+      setPending(true);
+      try { await act('set_environment_selection', { selection: option.id ? { one: option.id } : 'all' }); } finally { setPending(false); }
+    }} /><span>{option.label}</span>
+  </label>)}</fieldset>;
+}
+
+type EnvironmentViewModel = import('./contracts').EnvironmentView;
+
+function EnvironmentAccess({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
+  const needsPrompt = environment.status === 'needsAccess' || environment.status === 'permissionDenied'
+    || (environment.status === 'unsupported' && (environment.access === 'cloud' || environment.access === 'directOrCloud'));
+  if (environment.status === 'restoring') return <Notice>Waiting for the saved Local pairing. Complete any Keychain prompt for T3 Code Bar.</Notice>;
+  if (environment.status === 'credentialUnavailable') return <div className="environment-access"><Notice warning>Saved access for {environment.label} is unavailable. Unlock your system credential store or allow T3 Code Bar in its Keychain prompt. Pairing has not been removed.</Notice>{!environment.isLocal && <button onClick={() => void act('retry_environment_access')}>Retry saved access for {environment.label}</button>}</div>;
+  if (!needsPrompt && !environment.canForgetAccess) return null;
+  return <div className="environment-access">
+    {needsPrompt && <EnvironmentAccessPrompt environment={environment} cloudStatus={cloudStatus} act={act} />}
+    {environment.canForgetAccess && <EnvironmentForget environment={environment} act={act} />}
+  </div>;
+}
+
+function EnvironmentAccessPrompt({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
+  const denied = environment.status === 'permissionDenied';
+  const cloudHint = cloudStatus === 'signedOut' ? 'Sign in below to find its HTTPS address, then pair with this environment.' : cloudStatus === 'signingIn' ? 'Finish signing in or cancel below.' : 'Waiting for its HTTPS address. If unavailable, use Add environment with a server address or SSH host.';
+  const denial = (route: string) => denied && <Notice warning>Bar could not authorize access to {environment.label}. {route}</Notice>;
+  switch (environment.access) {
+    case 'direct': return <>
+      {denial('Enter a pairing key from this environment.')}
+      <EnvironmentPairing environment={environment} act={act} />
+    </>;
+    case 'directOrCloud': return <>
+      {denial('Enter a new pairing key from this environment.')}
+      <EnvironmentPairing environment={environment} act={act} />
+      <Notice>Sign in to T3 Connect to find a public HTTPS address for {environment.label}, then pair with that address.</Notice>
+    </>;
+    case 'cloud': return environment.status === 'unsupported'
+      ? <Notice warning>T3 Connect has not provided a pairing address for {environment.label}. Use Add environment in Bar with a reachable HTTPS address or SSH host.</Notice>
+      : denied
+      ? <Notice warning>T3 Connect could not authorize {environment.label}. {cloudHint}</Notice>
+      : <Notice>{environment.label}: {cloudHint}</Notice>;
+    case 'unsupported': return null;
+    default: { const _exhaustive: never = environment.access; return _exhaustive; }
+  }
+}
+
+function EnvironmentForget({ environment, act }: { environment: EnvironmentViewModel; act: Act }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  if (!confirming) return <button className="secondary-button" onClick={() => setConfirming(true)}>Forget access for {environment.label}…</button>;
+  return <div className="disconnect-confirmation" role="group" aria-label={`Confirm forgetting access for ${environment.label}`}>
+    <p>Remove the access Bar saved for {environment.label}? You will need a new pairing key to connect again. Other environments and T3 Connect are not affected.</p>
+    <div className="settings-actions">
+      <button autoFocus disabled={pending} onClick={() => setConfirming(false)}>Cancel</button>
+      <button className="danger-button" disabled={pending} onClick={async () => {
+        setPending(true);
+        try { await act('forget_environment_access', { environment: environment.id }); setConfirming(false); } finally { setPending(false); }
+      }}>{pending ? 'Removing…' : 'Forget access'}</button>
+    </div>
+  </div>;
+}
+
+function EnvironmentPairing({ environment, act }: { environment: EnvironmentViewModel; act: Act }) {
+  const [token, setToken] = useState('');
+  const [pending, setPending] = useState(false);
+  return <form onSubmit={async event => {
+    event.preventDefault();
+    const input = token;
+    setToken('');
+    setPending(true);
+    try { await act('pair_environment', { environment: environment.id, token: input }); } finally { setPending(false); }
+  }}><label>{environment.label} pairing key <input type="password" value={token} autoComplete="off" maxLength={16384} onChange={event => setToken(event.target.value)} /></label><button disabled={pending || !token.trim()}>{pending ? 'Connecting…' : 'Connect'}</button></form>;
+}
+
+function Connection({ snapshot, act, compact: minimal = false, local = false }: { snapshot: AppSnapshot; act: Act; compact?: boolean; local?: boolean }) {
+  const connection: ConnectionState = local ? snapshot.localConnection : snapshot.connection;
+  const [token, setToken] = useState('');
+  const [expanded, setExpanded] = useState(!minimal && !connection.paired);
+  const [pending, setPending] = useState(false);
+  const restoring = connection.status === 'restoring';
+  const storageUnavailable = connection.status === 'credentialUnavailable';
+  const busy = pending || restoring || ['connecting', 'retrying'].includes(connection.status);
+  useEffect(() => { if (connection.connected) { setToken(''); setExpanded(false); } }, [connection.connected]);
+  useEffect(() => { if (!connection.paired && !minimal) setExpanded(true); }, [connection.paired, minimal]);
   const connect = async (name: 'connect' | 'reconnect') => {
     const input = token;
     setToken('');
     setPending(true);
     try { await act(name, name === 'connect' ? { token: input } : undefined); } finally { setPending(false); }
   };
-  if (minimal && snapshot.connection.connected) return null;
+  if (minimal && connection.connected) return null;
   return <div className="connection">
-    <p className="connection-state" role="status"><i className={snapshot.connection.connected ? 'connected' : busy ? 'connecting' : ''} aria-hidden="true" />{snapshot.connection.connected ? 'Connected to T3 Code' : snapshot.connection.message}</p>
-    {!snapshot.connection.connected && <>
-      {snapshot.connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
-      {!snapshot.connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
-      {expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
-        <label className="sr-only" htmlFor="access-token">Pairing key</label><input id="access-token" type="password" value={token} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
+    <p className="connection-state" role="status"><i className={connection.connected ? 'connected' : busy ? 'connecting' : ''} aria-hidden="true" />{connection.connected ? 'Connected to T3 Code' : connection.message}</p>
+    {!connection.connected && <>
+      {storageUnavailable && <button disabled={pending} onClick={() => void connect('reconnect')}>Retry saved access</button>}
+      {!storageUnavailable && !restoring && connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
+      {!storageUnavailable && !restoring && !connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
+      {!storageUnavailable && !restoring && expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
+        <label className="sr-only" htmlFor="access-token">Local pairing key</label><input id="access-token" type="password" value={token} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Local pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
         <div className="connection-actions"><button className="primary-button" type="submit" disabled={!token.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button></div>
       </form>}
     </>}
   </div>;
 }
 
-function ThreadRow({ thread, now, online, previews, onOpen, onContext }: { thread: ThreadItem; now: number; online: boolean; previews: boolean; onOpen: () => void; onContext: (top: number) => void }) {
+function ThreadRow({ thread, environment, now, online, previews, revision, onOpen, onContext }: { thread: ThreadItem; environment: import('./contracts').EnvironmentView | undefined; now: number; online: boolean; previews: boolean; revision: number; onOpen: () => void; onContext: () => void }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const generation = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancel = useCallback(() => { generation.current++; clearTimeout(timer.current); setPreview(null); }, []);
-  useEffect(() => { if (!previews) cancel(); return () => { generation.current++; clearTimeout(timer.current); }; }, [previews, cancel]);
+  useEffect(() => { cancel(); return () => { generation.current++; clearTimeout(timer.current); }; }, [previews, revision, cancel]);
   const hover = () => {
     if (!previews) return;
     const run = ++generation.current;
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => { void invoke<Preview | null>('get_preview', { id: thread.id }).then(p => { if (run === generation.current) setPreview(p); }).catch(() => {}); }, 500);
+    timer.current = setTimeout(() => { void invoke<Preview | null>('get_preview', { thread: thread.thread, revision }).then(p => { if (run === generation.current) setPreview(p); }).catch(() => {}); }, 500);
   };
   const status = online ? thread.status : 'Settled';
   const suffix = status === 'Working' || status === 'Goal' ? duration(thread.activeRunStartedAt, now) : status === 'Limited' ? until(thread.usageLimitResetAt, now) : status === 'Waiting' ? duration(thread.latestRunCompletedAt, now) : null;
   const inFlight = ['Working', 'Goal', 'Approval', 'Input'].includes(status);
   const receded = inFlight || status === 'Settled';
   return <div className="thread-wrapper" data-in-flight={inFlight || undefined} data-receded={receded || undefined} data-status={status} onMouseEnter={hover} onMouseLeave={cancel}>
-    <button className="thread-row" onClick={onOpen} onContextMenu={e => { e.preventDefault(); cancel(); onContext(e.clientY); }} aria-label={`${thread.title}, in ${thread.projectTitle}${thread.branch ? `, on branch ${thread.branch}` : ''}${status !== 'Settled' ? `, ${status}` : ''}`}>
-      <div className="project-line"><ProjectBadge title={thread.projectTitle} icon={thread.projectIcon} favicon={thread.projectFavicon} />{thread.isPinned && <svg className="pin" viewBox="0 0 24 24" aria-label="Pinned"><path fill="currentColor" d="M14 2 22 10 19 11 16 14 16 17 14 19 10 15 4 21 3 20 9 14 5 10 7 8 10 8 13 5Z" /></svg>}<span className="project-title">{thread.projectTitle}</span>{status === 'Settled' ? <time title="Last activity">{relative(thread.latestUserMessageAt ?? thread.updatedAt, now)}</time> : <span className={`status status-${status.toLowerCase()}`} title={status === 'Limited' ? `Usage limit reached${suffix ? `. Resets in ${suffix}` : ''}` : status === 'Done' && thread.latestRunCompletedAt ? `Done · ${new Date(thread.latestRunCompletedAt).toLocaleString()}` : status}><i style={{ maskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)`, WebkitMaskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)` }} />{status}{suffix && <small>{status === 'Limited' ? `· ${suffix}` : suffix}</small>}</span>}</div>
+    <button className="thread-row" onClick={onOpen} onContextMenu={e => { e.preventDefault(); cancel(); onContext(); }} aria-label={`${thread.title}, in ${thread.projectTitle}, ${environment?.label ?? thread.thread.environmentId}${thread.branch ? `, on branch ${thread.branch}` : ''}${status !== 'Settled' ? `, ${status}` : ''}`}>
+      <div className="project-line">{environment && !environment.isLocal && <EnvironmentMachineIcon kind={environment.machine} source={environment.label} />}<ProjectBadge title={thread.projectTitle} icon={thread.projectIcon} favicon={thread.projectFavicon} />{thread.isPinned && <svg className="pin" viewBox="0 0 24 24" aria-label="Pinned"><path fill="currentColor" d="M14 2 22 10 19 11 16 14 16 17 14 19 10 15 4 21 3 20 9 14 5 10 7 8 10 8 13 5Z" /></svg>}<span className="project-title">{thread.projectTitle}</span>{status === 'Settled' ? <time title="Last activity">{relative(thread.latestUserMessageAt ?? thread.updatedAt, now)}</time> : <span className={`status status-${status.toLowerCase()}`} title={status === 'Limited' ? `Usage limit reached${suffix ? `. Resets in ${suffix}` : ''}` : status === 'Done' && thread.latestRunCompletedAt ? `Done · ${new Date(thread.latestRunCompletedAt).toLocaleString()}` : status}><i style={{ maskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)`, WebkitMaskImage: `url(/icons/Lucide-${statusIcons[status]}.svg)` }} />{status}{suffix && <small>{status === 'Limited' ? `· ${suffix}` : suffix}</small>}</span>}</div>
       <div className="title-line"><div className="thread-title">{thread.title}</div>{!thread.branch?.trim() && <ProviderIcons providers={thread.providers} modelName={thread.modelName} />}</div>
       {!!thread.branch?.trim() && <div className="branch-line"><span className="branch">{thread.branch}</span><ProviderIcons providers={thread.providers} modelName={thread.modelName} /></div>}
       {preview && <div className="preview" role="tooltip"><p>{preview.text}</p>{preview.updatedAt && <time>Last reply · {relative(preview.updatedAt, now) === 'now' ? 'just now' : `${relative(preview.updatedAt, now)} ago`}</time>}</div>}

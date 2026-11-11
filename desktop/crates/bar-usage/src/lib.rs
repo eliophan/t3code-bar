@@ -18,3 +18,14 @@ pub use tier::resolve_codex_tiers;
 mod local;
 pub use local::{LocalRoots, LocalStatus};
 mod antigravity;
+mod merge;
+pub use merge::{
+    merge_usage, EnvironmentUsage, MergedUsage, UsageBucket, UsageCategoryCost,
+    UsageContractMismatch, UsageContribution, UsageCostQuality, UsageModelFilter,
+    UsageModelSelector, UsagePricing, UsageQuery, UsageSource, UsageSourceFingerprint,
+    UsageSourceStatus, UsageSummary, UsageTokenTotals, USAGE_COLLATION_LOCALE,
+    USAGE_CONTRACT_VERSION, USAGE_MERGE_COMPATIBLE_SINCE,
+};
+
+mod contribution;
+pub use contribution::{LocalContribution, LocalProvenance};

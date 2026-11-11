@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/install-macos.sh
+      - scripts/install-linux.sh
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -30,10 +31,12 @@ jobs:
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Prepare installer
         run: |
-          bash -n scripts/install-macos.sh
+          bash -n scripts/install-macos.sh scripts/install-linux.sh
           mkdir _site
           cp scripts/install-macos.sh _site/install.sh
           cmp scripts/install-macos.sh _site/install.sh
+          cp scripts/install-linux.sh _site/install-linux.sh
+          cmp scripts/install-linux.sh _site/install-linux.sh
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

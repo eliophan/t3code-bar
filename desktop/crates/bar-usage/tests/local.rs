@@ -45,7 +45,7 @@ fn reads_cursor_opencode_json_and_readonly_sqlite() {
     )
     .unwrap();
     drop(db);
-    let mut reader = UsageReader::new(state);
+    let mut reader = UsageReader::new(state.clone());
     reader.set_local_roots(LocalRoots {
         cursor: Some(cursor),
         opencode: vec![root],
@@ -74,6 +74,16 @@ fn reads_cursor_opencode_json_and_readonly_sqlite() {
             .state,
         "ready"
     );
+    std::fs::write(state.join("usage-host-id"), "verified-host").unwrap();
+    let window = bar_usage::Window::new(Period::Day, now, chrono_tz::UTC);
+    let query = bar_usage::UsageQuery::for_window(&window, None);
+    let contribution = reader.read_contribution(
+        &window, None, &bar_usage::LocalProvenance { base_dir: state, ..Default::default() },
+        bar_identity::EnvironmentId::new("local").unwrap(), "local".into(), now,
+    ).unwrap();
+    assert!(contribution.unknown_sources.is_empty());
+    let report = bar_usage::merge_usage(&[contribution.contribution], &query, &bar_identity::EnvironmentSelection::All, bar_usage::USAGE_CONTRACT_VERSION).to_report(&window);
+    assert_eq!(report.tokens.processed, 14 + 20 + 8);
     fs::remove_dir_all(dir).unwrap();
 }
 fn varint(mut n: u64) -> Vec<u8> {

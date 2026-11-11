@@ -1,0 +1,6 @@
+gtk-layer-shell
+Copyright its upstream contributors.
+Distributed as a separate dynamically linked shared library under LGPL-3.0-or-later, with additional MIT licensed components.
+Upstream source and versioned releases: https://github.com/wmww/gtk-layer-shell
+The package receipt identifies the build dependency version.
+To replace the library in an AppImage, extract with --appimage-extract, replace usr/lib/libgtk-layer-shell.so.0 with a compatible build, and run AppRun.

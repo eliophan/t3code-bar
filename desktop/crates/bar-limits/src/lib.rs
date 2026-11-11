@@ -1,4 +1,5 @@
 //! Read-only T3 Limits cache models and layout.
+use bar_identity::{EnvironmentId, EnvironmentSelection};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -157,30 +158,32 @@ fn pace(used: f64, elapsed: f64) -> Pace {
         Pace::On
     }
 }
-#[derive(Clone)]
-struct Record {
-    id: String,
-    driver: String,
-    enabled: bool,
-    installed: bool,
-    available: bool,
-    display_name: Option<String>,
-    authenticated: bool,
-    plan: Option<String>,
-    email: Option<String>,
-    workspace: Option<String>,
-    limits: Option<RawLimits>,
-    is_source: bool,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Record {
+    pub id: String,
+    pub driver: String,
+    pub enabled: bool,
+    pub installed: bool,
+    pub available: bool,
+    pub display_name: Option<String>,
+    pub authenticated: bool,
+    pub plan: Option<String>,
+    pub email: Option<String>,
+    pub workspace: Option<String>,
+    pub limits: Option<RawLimits>,
+    pub is_source: bool,
 }
-#[derive(Clone)]
-struct RawLimits {
-    checked_at: DateTime<Utc>,
-    windows: Vec<Window>,
-    fingerprint: Option<String>,
-    credits: Option<ResetCredits>,
-    external: Option<(String, String)>,
-    reason: Option<String>,
-    message: Option<String>,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RawLimits {
+    pub checked_at: DateTime<Utc>,
+    pub windows: Vec<Window>,
+    pub fingerprint: Option<String>,
+    pub credits: Option<ResetCredits>,
+    pub external: Option<(String, String)>,
+    pub reason: Option<String>,
+    pub message: Option<String>,
 }
 impl RawLimits {
     fn notice(&self) -> Option<String> {
@@ -200,7 +203,7 @@ impl RawLimits {
         }
     }
 }
-fn parse_record(v: &Value, fallback: &str) -> Option<Record> {
+pub fn parse_record(v: &Value, fallback: &str) -> Option<Record> {
     let driver = v.get("driver")?.as_str()?.to_owned();
     if driver.is_empty() {
         return None;
@@ -272,16 +275,68 @@ fn parse_record(v: &Value, fallback: &str) -> Option<Record> {
         is_source: false,
     })
 }
+/// A single environment's quota reports before account reconciliation.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LimitsContribution {
+    pub environment_id: EnvironmentId,
+    pub records: Vec<Record>,
+    pub notices: Vec<String>,
+    pub skipped_files: usize,
+}
+
+/// Select environments before reconciling account ownership and constructing pools.
+pub fn merge_contributions(
+    contributions: &[LimitsContribution],
+    selection: &EnvironmentSelection,
+) -> LimitsSnapshot {
+    let selected = contributions.iter().filter(|c| match selection {
+        EnvironmentSelection::All => true,
+        EnvironmentSelection::One(id) => &c.environment_id == id,
+    });
+    let mut records = Vec::new();
+    let mut notices = Vec::new();
+    let mut skipped = 0;
+    for contribution in selected {
+        skipped += contribution.skipped_files;
+        notices.extend(contribution.notices.iter().cloned());
+        for record in &contribution.records {
+            let mut record = record.clone();
+            // IDs are local to a source. Length prefixes prevent delimiter collisions.
+            record.id = format!(
+                "{}:{}:{}:{}:{}",
+                contribution.environment_id.as_str().len(),
+                contribution.environment_id,
+                if record.is_source { "hub" } else { "native" },
+                record.id.len(),
+                record.id
+            );
+            records.push(record);
+        }
+    }
+    let mut snapshot = merge(&records, skipped);
+    snapshot.notices.splice(0..0, notices);
+    if !snapshot.notices.is_empty() {
+        snapshot.state = LimitsState::Ok;
+    }
+    snapshot
+}
+
 fn base_key(r: &Record) -> Option<String> {
     if let Some(email) = r.email.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        Some(format!("{}:{}", r.driver, email.to_lowercase()))
+        Some(format!(
+            "email:{}:{}:{}",
+            r.driver.len(),
+            r.driver,
+            email.to_lowercase()
+        ))
     } else {
         r.limits
             .as_ref()?
             .fingerprint
             .as_ref()
             .filter(|s| !s.is_empty())
-            .map(|f| format!("{}:credential:{}", r.driver, f))
+            .map(|f| format!("credential:{}:{}:{}", r.driver.len(), r.driver, f))
     }
 }
 fn merge(records: &[Record], skipped: usize) -> LimitsSnapshot {
@@ -335,18 +390,19 @@ fn merge(records: &[Record], skipped: usize) -> LimitsSnapshot {
         let key = base_key(r)
             .and_then(|base| {
                 if let Some(w) = r.workspace.as_ref().filter(|w| !w.is_empty()) {
-                    Some(format!("{base}:{w}"))
+                    Some(format!("known:{}:{base}:{}:{w}", base.len(), w.len()))
                 } else if let Some(ws) = workspaces.get(&base) {
                     if ws.len() == 1 {
-                        Some(format!("{}:{}", base, ws.iter().next().unwrap()))
+                        let w = ws.iter().next().unwrap();
+                        Some(format!("known:{}:{base}:{}:{w}", base.len(), w.len()))
                     } else {
                         None
                     }
                 } else {
-                    Some(base)
+                    Some(format!("known:{}:{base}:none", base.len()))
                 }
             })
-            .unwrap_or_else(|| format!("local:{}", r.id));
+            .unwrap_or_else(|| format!("local:{}:{}", r.id.len(), r.id));
         if let Some(plan) = &r.plan {
             let entry = plans
                 .entry(key.clone())
@@ -477,6 +533,21 @@ pub struct LimitsReader {
 impl LimitsReader {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Return cached reports last loaded by `read`, without reconciling accounts.
+    pub fn contribution(&self, environment_id: EnvironmentId) -> LimitsContribution {
+        let mut entries: Vec<_> = self.entries.iter().collect();
+        entries.sort_by_key(|(name, _)| *name);
+        let records: Vec<_> = entries
+            .iter()
+            .filter_map(|(_, entry)| entry.2.clone())
+            .collect();
+        LimitsContribution {
+            environment_id,
+            skipped_files: entries.len() - records.len(),
+            records,
+            notices: Vec::new(),
+        }
     }
     pub fn read(&mut self, state_dir: &Path, _now: DateTime<Utc>) -> io::Result<LimitsSnapshot> {
         let dir = state_dir.parent().unwrap_or(state_dir).join("caches");

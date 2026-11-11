@@ -1,6 +1,6 @@
 {
   "name": "t3-code-bar-desktop",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,10 +8,13 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "generate:contracts": "cargo run --quiet --manifest-path crates/bar-identity/Cargo.toml --example export -- --write",
+    "check:contracts": "cargo run --quiet --manifest-path crates/bar-identity/Cargo.toml --example export -- --check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "lucide-react": "^0.564.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

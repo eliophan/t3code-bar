@@ -1,0 +1,4860 @@
+[
+  {
+    "name": "malformed bucket",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "provider": "claude",
+              "model": "bad"
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "unknown source",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            },
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "new-status",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "negative tokens",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": -100,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "unknown provider",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-03",
+              "provider": "future-provider",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "invalid day",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "not-a-day",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "null optional",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1,
+              "fastCostUsd": null
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "fractional tokens",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 1.5,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "case tie",
+    "environments": [
+      {
+        "environmentId": "A",
+        "label": "A",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 20,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "A: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "punctuation tie",
+    "environments": [
+      {
+        "environmentId": "env-a",
+        "label": "env-a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 20,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "env_a",
+        "label": "env_a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "env-a: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "env_a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "unicode tie",
+    "environments": [
+      {
+        "environmentId": "é",
+        "label": "é",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 20,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "e",
+        "label": "e",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "é: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "e"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "empty",
+    "environments": [],
+    "selection": "all",
+    "expected": {
+      "costUsd": 0,
+      "tokens": {
+        "uncachedInput": 0,
+        "cachedInput": 0,
+        "cacheCreation": 0,
+        "output": 0,
+        "reasoning": 0,
+        "processed": 0
+      },
+      "sessions": 0,
+      "records": 0,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 0
+      },
+      "costBySpeed": {
+        "standard": 0,
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0
+      },
+      "cacheSavingsUsd": 0,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "modelPricedShare": 0,
+        "unpricedShare": 0,
+        "cacheSavingsUsd": 0
+      },
+      "models": [],
+      "duplicateSources": [],
+      "contributingEnvironments": [],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "shared",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "independent",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host-b",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 14,
+      "tokens": {
+        "uncachedInput": 20,
+        "cachedInput": 40,
+        "cacheCreation": 10,
+        "output": 30,
+        "reasoning": 14,
+        "processed": 100
+      },
+      "sessions": 2,
+      "records": 4,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 14
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 14
+      },
+      "cacheSavingsUsd": 4,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 4
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 14,
+          "records": 4,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 20,
+            "cachedInput": 40,
+            "cacheCreation": 10,
+            "output": 30,
+            "reasoning": 14,
+            "processed": 100
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a",
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "volume",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "other"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 14,
+      "tokens": {
+        "uncachedInput": 20,
+        "cachedInput": 40,
+        "cacheCreation": 10,
+        "output": 30,
+        "reasoning": 14,
+        "processed": 100
+      },
+      "sessions": 2,
+      "records": 4,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 14
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 14
+      },
+      "cacheSavingsUsd": 4,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 4
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 14,
+          "records": 4,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 20,
+            "cachedInput": 40,
+            "cacheCreation": 10,
+            "output": 30,
+            "reasoning": 14,
+            "processed": 100
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a",
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "newest",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 14,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 14,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 14
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 14
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 14,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "a: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "tie",
+    "environments": [
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 20,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "complete",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "supplement",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 99,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 3,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 14,
+      "tokens": {
+        "uncachedInput": 20,
+        "cachedInput": 40,
+        "cacheCreation": 10,
+        "output": 30,
+        "reasoning": 14,
+        "processed": 100
+      },
+      "sessions": 3,
+      "records": 4,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 14
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 14
+      },
+      "cacheSavingsUsd": 4,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 4
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 14,
+          "records": 4,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 20,
+            "cachedInput": 40,
+            "cacheCreation": 10,
+            "output": 30,
+            "reasoning": 14,
+            "processed": 100
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a",
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "filter mismatch",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1,
+          "modelFilter": {
+            "include": [
+              {
+                "model": "x"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "failed priority",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T12:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "failed",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 4,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 4
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 4
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 4,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "a: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "missing",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "missing",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 4,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 4
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 4
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 4,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "old",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 3,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 4,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "b",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "b"
+      ],
+      "contractMismatches": [
+        {
+          "environmentId": "a",
+          "direction": "serverBehind",
+          "contractVersion": 3
+        }
+      ]
+    }
+  },
+  {
+    "name": "future",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 7,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 0,
+      "tokens": {
+        "uncachedInput": 0,
+        "cachedInput": 0,
+        "cacheCreation": 0,
+        "output": 0,
+        "reasoning": 0,
+        "processed": 0
+      },
+      "sessions": 0,
+      "records": 0,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 0
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 0
+      },
+      "cacheSavingsUsd": 0,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 0,
+        "cacheSavingsUsd": 0
+      },
+      "models": [],
+      "duplicateSources": [],
+      "contributingEnvironments": [],
+      "contractMismatches": [
+        {
+          "environmentId": "a",
+          "direction": "clientBehind",
+          "contractVersion": 7
+        }
+      ]
+    }
+  },
+  {
+    "name": "one",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 14,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": {
+      "one": "a"
+    },
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "quality",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "providerReported",
+              "records": 2,
+              "unpricedRecords": 1,
+              "sessions": 1,
+              "categoryCostUsd": {
+                "input": 1,
+                "cacheRead": 2,
+                "cacheWrite": 1,
+                "output": 3
+              },
+              "fastCostUsd": 2,
+              "ultrafastCostUsd": 3,
+              "speedPremiumUsd": 1,
+              "hourStart": "2026-09-03T10:00:00Z"
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 1,
+      "costByType": {
+        "input": 1,
+        "cacheRead": 2,
+        "cacheWrite": 1,
+        "output": 3,
+        "other": 3
+      },
+      "costBySpeed": {
+        "fast": 2,
+        "ultrafast": 3,
+        "premium": 1,
+        "standard": 5
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 1,
+        "unpricedShare": 0.5,
+        "modelPricedShare": -0.5,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 1,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "model",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "other",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 5,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 15,
+      "tokens": {
+        "uncachedInput": 20,
+        "cachedInput": 40,
+        "cacheCreation": 10,
+        "output": 30,
+        "reasoning": 14,
+        "processed": 100
+      },
+      "sessions": 1,
+      "records": 4,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 15
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 15
+      },
+      "cacheSavingsUsd": 4,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 4
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        },
+        {
+          "kind": "claude",
+          "name": "other",
+          "costUsd": 5,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "matching filter supplement",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1,
+          "modelFilter": {
+            "include": [
+              {
+                "model": "x"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1,
+          "modelFilter": {
+            "include": [
+              {
+                "model": "x"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 14,
+      "tokens": {
+        "uncachedInput": 20,
+        "cachedInput": 40,
+        "cacheCreation": 10,
+        "output": 30,
+        "reasoning": 14,
+        "processed": 100
+      },
+      "sessions": 1,
+      "records": 4,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 14
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 14
+      },
+      "cacheSavingsUsd": 4,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 4
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 14,
+          "records": 4,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 20,
+            "cachedInput": 40,
+            "cacheCreation": 10,
+            "output": 30,
+            "reasoning": 14,
+            "processed": 100
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a",
+        "b"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "partial ordering",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T11:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "c",
+        "label": "c",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T12:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 5,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            },
+            {
+              "day": "2026-09-05",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 6,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 21,
+      "tokens": {
+        "uncachedInput": 30,
+        "cachedInput": 60,
+        "cacheCreation": 15,
+        "output": 45,
+        "reasoning": 21,
+        "processed": 150
+      },
+      "sessions": 1,
+      "records": 6,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 21
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 21
+      },
+      "cacheSavingsUsd": 6,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 6
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 21,
+          "records": 6,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 30,
+            "cachedInput": 60,
+            "cacheCreation": 15,
+            "output": 45,
+            "reasoning": 21,
+            "processed": 150
+          }
+        }
+      ],
+      "duplicateSources": [
+        "c: /synthetic",
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a",
+        "c"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "pathless",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 20,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "sessions without buckets",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 4,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 0,
+      "tokens": {
+        "uncachedInput": 0,
+        "cachedInput": 0,
+        "cacheCreation": 0,
+        "output": 0,
+        "reasoning": 0,
+        "processed": 0
+      },
+      "sessions": 4,
+      "records": 0,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 0
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 0
+      },
+      "cacheSavingsUsd": 0,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 0,
+        "cacheSavingsUsd": 0
+      },
+      "models": [],
+      "duplicateSources": [],
+      "contributingEnvironments": [],
+      "contractMismatches": []
+    }
+  },
+  {
+    "name": "older partial",
+    "environments": [
+      {
+        "environmentId": "a",
+        "label": "a",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T10:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-03",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 10,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "ok",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      },
+      {
+        "environmentId": "b",
+        "label": "b",
+        "summary": {
+          "contractVersion": 6,
+          "readAt": "2026-09-03T09:00:00Z",
+          "timeZone": "UTC",
+          "sinceDay": "2026-09-01",
+          "untilDay": "2026-09-30",
+          "buckets": [
+            {
+              "day": "2026-09-04",
+              "provider": "claude",
+              "model": "synthetic",
+              "sourcePath": "/synthetic",
+              "totals": {
+                "uncachedInputTokens": 10,
+                "cachedInputTokens": 20,
+                "cacheCreationTokens": 5,
+                "outputTokens": 15,
+                "reasoningTokens": 7
+              },
+              "costUsd": 4,
+              "cacheSavingsUsd": 2,
+              "costSource": "modelPriced",
+              "records": 2,
+              "unpricedRecords": 0,
+              "sessions": 1
+            }
+          ],
+          "sources": [
+            {
+              "fingerprint": {
+                "hostId": "host",
+                "provider": "claude",
+                "resolvedHomePath": "/synthetic",
+                "volumeId": "volume"
+              },
+              "status": "partial",
+              "scannedFiles": 1,
+              "skippedFiles": 0,
+              "malformedRecords": 0,
+              "distinctSessions": 1,
+              "message": null
+            }
+          ],
+          "pricing": {
+            "status": "fresh",
+            "source": "synthetic",
+            "fetchedAt": null,
+            "knownModels": 1
+          },
+          "scanDurationMs": 1
+        }
+      }
+    ],
+    "selection": "all",
+    "expected": {
+      "costUsd": 10,
+      "tokens": {
+        "uncachedInput": 10,
+        "cachedInput": 20,
+        "cacheCreation": 5,
+        "output": 15,
+        "reasoning": 7,
+        "processed": 50
+      },
+      "sessions": 1,
+      "records": 2,
+      "unpricedRecords": 0,
+      "costByType": {
+        "input": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0,
+        "other": 10
+      },
+      "costBySpeed": {
+        "fast": 0,
+        "ultrafast": 0,
+        "premium": 0,
+        "standard": 10
+      },
+      "cacheSavingsUsd": 2,
+      "costQuality": {
+        "providerReportedShare": 0,
+        "unpricedShare": 0,
+        "modelPricedShare": 1,
+        "cacheSavingsUsd": 2
+      },
+      "models": [
+        {
+          "kind": "claude",
+          "name": "synthetic",
+          "costUsd": 10,
+          "records": 2,
+          "unpricedRecords": 0,
+          "tokens": {
+            "uncachedInput": 10,
+            "cachedInput": 20,
+            "cacheCreation": 5,
+            "output": 15,
+            "reasoning": 7,
+            "processed": 50
+          }
+        }
+      ],
+      "duplicateSources": [
+        "b: /synthetic"
+      ],
+      "contributingEnvironments": [
+        "a"
+      ],
+      "contractMismatches": []
+    }
+  }
+]

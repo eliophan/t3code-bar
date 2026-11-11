@@ -10,3 +10,6 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
+bar-identity = { path = "../bar-identity" }
+icu_collator = "2"
+icu_locale = "2"

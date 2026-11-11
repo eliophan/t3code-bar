@@ -2,6 +2,35 @@
 
 The current version is an alpha. Build and test the actual packages before distributing them. These commands do not publish or install anything. Old Swift v1 release assets are not compatible with Tauri updates.
 
+## Package Linux builds
+
+Install the Linux native dependencies listed in `.github/workflows/ci.yml`, the pinned Rust toolchain, Node.js, and the locked npm dependencies in `desktop/`. Build both formats from one source snapshot:
+
+```sh
+python3 scripts/package-linux.py --output /var/tmp/t3-linux-packages
+```
+
+A nonzero exit means packaging failed. The output directory must not exist. Success creates one `.deb`, one `.AppImage`, SHA-256 sidecars, `build.log`, and `receipt.json`. The receipt records each product source file, including untracked additions, the Git revision and diff, build host, binary hash, and package hashes. Source changes during the build reject the result. `--target-dir` optionally reuses a Cargo cache; the helper clears its Linux bundle directories before building.
+
+The Linux build links gtk-layer-shell (development package version 0.6 or newer). Wayland requires a compositor with layer-shell protocol version 4 for on-demand keyboard focus. The Debian package must depend on `libgtk-layer-shell0`; the AppImage must contain `libgtk-layer-shell.so.0`. Check both generated artifacts for those requirements before distribution.
+
+Linux requires a StatusNotifier tray host that accepts the app's own icon. Omarchy's shell supplies this host. Without it, the app must show only a native Retry/Quit diagnostic. Registration alone does not prove the icon is visible or clickable. Run the packaged app on the target desktop and exercise Show, Hide, Settings, Quit, tray loss, and recovery before distributing it. Use the project `verify-t3-code-bar` skill for isolated native evidence and `verify-linux-tray` for policy checks.
+
+The `.deb` targets Debian-family systems. Omarchy uses the AppImage. If FUSE is unavailable, try `APPIMAGE_EXTRACT_AND_RUN=1` for that process. Neither format guarantees compatibility with older glibc or every compositor. CI builds on Ubuntu 24.04; a local Omarchy build records its own libc in the receipt. A successful build does not establish a supported distro matrix. Linux updates use manual package replacement in this lane; no updater manifest is published.
+
+## Publish Linux packages
+
+Linux x86_64 packages share the `v2.0.0-alpha.3` release with macOS. A Linux build in CI does not publish a release. CI saves packages, checksums, the build log, and the source receipt as a `linux-packages-<commit>` workflow artifact for 14 days.
+
+1. Build the release commit on the oldest distribution you intend to support. Use `npm ci` in `desktop/`, then run `scripts/package-linux.py` from the repository root as described above. Record the build distribution and glibc version from the receipt. Build each advertised CPU separately.
+2. Test the exact AppImage on Omarchy and the exact `.deb` on your target Debian or Ubuntu system. Check launch, tray Show/Hide, Settings, Quit, tray loss/recovery, pairing, and reconnect after restart. Keep the release scope limited to the distributions and CPUs tested.
+3. Create a GitHub prerelease for the configured version, or add the Linux assets to its existing prerelease. Upload the `.deb`, `.AppImage`, and both `.sha256` files from the same output directory. Preserve the generated filenames, such as `T3-Code-Bar-2.0.0-alpha.3-linux-x86_64.AppImage`. GitHub rewrites spaces in asset names, so release filenames use hyphens. Upload the receipt as `linux-<architecture>-receipt.json` to avoid colliding with macOS metadata. Include the tested distributions, CPU, glibc requirement, tray requirement, and manual update instructions in the release notes.
+4. Merge the Linux documentation and installer into `main`. The Pages workflow publishes `scripts/install-linux.sh` at `https://eliophan.github.io/t3code-bar/install-linux.sh`. It preserves the macOS installer at `install.sh`.
+5. Download the public assets and check their SHA-256 files. Run the documented installer on a clean account, launch from the application menu and `~/.local/bin/t3-code-bar`, then test saved reconnect. A nonzero exit, missing launcher, unusable tray, or lost saved pairing fails acceptance.
+6. After the public download and installer checks pass, update the root README download links and the tested Linux targets in `docs/COMPATIBILITY.md`.
+
+The installer defaults to `2.0.0-alpha.3` and also accepts a version argument, such as `bash install-linux.sh 2.0.0-alpha.3`. Update its default when publishing a new version. It selects the exact Tauri AppImage name for the version and architecture from GitHub's release API. Missing CPU builds and checksum sidecars stop installation. It installs without sudo, refuses to overwrite an existing installation, and does not launch the app automatically. SHA-256 sidecars detect corruption, not independent publisher authenticity.
+
 ## Package macOS builds
 
 The Tauri package lane is separate from the Swift release and installer. It does not publish or install anything. Use a Mac with Xcode command line tools, the Rust target, `npm ci` in `desktop/`, and Tauri CLI 2.12.4. Each command uses a fresh temporary Cargo target directory and refuses an existing output path. Select `darwin-aarch64` or `darwin-x86_64` and install its Rust target first.
@@ -21,7 +50,7 @@ export BAR_NOTARY_KEYCHAIN_PROFILE='<existing profile name>'
 export BAR_UPDATER_ENDPOINT='https://example.org/updates/manifest.json'
 export BAR_UPDATER_PUBLIC_KEY="$(cat /secure/path/updater.key.pub)"
 export TAURI_SIGNING_PRIVATE_KEY_PATH='/secure/path/updater.key'
-export BAR_UPDATER_ARTIFACT_URL='https://example.org/releases/T3-Code-Bar-2.0.0-alpha.1-darwin-aarch64.app.tar.gz'
+export BAR_UPDATER_ARTIFACT_URL='https://example.org/releases/T3-Code-Bar-2.0.0-alpha.3-darwin-aarch64.app.tar.gz'
 python3 scripts/package-macos.py release --target darwin-aarch64 --output /tmp/bar-release
 python3 scripts/package-macos.py verify --output /tmp/bar-release
 xcrun stapler validate '/tmp/bar-release/T3 Code Bar Tauri.app'
