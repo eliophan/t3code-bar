@@ -85,6 +85,29 @@ impl Configuration {
             .filter(|p| *p > 0 && *p <= i32::MAX as i64)
             .is_some_and(|p| unsafe { libc::kill(p as libc::pid_t, 0) == 0 })
     }
+
+    /// Returns the number of non-local environments known by T3 Code's cache.
+    ///
+    /// This is discovery metadata only. The Bar still connects exclusively to
+    /// the local T3 Code server; cached rows must never be treated as live
+    /// remote connections.
+    pub fn linked_environment_count(&self) -> usize {
+        let path = self
+            .base_dir
+            .join("tauri-bar-settings.json.environments-cache-v1");
+        let Ok(bytes) = std::fs::read(path) else { return 0 };
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return 0 };
+        value
+            .get("sources")
+            .and_then(serde_json::Value::as_array)
+            .map(|sources| {
+                sources
+                    .iter()
+                    .filter(|source| source.get("machine").and_then(serde_json::Value::as_str).is_some_and(|machine| machine != "laptop"))
+                    .count()
+            })
+            .unwrap_or(0)
+    }
     pub fn server_port(&self) -> Result<u16, DomainError> {
         let runtime = self.runtime().ok_or(DomainError::MissingRuntime)?;
         runtime

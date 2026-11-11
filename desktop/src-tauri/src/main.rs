@@ -117,6 +117,7 @@ struct ConnectionState {
     has_data: bool,
     port: i64,
     updated_at: Option<String>,
+    linked_environments: usize,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -164,6 +165,7 @@ impl Default for AppSnapshot {
                 has_data: false,
                 port: 0,
                 updated_at: None,
+                linked_environments: 0,
             },
             usage: None,
             usage_error: None,
@@ -425,6 +427,7 @@ fn connection_for(state: &RuntimeState, online: bool, has_data: bool) -> Connect
         has_data,
         port: state.config.server_port().map(i64::from).unwrap_or(0),
         updated_at: iso(live.updated_at),
+        linked_environments: state.config.linked_environment_count(),
     }
 }
 fn emit_snapshot(app: &tauri::AppHandle, state: &RuntimeState) {

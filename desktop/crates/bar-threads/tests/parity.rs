@@ -218,3 +218,26 @@ fn connection_port_uses_runtime_precedence_and_rejects_invalid_values() {
         assert_eq!(config.server_port().ok(), expected);
     }
 }
+
+#[test]
+fn linked_environment_cache_is_discovery_only_and_excludes_local_laptop() {
+    let (dir, config) = fixture();
+    fs::write(
+        dir.path().join("tauri-bar-settings.json.environments-cache-v1"),
+        r#"{"version":2,"sources":[{"id":"local","machine":"laptop"},{"id":"server","machine":"server"},{"id":"mini","machine":"mac-mini"}]}"#,
+    )
+    .unwrap();
+    assert_eq!(config.linked_environment_count(), 2);
+}
+
+#[test]
+fn malformed_or_missing_linked_environment_cache_is_fail_closed() {
+    let (_dir, config) = fixture();
+    assert_eq!(config.linked_environment_count(), 0);
+    fs::write(
+        config.base_dir.join("tauri-bar-settings.json.environments-cache-v1"),
+        "not json",
+    )
+    .unwrap();
+    assert_eq!(config.linked_environment_count(), 0);
+}
