@@ -1377,6 +1377,7 @@ mod tests {
             config: threads::Configuration {
                 base_dir: root.clone(),
             },
+            environment_registry: Mutex::new(threads::environments::EnvironmentRegistry::default()),
             settings: Mutex::new(settings),
             snapshot: Mutex::new(AppSnapshot::default()),
             view: Mutex::new(ViewState::default()),
