@@ -26,6 +26,7 @@ pub enum RemoteReadError {
     Rpc(RpcError),
     Protocol,
     NeedsPairing,
+    CredentialUnavailable,
     UnsupportedRoute,
     Offline,
     PermissionDenied { threads: bool, usage: bool, limits: bool },

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { invoke } from '@tauri-apps/api/core';
 import { ManualConnections } from './ManualConnections';
 import { listen } from '@tauri-apps/api/event';
-import type { AppSnapshot, LimitGroup, Metric, Period, Preview, Screen, Settings, ThreadItem, UsageReport } from './contracts';
+import type { AppSnapshot, ConnectionState, LimitGroup, Metric, Period, Preview, Screen, Settings, ThreadItem, UsageReport } from './contracts';
 import { compact, currency, duration, providerStyles, relative, until } from './format';
 import { costProviderDetail, footnotes, modelRows, sessions, slices, tokenProviderDetail, unpricedNote, usageProviderIcon, usageProviderLabel, visibleModels, modelToggleTitle, type Slice } from './usage-presentation';
 
@@ -106,7 +106,7 @@ export function App() {
         {snapshot.loading ? <Empty title="Reading T3 Code data…" /> : snapshot.threads.length === 0 ? <Empty title="Your inbox is clear">No active threads. <button className="text-button" onClick={() => void act('new_thread')}>New thread</button></Empty> : snapshot.threads.map(thread => <ThreadRow key={JSON.stringify(thread.thread)} thread={thread} environment={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)} now={Date.parse(snapshot.now)} online={snapshot.environments.find(environment => environment.id === thread.thread.environmentId)?.status === 'online'} revision={snapshot.revision} previews={snapshot.settings.showsPreviews} onOpen={() => void act('thread_action', { thread: thread.thread, action: 'open' })} onContext={() => setContext({ thread })} />)}
       </main><footer aria-label="Bar navigation"><button className="usage-link" aria-label="Usage" title="Usage" onClick={() => setScreen('usage')}><svg className="usage-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21v-6M12 21V3M19 21V9" /></svg></button><button className="settings-button" aria-label="Settings" title="Settings" onClick={() => setScreen('settings')}><svg className="settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.67 4.14a2 2 0 0 1 4.66 0 2 2 0 0 0 2.88 1.66 2 2 0 0 1 2.33 4.04 2 2 0 0 0 0 3.32 2 2 0 0 1-2.33 4.04 2 2 0 0 0-2.88 1.66 2 2 0 0 1-4.66 0 2 2 0 0 0-2.88-1.66 2 2 0 0 1-2.33-4.04 2 2 0 0 0 0-3.32A2 2 0 0 1 6.79 5.8a2 2 0 0 0 2.88-1.66"/><circle cx="12" cy="12" r="3" /></svg></button></footer>
     </> : <>
-      {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{snapshot.connection.status === 'failed' ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
+      {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{['failed', 'restoring', 'credentialUnavailable'].includes(snapshot.connection.status) ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
       <header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Usage</strong>{metric !== 'limits' && <div className="segments periods" aria-label="Usage period">{(['24h', '7d', '30d', '90d'] as Period[]).map(p => <button key={p} aria-pressed={period === p} onClick={() => setPeriod(p)}>{p}</button>)}</div>}</header>
       <div className="tab-bar"><nav className="segments tabs" aria-label="Usage metric">{(['cost', 'tokens', 'limits'] as Metric[]).map(m => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</nav></div>
       <main className="usage scroll">{metric === 'limits' ? <><Connection snapshot={snapshot} act={act} compact />{snapshot.limits ? <Limits groups={snapshot.limits.groups} snapshot={snapshot} act={act} /> : <Empty title="No limits data yet">Open T3 Code once so it can save provider status.</Empty>}</> : <>
@@ -136,8 +136,8 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
       {toggle('Notifications', 'notificationsMuted', !snapshot.settings.notificationsMuted, false, true)}
       {toggle('Hover previews', 'showsPreviews', snapshot.settings.showsPreviews)}
     </section>
-    <section><h2>Local T3 Code connection</h2><Notice>Pairing here connects Bar to T3 Code on this machine. For another machine, use its named pairing field above.</Notice><Connection snapshot={snapshot} act={act} />
-      {snapshot.connection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
+    <section><h2>Local T3 Code connection</h2><Notice>Pairing here connects Bar to T3 Code on this machine. For another machine, use its named pairing field above.</Notice><Connection snapshot={snapshot} act={act} local />
+      {snapshot.localConnection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
     </section>
     <section><h2>Updates</h2>
       {toggle('Check automatically', 'automaticallyChecksForUpdates', snapshot.settings.automaticallyChecksForUpdates, unavailable || updateBusy)}
@@ -170,6 +170,8 @@ type EnvironmentViewModel = import('./contracts').EnvironmentView;
 function EnvironmentAccess({ environment, cloudStatus, act }: { environment: EnvironmentViewModel; cloudStatus: AppSnapshot['cloudStatus']; act: Act }) {
   const needsPrompt = environment.status === 'needsAccess' || environment.status === 'permissionDenied'
     || (environment.status === 'unsupported' && (environment.access === 'cloud' || environment.access === 'directOrCloud'));
+  if (environment.status === 'restoring') return <Notice>Waiting for the saved Local pairing. Complete any Keychain prompt for T3 Code Bar.</Notice>;
+  if (environment.status === 'credentialUnavailable') return <div className="environment-access"><Notice warning>Saved access for {environment.label} is unavailable. Unlock your system credential store or allow T3 Code Bar in its Keychain prompt. Pairing has not been removed.</Notice>{!environment.isLocal && <button onClick={() => void act('retry_environment_access')}>Retry saved access for {environment.label}</button>}</div>;
   if (!needsPrompt && !environment.canForgetAccess) return null;
   return <div className="environment-access">
     {needsPrompt && <EnvironmentAccessPrompt environment={environment} cloudStatus={cloudStatus} act={act} />}
@@ -229,26 +231,30 @@ function EnvironmentPairing({ environment, act }: { environment: EnvironmentView
   }}><label>{environment.label} pairing key <input type="password" value={token} autoComplete="off" maxLength={16384} onChange={event => setToken(event.target.value)} /></label><button disabled={pending || !token.trim()}>{pending ? 'Connecting…' : 'Connect'}</button></form>;
 }
 
-function Connection({ snapshot, act, compact: minimal = false }: { snapshot: AppSnapshot; act: Act; compact?: boolean }) {
+function Connection({ snapshot, act, compact: minimal = false, local = false }: { snapshot: AppSnapshot; act: Act; compact?: boolean; local?: boolean }) {
+  const connection: ConnectionState = local ? snapshot.localConnection : snapshot.connection;
   const [token, setToken] = useState('');
-  const [expanded, setExpanded] = useState(!minimal && !snapshot.connection.paired);
+  const [expanded, setExpanded] = useState(!minimal && !connection.paired);
   const [pending, setPending] = useState(false);
-  const busy = pending || ['connecting', 'retrying'].includes(snapshot.connection.status);
-  useEffect(() => { if (snapshot.connection.connected) { setToken(''); setExpanded(false); } }, [snapshot.connection.connected]);
-  useEffect(() => { if (!snapshot.connection.paired && !minimal) setExpanded(true); }, [snapshot.connection.paired, minimal]);
+  const restoring = connection.status === 'restoring';
+  const storageUnavailable = connection.status === 'credentialUnavailable';
+  const busy = pending || restoring || ['connecting', 'retrying'].includes(connection.status);
+  useEffect(() => { if (connection.connected) { setToken(''); setExpanded(false); } }, [connection.connected]);
+  useEffect(() => { if (!connection.paired && !minimal) setExpanded(true); }, [connection.paired, minimal]);
   const connect = async (name: 'connect' | 'reconnect') => {
     const input = token;
     setToken('');
     setPending(true);
     try { await act(name, name === 'connect' ? { token: input } : undefined); } finally { setPending(false); }
   };
-  if (minimal && snapshot.connection.connected) return null;
+  if (minimal && connection.connected) return null;
   return <div className="connection">
-    <p className="connection-state" role="status"><i className={snapshot.connection.connected ? 'connected' : busy ? 'connecting' : ''} aria-hidden="true" />{snapshot.connection.connected ? 'Connected to T3 Code' : snapshot.connection.message}</p>
-    {!snapshot.connection.connected && <>
-      {snapshot.connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
-      {!snapshot.connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
-      {expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
+    <p className="connection-state" role="status"><i className={connection.connected ? 'connected' : busy ? 'connecting' : ''} aria-hidden="true" />{connection.connected ? 'Connected to T3 Code' : connection.message}</p>
+    {!connection.connected && <>
+      {storageUnavailable && <button disabled={pending} onClick={() => void connect('reconnect')}>Retry saved access</button>}
+      {!storageUnavailable && !restoring && connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
+      {!storageUnavailable && !restoring && !connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
+      {!storageUnavailable && !restoring && expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
         <label className="sr-only" htmlFor="access-token">Local pairing key</label><input id="access-token" type="password" value={token} disabled={busy} autoComplete="off" spellCheck={false} placeholder="Local pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
         <div className="connection-actions"><button className="primary-button" type="submit" disabled={!token.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button></div>
       </form>}

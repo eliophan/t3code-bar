@@ -29,6 +29,7 @@ const snapshot = (showsPreviews: boolean): AppSnapshot => ({
     activeRunStartedAt: null, usageLimitResetAt: null, projectIcon: null, projectFavicon: null,
   }],
   online: true, threadError: null, loading: false,
+  localConnection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null },
   connection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null },
   usage: null, usageError: null, usageLoading: false, usagePeriod: '24h', limits: null,
   settings: { environmentSelection: 'all', notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },
@@ -190,6 +191,7 @@ describe('new-install pairing', () => {
   it('requires a pairing key even when T3 Code already has cached data', async () => {
     const value = snapshot(true);
     value.connection = { ...value.connection, connected: false, paired: false, status: 'cacheOnly' };
+    value.localConnection = { ...value.connection };
     await renderSnapshot(value);
     expect(host.querySelector('.onboarding')).not.toBeNull();
     expect(host.querySelector('.thread-row')).toBeNull();
@@ -218,6 +220,7 @@ describe('new-install pairing', () => {
     const value = snapshot(true);
     value.online = false;
     value.connection = { ...value.connection, connected: false, paired: true, status: 'offline' };
+    value.localConnection = { ...value.connection };
     await renderSnapshot(value);
     expect(host.querySelector('.onboarding')).toBeNull();
     expect(host.querySelector('.thread-row')).not.toBeNull();
@@ -291,6 +294,7 @@ describe('settings state and actions', () => {
   it('offers saved reconnect and opens pairing only when requested while offline', async () => {
     const value = snapshot(true);
     value.connection = { ...value.connection, connected: false, status: 'offline', message: 'Open T3 Code to connect.' };
+    value.localConnection = { ...value.connection };
     await openSettings(value);
     expect(host.querySelector('input[type="password"]')).toBeNull();
     await act(async () => button('Reconnect').click());
@@ -314,6 +318,7 @@ describe('environment sources', () => {
   it('shows independently paired remote threads without requiring Local pairing', async () => {
     const value = snapshot(false);
     value.connection = { ...value.connection, connected: false, paired: false, status: 'disconnected' };
+    value.localConnection = { ...value.connection };
     value.environments = [{ id: 'remote', label: 'Independent', machine: 'linux', status: 'online', access: 'direct', isLocal: false, canForgetAccess: true }];
     value.threads = [{ ...value.threads[0], thread: { environmentId: 'remote', threadId: 'one' }, title: 'Independent thread' }];
     await renderSnapshot(value);
@@ -361,6 +366,7 @@ describe('environment sources', () => {
   it('identifies the local pairing target while a remote environment is selected', async () => {
     const value = snapshot(false);
     value.connection = { ...value.connection, connected: false, paired: false, status: 'disconnected' };
+    value.localConnection = { ...value.connection };
     value.settings.environmentSelection = { one: 'remote' };
     value.environments = [{ id: 'remote', label: 'Remote Mac', machine: 'laptop', status: 'needsAccess', access: 'direct', isLocal: false, canForgetAccess: false }];
     await renderSnapshot(value);

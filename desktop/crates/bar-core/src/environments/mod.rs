@@ -79,6 +79,7 @@ pub struct SourceAttempt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AttemptStatus {
     Offline,
+    CredentialUnavailable,
     NeedsPairing,
     Unsupported,
     PermissionDenied,

@@ -199,11 +199,21 @@ pub struct LoopbackTransport;
 #[serde(rename_all = "camelCase", tag = "kind", content = "message")]
 pub enum LiveStatus {
     CacheOnly,
+    Restoring,
+    StorageUnavailable,
     Connecting,
     Live,
     Paused,
     Retrying,
     Failed(String),
+}
+
+fn status_for_error(error: ConnectionError) -> LiveStatus {
+    if error == ConnectionError::Storage {
+        LiveStatus::StorageUnavailable
+    } else {
+        LiveStatus::Failed(error.to_string())
+    }
 }
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -433,10 +443,12 @@ impl LimitsConnection {
         }
     }
     fn fail(&self, e: ConnectionError) -> ConnectionError {
-        self.inner.lock().unwrap().snapshot.status = LiveStatus::Failed(e.to_string());
+        self.inner.lock().unwrap().snapshot.status = status_for_error(e);
         e
     }
     fn load_credential(&self) -> Result<Option<Credential>, ConnectionError> {
+        // Publish before the OS call: a Keychain approval may wait indefinitely.
+        self.inner.lock().unwrap().snapshot.status = LiveStatus::Restoring;
         let credential = self.store.load().map_err(|e| self.fail(e))?;
         if let Some(c) = &credential {
             if let Err(e) = c.validate() {
@@ -479,7 +491,7 @@ impl LimitsConnection {
             let mut s = self.inner.lock().unwrap();
             Self::stop_locked(&mut s);
             if let Err(e) = self.store.save(&c) {
-                s.snapshot.status = LiveStatus::Failed(e.to_string());
+                s.snapshot.status = status_for_error(e);
                 return Err(e);
             }
             s.credential = Some(c);
@@ -550,7 +562,7 @@ impl LimitsConnection {
         let mut s = self.inner.lock().unwrap();
         Self::stop_locked(&mut s);
         if let Err(e) = self.store.delete() {
-            s.snapshot.status = LiveStatus::Failed(e.to_string());
+            s.snapshot.status = status_for_error(e);
             return Err(e);
         }
         s.credential = None;
@@ -608,7 +620,7 @@ impl LimitsConnection {
                     ) {
                         s.credential = None;
                     }
-                    s.snapshot.status = LiveStatus::Failed(e.to_string());
+                    s.snapshot.status = status_for_error(e);
                     s.task = None;
                 });
                 if matches!(
@@ -619,8 +631,7 @@ impl LimitsConnection {
                 ) {
                     let mut s = self.inner.lock().unwrap();
                     if s.generation == generation && self.store.delete().is_err() {
-                        s.snapshot.status =
-                            LiveStatus::Failed(ConnectionError::Storage.to_string());
+                        s.snapshot.status = status_for_error(ConnectionError::Storage);
                     }
                 }
             }

@@ -142,6 +142,19 @@ struct ConnectionState {
     port: i64,
     updated_at: Option<String>,
 }
+impl Default for ConnectionState {
+    fn default() -> Self {
+        Self {
+            status: "unavailable".into(),
+            message: "Reading saved T3 Code access…".into(),
+            connected: false,
+            paired: false,
+            has_data: false,
+            port: 0,
+            updated_at: None,
+        }
+    }
+}
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UpdateState {
@@ -167,6 +180,7 @@ struct AppSnapshot {
     thread_error: Option<String>,
     loading: bool,
     connection: ConnectionState,
+    local_connection: ConnectionState,
     usage: Option<UsageReport>,
     usage_error: Option<String>,
     usage_loading: bool,
@@ -190,6 +204,7 @@ impl Default for AppSnapshot {
             online: false,
             thread_error: None,
             loading: true,
+            local_connection: ConnectionState::default(),
             connection: ConnectionState {
                 status: "unavailable".into(),
                 message: "T3 Code is unavailable. Showing saved data when present.".into(),
@@ -475,6 +490,8 @@ fn report_limits(s: limits::LimitsSnapshot, now: DateTime<Utc>, read_failed: boo
 fn connection_for(state: &RuntimeState, online: bool, has_data: bool) -> ConnectionState {
     let live = state.connection.snapshot();
     let (status, message) = match &live.status {
+        limits::LiveStatus::Restoring => ("restoring", "Waiting for access to the saved Local pairing in your system credential store. Complete any Keychain prompt for T3 Code Bar; other environments can keep updating.".into()),
+        limits::LiveStatus::StorageUnavailable => ("credentialUnavailable", "Could not read saved Local access. Unlock your system credential store or allow T3 Code Bar in its Keychain prompt, then retry saved access. Your pairing was not removed.".into()),
         limits::LiveStatus::Live => ("connected", "Connected to T3 Code".to_owned()),
         limits::LiveStatus::Connecting => ("connecting", "Connecting to T3 Code…".to_owned()),
         limits::LiveStatus::Retrying => (
@@ -527,6 +544,7 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
         .lock()
         .map_err(|_| "snapshot unavailable")?
         .clone();
+    snapshot.local_connection = connection_for(state, false, snapshot.connection.has_data);
     snapshot.cloud_status = match state.cloud.as_ref().and_then(|c| c.status().ok()) {
         Some(LoginStatus::SignedOut) => "signedOut",
         Some(LoginStatus::SigningIn) => "signingIn",
@@ -562,9 +580,13 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
                     .all(|route| matches!(route, Route::Ssh { target: None, .. }))
             {
                 "unsupported"
+            } else if local_id.as_ref() == Some(&source.metadata.id)
+                && matches!(snapshot.local_connection.status.as_str(), "restoring" | "credentialUnavailable") {
+                snapshot.local_connection.status.as_str()
             } else if source.attempt_status.is_some() {
                 match source.attempt_status.as_ref().unwrap() {
                     AttemptStatus::Offline => "offline",
+                    AttemptStatus::CredentialUnavailable => "credentialUnavailable",
                     AttemptStatus::NeedsPairing => "needsAccess",
                     AttemptStatus::Unsupported => "unsupported",
                     AttemptStatus::PermissionDenied => "permissionDenied",
@@ -625,7 +647,19 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
         if selected_online {
             snapshot.connection.status = "connected".into();
             snapshot.connection.message = "Connected to selected environments".into();
-        } else {
+        } else if selected_views
+            .iter()
+            .any(|entry| entry.status == "restoring")
+        {
+            snapshot.connection.status = "restoring".into();
+            snapshot.connection.message = snapshot.local_connection.message.clone();
+        } else if selected_views
+            .iter()
+            .any(|entry| entry.status == "credentialUnavailable")
+        {
+            snapshot.connection.status = "credentialUnavailable".into();
+            snapshot.connection.message = "Saved environment access is unavailable. Unlock your system credential store, then retry saved access in Settings.".into();
+        } else if snapshot.connection.status != "failed" {
             snapshot.connection.status = "offline".into();
             snapshot.connection.message = "Selected environments are offline or need access".into();
         }
@@ -1065,6 +1099,7 @@ fn map_error(error: ConnectionError) -> RemoteReadError {
         ConnectionError::InvalidRoute | ConnectionError::RelayCredentialUnsupported => {
             RemoteReadError::UnsupportedRoute
         }
+        ConnectionError::Storage => RemoteReadError::CredentialUnavailable,
         ConnectionError::Transport => RemoteReadError::Offline,
         _ => RemoteReadError::Protocol,
     }
@@ -1357,6 +1392,7 @@ fn apply_remote_error(
 ) -> Option<String> {
     let status = match &error {
         RemoteReadError::NeedsPairing => Some(AttemptStatus::NeedsPairing),
+        RemoteReadError::CredentialUnavailable => Some(AttemptStatus::CredentialUnavailable),
         RemoteReadError::UnsupportedRoute => Some(AttemptStatus::Unsupported),
         RemoteReadError::PermissionDenied { threads: false, .. } => None,
         RemoteReadError::PermissionDenied { .. }
@@ -1378,6 +1414,7 @@ fn apply_remote_error(
         .get(&attempt.environment)
         .and_then(|source| source.stamp.clone());
     match error {
+        RemoteReadError::CredentialUnavailable => Some("Could not read saved environment access. Unlock your system credential store or allow T3 Code Bar in its Keychain prompt. Saved pairing was not removed.".into()),
         RemoteReadError::NeedsPairing => {
             if let Some(stamp) = stamp {
                 hub.unavailable_sections(&stamp, true, true, true, UnavailableReason::NeedsPairing);
@@ -1943,17 +1980,19 @@ fn refresh_visible(app: &tauri::AppHandle, state: &SharedState) {
         emit_snapshot(&app, &state);
     });
 }
-fn poller(app: tauri::AppHandle, state: SharedState) {
+fn restore_local_connection(state: SharedState) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        {
-            let _gate = state.connection_gate.blocking_lock();
-            if let Err(error) = state.connection.restore_saved() {
-                record(
-                    "connection_restore_error",
-                    json!({"error": error.to_string()}),
-                );
-            }
+        let _gate = state.connection_gate.blocking_lock();
+        if let Err(error) = state.connection.restore_saved() {
+            record("connection_restore_error", json!({"error": error.to_string()}));
         }
+    })
+}
+
+fn poller(app: tauri::AppHandle, state: SharedState) {
+    // OS credential approval for Local must not stop discovery or other sources.
+    restore_local_connection(state.clone());
+    thread::spawn(move || {
         let mut tick = 0u64;
         loop {
             refresh_threads(&app, &state);
@@ -2504,6 +2543,11 @@ fn open_notification_thread(
     open(runtime_thread_url(state, &reference, false)?)
 }
 #[tauri::command]
+fn retry_environment_access(state: State<'_, SharedState>, app: tauri::AppHandle) {
+    refresh_threads(&app, &state);
+}
+
+#[tauri::command]
 async fn connect(
     token: String,
     state: State<'_, SharedState>,
@@ -2851,6 +2895,7 @@ fn pair_remote_environment(
 }
 fn pairing_failure(error: &RemoteReadError) -> String {
     match error {
+        RemoteReadError::CredentialUnavailable => "Could not read or save environment access. Unlock your system credential store or allow T3 Code Bar in its Keychain prompt. Existing pairing was not removed.".into(),
         RemoteReadError::PermissionDenied { .. } => {
             "The pairing key was not accepted. Create a new key in T3 Code and try again.".into()
         }
@@ -3123,6 +3168,7 @@ fn main() {
             add_environment,
             remove_saved_environment,
             pair_environment,
+            retry_environment_access,
             forget_environment_access,
             check_for_updates,
             install_update,

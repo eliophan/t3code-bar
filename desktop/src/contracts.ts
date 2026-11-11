@@ -74,6 +74,7 @@ export interface AppSnapshot {
   threadError: string | null;
   loading: boolean;
   connection: ConnectionState;
+  localConnection: ConnectionState;
   usage: UsageReport | null;
   usageError: string | null;
   usageLoading: boolean;
