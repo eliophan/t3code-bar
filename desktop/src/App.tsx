@@ -94,6 +94,7 @@ export function App() {
     : screen === 'settings' ? <><header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Settings</strong></header><SettingsPage snapshot={snapshot} act={act} /></>
     : !snapshot.connection.paired ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
+      <EnvironmentPicker snapshot={snapshot} act={act} />
       <main key={threadGeneration} className="threads scroll">
         {snapshot.threadError && <Notice warning>{snapshot.threadError}</Notice>}
         {!snapshot.online && <Notice>T3 Code offline · showing saved threads</Notice>}
@@ -103,6 +104,7 @@ export function App() {
     </> : <>
       {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{snapshot.connection.status === 'failed' ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
       <header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Usage</strong>{metric !== 'limits' && <div className="segments periods" aria-label="Usage period">{(['24h', '7d', '30d', '90d'] as Period[]).map(p => <button key={p} aria-pressed={period === p} onClick={() => setPeriod(p)}>{p}</button>)}</div>}</header>
+      <EnvironmentPicker snapshot={snapshot} act={act} />
       <div className="tab-bar"><nav className="segments tabs" aria-label="Usage metric">{(['cost', 'tokens', 'limits'] as Metric[]).map(m => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</nav></div>
       <main className="usage scroll">{metric === 'limits' ? <><Connection snapshot={snapshot} act={act} compact />{snapshot.limits ? <Limits groups={snapshot.limits.groups} snapshot={snapshot} act={act} /> : <Empty title="No limits data yet">Open T3 Code once so it can save provider status.</Empty>}</> : <>
         {snapshot.usageError && <Notice warning>{snapshot.usageError}</Notice>}
@@ -110,6 +112,19 @@ export function App() {
       </>}</main>
     </>}
     {context && <div role="menu" className="context-menu" style={{ top: Math.min(context.top, 420) }} onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { id: context.thread.id, action }); setContext(null); }}>{title}</button>)}</div>}
+  </div>;
+}
+
+function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
+  if (snapshot.environments.length < 2) return null;
+  const selected = snapshot.environments.find(environment => environment.environmentId === snapshot.selectedEnvironmentId);
+  return <div className="environment-picker" aria-label="Environment selector">
+    <label htmlFor="environment-select">Environment</label>
+    <select id="environment-select" value={snapshot.selectedEnvironmentId ?? ''} onChange={event => void act('select_environment', { environmentId: event.target.value })}>
+      {snapshot.environments.map(environment => <option key={environment.environmentId} value={environment.environmentId} disabled={!environment.enabled}>{environment.label} · {environment.machine} · {environment.status}</option>)}
+    </select>
+    {selected && selected.status === 'Unsupported' && <small>Remote connection is not available in this build.</small>}
+    {selected && selected.status === 'Disconnected' && <button className="text-button" onClick={() => void act('connect_environment', { environmentId: selected.environmentId })}>Connect</button>}
   </div>;
 }
 

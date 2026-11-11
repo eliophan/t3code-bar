@@ -11,6 +11,18 @@ pub struct EnvironmentRecord {
     pub enabled: bool,
 }
 
+impl EnvironmentRecord {
+    pub fn local(environment_id: impl Into<String>, label: impl Into<String>, port: u16) -> Self {
+        Self {
+            environment_id: environment_id.into(),
+            label: label.into(),
+            machine: std::env::consts::OS.into(),
+            endpoint: format!("http://127.0.0.1:{port}"),
+            enabled: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EnvironmentStatus {
@@ -91,6 +103,10 @@ impl EnvironmentRegistry {
     }
 
     pub fn records(&self) -> &[EnvironmentRecord] { &self.records }
+
+    pub fn record(&self, environment_id: &str) -> Option<&EnvironmentRecord> {
+        self.records.iter().find(|record| record.environment_id == environment_id)
+    }
 
     pub fn status(&self, environment_id: &str) -> Option<EnvironmentStatus> {
         self.statuses.get(environment_id).copied()

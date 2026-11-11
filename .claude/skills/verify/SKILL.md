@@ -44,7 +44,7 @@ Use Computer Use against the real menu bar app.
 4. Confirm the panel changes to the thread list and record the visible connection state.
 5. Open `Usage`, then record whether Cost, Tokens, and Limits render.
 6. Open `Settings`, record the connection state, and return to the thread list.
-7. If T3 Code has linked environments, verify the Bar shows the linked-environment notice and still labels its connection as the Mac's local server. The Bar cannot select or directly dial a linked remote environment yet; do not count this notice as remote connectivity proof.
+7. If the state directory has `bar-environments.json` with multiple records, verify the environment selector shows each record by `environmentId`, label, machine, and status. Selecting a local record must refresh the local view. A remote record remains unsupported until the relay transport is implemented; do not count its selector entry as remote connectivity proof.
 
 Prefer accessibility labels and visible text. Do not use coordinate-only clicks when a label is available.
 

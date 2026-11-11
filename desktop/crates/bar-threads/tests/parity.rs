@@ -256,6 +256,14 @@ fn environment_registry_rejects_duplicate_ids_and_non_http_endpoints() {
 }
 
 #[test]
+fn local_environment_record_has_stable_loopback_route() {
+    let record = environments::EnvironmentRecord::local("env-local", "This Mac", 3777);
+    assert_eq!(record.environment_id, "env-local");
+    assert_eq!(record.endpoint, "http://127.0.0.1:3777");
+    assert!(record.enabled);
+}
+
+#[test]
 fn registry_updates_only_the_selected_environment_status() {
     struct Reachable;
     impl environments::EnvironmentTransport for Reachable {

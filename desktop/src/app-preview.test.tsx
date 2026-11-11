@@ -32,6 +32,7 @@ const snapshot = (showsPreviews: boolean): AppSnapshot => ({
   usage: null, usageError: null, usageLoading: false, usagePeriod: '24h', limits: null,
   settings: { notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },
   update: { status: 'idle', message: '', version: null, offerId: null, canInstall: false, busy: false }, version: 'test',
+  environments: [], selectedEnvironmentId: null,
 });
 
 let root: Root;

@@ -120,6 +120,16 @@ struct ConnectionState {
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct EnvironmentView {
+    environment_id: String,
+    label: String,
+    machine: String,
+    endpoint: String,
+    status: String,
+    enabled: bool,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct UpdateState {
     status: String,
     message: String,
@@ -146,6 +156,8 @@ struct AppSnapshot {
     settings: Settings,
     update: UpdateState,
     version: String,
+    environments: Vec<EnvironmentView>,
+    selected_environment_id: Option<String>,
 }
 impl Default for AppSnapshot {
     fn default() -> Self {
@@ -180,6 +192,8 @@ impl Default for AppSnapshot {
                 busy: false,
             },
             version: env!("CARGO_PKG_VERSION").into(),
+            environments: vec![],
+            selected_environment_id: None,
         }
     }
 }
@@ -231,14 +245,58 @@ fn record_failure(operation: &str, result: Result<(), String>) {
     }
 }
 #[tauri::command]
-fn connect_environment(
+async fn connect_environment(
     environment_id: String,
     state: State<'_, SharedState>,
+    app: tauri::AppHandle,
 ) -> Result<String, String> {
-    let mut registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
-    if !registry.records().iter().any(|record| record.environment_id == environment_id) { return Err("unknown environment".into()); }
-    let result = registry.connect(&environment_id);
-    result.map(|_| "reachable".into()).map_err(|error| error.to_string())
+    let (result, status, views) = {
+        let mut registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+        if registry.record(&environment_id).is_none() { return Err("unknown environment".into()); }
+        let result = registry.connect(&environment_id).map(|_| "reachable".into()).map_err(|error| error.to_string());
+        let status = registry.status(&environment_id).map(|s| format!("{s:?}")).unwrap_or_else(|| "Disconnected".into());
+        let views = environment_views(&registry);
+        (result, status, views)
+    };
+    if result.is_ok() && status == "Reachable" {
+        let port = state.config.server_port().map_err(|e| e.to_string())?;
+        state.connection.reconnect_saved(port).await.map_err(|e| e.to_string())?;
+    }
+    if let Ok(mut snapshot) = state.snapshot.lock() {
+        snapshot.environments = views;
+        snapshot.selected_environment_id = Some(environment_id);
+    }
+    refresh_threads(&app, &state);
+    refresh_limits(&app, &state, true);
+    emit_snapshot(&app, &state);
+    result
+}
+#[tauri::command]
+fn select_environment(
+    environment_id: String,
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+    let record = registry.record(&environment_id).ok_or("unknown environment")?;
+    if !record.enabled { return Err("environment is disabled".into()); }
+    drop(registry);
+    let mut snapshot = state.snapshot.lock().map_err(|_| "snapshot unavailable")?;
+    snapshot.selected_environment_id = Some(environment_id);
+    drop(snapshot);
+    emit_snapshot(&app, &state);
+    refresh_threads(&app, &state);
+    Ok(())
+}
+fn environment_views(registry: &threads::environments::EnvironmentRegistry) -> Vec<EnvironmentView> {
+    registry.records().iter().map(|record| EnvironmentView {
+        environment_id: record.environment_id.clone(),
+        label: record.label.clone(),
+        machine: record.machine.clone(),
+        endpoint: record.endpoint.clone(),
+        status: registry.status(&record.environment_id).map(|s| format!("{s:?}")).unwrap_or_else(|| "Disconnected".into()),
+        enabled: record.enabled,
+    }).collect()
 }
 fn fixture_or_env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.trim().is_empty())
@@ -1068,7 +1126,22 @@ fn main() {
         }
     }
 
-    let environment_records = threads::environments::load(&base.join("bar-environments.json")).unwrap_or_default();
+    let mut environment_records = threads::environments::load(&base.join("bar-environments.json")).unwrap_or_default();
+    if environment_records.is_empty() {
+        if let (Ok(environment_id), Ok(port)) = (
+            std::fs::read_to_string(base.join("environment-id")),
+            config.server_port(),
+        ) {
+            let environment_id = environment_id.trim();
+            if !environment_id.is_empty() {
+                environment_records.push(threads::environments::EnvironmentRecord::local(
+                    environment_id,
+                    "This Mac",
+                    port,
+                ));
+            }
+        }
+    }
     let mut environment_registry = threads::environments::EnvironmentRegistry::new(environment_records.clone()).unwrap_or_default();
     for environment in environment_records {
         let attach = if environment.endpoint.starts_with("http://127.0.0.1") || environment.endpoint.starts_with("http://localhost") {
@@ -1078,12 +1151,16 @@ fn main() {
         };
         if let Err(error) = attach { record("environment_attach_error", json!({"error": error.to_string()})); }
     }
+    let environment_views = environment_views(&environment_registry);
+    let selected_environment_id = environment_views.first().map(|environment| environment.environment_id.clone());
     let state = Arc::new(RuntimeState {
         config: config.clone(),
         environment_registry: Mutex::new(environment_registry),
         snapshot: Mutex::new(AppSnapshot {
             startup_error,
             settings: settings.value().clone(),
+            environments: environment_views,
+            selected_environment_id,
             ..Default::default()
         }),
         settings: Mutex::new(settings),
@@ -1124,6 +1201,7 @@ fn main() {
             quit_app,
             thread_action,
             connect_environment,
+            select_environment,
             new_thread,
             get_preview,
             open_limit_link,
