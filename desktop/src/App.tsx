@@ -99,6 +99,7 @@ export function App() {
     : screen === 'settings' ? <><header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Settings</strong></header><SettingsPage snapshot={snapshot} act={act} /></>
     : !hasThreadAccess ? <div className="onboarding"><h1>Connect T3 Code</h1><Connection snapshot={snapshot} act={act} /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
+      <EnvironmentPicker snapshot={snapshot} act={act} />
       <main key={threadGeneration} className="threads scroll">
         {snapshot.threadError && <Notice warning>{snapshot.threadError}</Notice>}
         {!snapshot.online && <Notice>T3 Code offline · showing saved threads</Notice>}
@@ -108,6 +109,7 @@ export function App() {
     </> : <>
       {!snapshot.connection.connected && <div className="disconnected-banner" title={snapshot.connection.message}><svg className="disconnected-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 9a16 16 0 0 1 22 0M5 13a10 10 0 0 1 14 0M9 17a4 4 0 0 1 6 0M3 3l18 18" /></svg><span>{['failed', 'restoring', 'credentialUnavailable'].includes(snapshot.connection.status) ? snapshot.connection.message : snapshot.connection.updatedAt ? `Disconnected · updated ${limitAgo(snapshot.connection.updatedAt, Date.parse(snapshot.now))}` : 'Disconnected · showing saved data'}</span></div>}
       <header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Usage</strong>{metric !== 'limits' && <div className="segments periods" aria-label="Usage period">{(['24h', '7d', '30d', '90d'] as Period[]).map(p => <button key={p} aria-pressed={period === p} onClick={() => setPeriod(p)}>{p}</button>)}</div>}</header>
+      <EnvironmentPicker snapshot={snapshot} act={act} />
       <div className="tab-bar"><nav className="segments tabs" aria-label="Usage metric">{(['cost', 'tokens', 'limits'] as Metric[]).map(m => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</nav></div>
       <main className="usage scroll">{metric === 'limits' ? <><Connection snapshot={snapshot} act={act} compact />{snapshot.limits ? <Limits groups={snapshot.limits.groups} snapshot={snapshot} act={act} /> : <Empty title="No limits data yet">Open T3 Code once so it can save provider status.</Empty>}</> : <>
         {snapshot.usageError && <Notice warning>{snapshot.usageError}</Notice>}
@@ -115,6 +117,18 @@ export function App() {
       </>}</main>
     </>}
     {context && <div role="menu" className="context-menu" onClick={e => e.stopPropagation()}>{[['open', 'Open in T3 Code'], ['browser', 'Open in Browser'], ['copy', 'Copy Thread Link']].map(([action, title]) => <button role="menuitem" key={action} onClick={() => { void act('thread_action', { thread: context.thread.thread, action }); setContext(null); }}>{title}</button>)}</div>}
+  </div>;
+}
+
+function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
+  if (snapshot.environments.length < 2) return snapshot.environments.length === 0 ? <div className="environment-picker"><span>No environments found.</span><button className="text-button" onClick={() => void act('login_cloud')}>Sign in to T3 Code</button></div> : null;
+  const selectedId = snapshot.settings.environmentSelection === 'all' ? '' : snapshot.settings.environmentSelection.one;
+  return <div className="environment-picker" aria-label="Environment selector">
+    <label htmlFor="environment-select">Environment</label>
+    <select id="environment-select" value={selectedId} onChange={event => void act('set_environment_selection', { selection: event.target.value ? { one: event.target.value } : 'all' })}>
+      <option value="">All environments</option>
+      {snapshot.environments.map(environment => <option key={environment.id} value={environment.id}>{environment.label} · {environment.machine} · {environment.status}</option>)}
+    </select>
   </div>;
 }
 

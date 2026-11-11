@@ -27,6 +27,10 @@ npm run tauri -- build --bundles app # macOS
 npm run tauri -- build --config src-tauri/tauri.linux.conf.json # Linux
 ```
 
+The project verification skill lives at `.agents/skills/verify/`. Use that
+directory directly from Codex or Claude Code; do not create a second copy under
+`.claude/skills/`.
+
 Rust is pinned by `desktop/rust-toolchain.toml`. Native Tauri prerequisites are required for host tests and builds. See `docs/DEVELOPMENT.md` and `desktop/RELEASE.md`.
 
 ## Architecture

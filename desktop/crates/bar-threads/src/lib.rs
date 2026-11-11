@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, path::PathBuf, time::Duration};
 use unicode_segmentation::UnicodeSegmentation;
 
+pub mod environments;
+pub mod remote;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainError {
     Missing,
@@ -85,6 +88,7 @@ impl Configuration {
             .filter(|p| *p > 0 && *p <= i32::MAX as i64)
             .is_some_and(|p| unsafe { libc::kill(p as libc::pid_t, 0) == 0 })
     }
+
     pub fn server_port(&self) -> Result<u16, DomainError> {
         let runtime = self.runtime().ok_or(DomainError::MissingRuntime)?;
         runtime

@@ -226,6 +226,7 @@ describe('new-install pairing', () => {
     expect(host.querySelector('.thread-row')).not.toBeNull();
     expect(host.textContent).toContain('T3 Code offline');
   });
+
 });
 
 describe('settings state and actions', () => {
