@@ -175,7 +175,7 @@ class PackageMetadataTest(unittest.TestCase):
             packaging.merge_packages([self.directory], output, self.public_key)
         with self.assertRaisesRegex(ValueError, 'duplicate package target'):
             packaging.merge_packages([self.directory, self.directory], output, self.public_key)
-        intel = self.intel_package('2.0.0-alpha.2')
+        intel = self.intel_package('2.0.0-alpha.3')
         with self.assertRaisesRegex(ValueError, 'versions differ'):
             packaging.merge_packages([self.directory, intel], output, self.public_key)
         self.assertFalse(output.exists())

@@ -5,11 +5,11 @@ set -euo pipefail
 fail() { printf 'T3 Code Bar: %s\n' "$*" >&2; exit 1; }
 [[ "$(uname -s)" == Linux ]] || fail 'This installer supports Linux only.'
 if [[ "${1:-}" == --help ]]; then
-  printf 'Usage: bash install-linux.sh [VERSION]\nDefault: 2.0.0-alpha.2. Installs an AppImage and a desktop launcher for the current user.\n'
+  printf 'Usage: bash install-linux.sh [VERSION]\nDefault: 2.0.0-alpha.3. Installs an AppImage and a desktop launcher for the current user.\n'
   exit 0
 fi
 [[ $# -le 1 ]] || fail 'Usage: bash install-linux.sh [VERSION]'
-version="${1:-2.0.0-alpha.2}"
+version="${1:-2.0.0-alpha.3}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || fail 'Invalid release version.'
 case "$(uname -m)" in
   x86_64) architecture=x86_64 ;;
