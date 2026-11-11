@@ -5,7 +5,7 @@ description: Drive the T3 Code Bar macOS or Linux tray app through its real pair
 
 # Verify T3 Code Bar
 
-Use this skill for a real UI check of the T3 Code Bar desktop app. The Bar is a local companion for a T3 Code server. Its production transport connects to `127.0.0.1:<port>` and does not directly connect to a remote linked environment.
+Use this skill for a real UI check of the T3 Code Bar desktop app. The Bar can read a local server or a linked environment through the T3 relay. Remote access uses a persisted Clerk session, a relay-issued DPoP credential, and the selected environment endpoint; it must never fall back to the local server.
 
 ## Launch
 
@@ -44,7 +44,7 @@ Use Computer Use against the real menu bar app.
 4. Confirm the panel changes to the thread list and record the visible connection state.
 5. Open `Usage`, then record whether Cost, Tokens, and Limits render.
 6. Open `Settings`, record the connection state, and return to the thread list.
-7. If the state directory has `bar-environments.json` with multiple records, verify the environment selector shows each record by `environmentId`, label, machine, and status. Selecting a local record must refresh the local view. A remote record remains unsupported until the relay transport is implemented; do not count its selector entry as remote connectivity proof.
+7. If the state directory has `bar-environments.json` with multiple records, verify the environment selector shows each record by `environmentId`, label, machine, and status. Selecting a local record must refresh the local view. Selecting a remote record must show its live shell snapshot and a reachable status; do not count the catalog entry alone as remote connectivity proof.
 
 Prefer accessibility labels and visible text. Do not use coordinate-only clicks when a label is available.
 
@@ -60,7 +60,7 @@ Store proof under `/tmp/t3-code-bar-verify/<timestamp>/`. Capture:
 - the exact app build and T3 Code version;
 - the final process and port ownership check.
 
-The proof must exercise the real menu bar path and verify the resulting visible state. A cached thread list is not proof of a live connection. For a remote environment claim, also record the T3 Code environment ID and live status separately. Do not claim that the Bar connected to a remote environment merely because T3 Code lists it.
+The proof must exercise the real menu bar path and verify the resulting visible state. A cached thread list is not proof of a live connection. For a remote environment claim, also record the T3 Code environment ID, relay status, selected endpoint, and live shell snapshot separately. Do not claim that the Bar connected to a remote environment merely because T3 Code lists it. Usage and limits remain separate evidence and must be labelled unavailable when the selected remote API does not expose them.
 
 ## Cleanup
 

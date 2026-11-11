@@ -5,6 +5,7 @@ export type ThreadStatus = 'Working' | 'Goal' | 'Approval' | 'Input' | 'Request'
 
 export interface ThreadItem {
   id: string;
+  environmentId?: string | null;
   projectId: string;
   projectTitle: string;
   title: string;

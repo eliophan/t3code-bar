@@ -116,14 +116,14 @@ export function App() {
 }
 
 function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
-  if (snapshot.environments.length < 2) return null;
+  if (snapshot.environments.length < 2) return snapshot.environments.length === 0 ? <div className="environment-picker"><span>No environments found.</span><button className="text-button" onClick={() => void act('login_cloud')}>Sign in to T3 Code</button></div> : null;
   const selected = snapshot.environments.find(environment => environment.environmentId === snapshot.selectedEnvironmentId);
   return <div className="environment-picker" aria-label="Environment selector">
     <label htmlFor="environment-select">Environment</label>
     <select id="environment-select" value={snapshot.selectedEnvironmentId ?? ''} onChange={event => void act('select_environment', { environmentId: event.target.value })}>
       {snapshot.environments.map(environment => <option key={environment.environmentId} value={environment.environmentId} disabled={!environment.enabled}>{environment.label} · {environment.machine} · {environment.status}</option>)}
     </select>
-    {selected && selected.status === 'Unsupported' && <small>Remote connection is not available in this build.</small>}
+    {selected && selected.status === 'Unsupported' && <small>This environment cannot be reached by the relay.</small>}
     {selected && selected.status === 'Disconnected' && <button className="text-button" onClick={() => void act('connect_environment', { environmentId: selected.environmentId })}>Connect</button>}
   </div>;
 }

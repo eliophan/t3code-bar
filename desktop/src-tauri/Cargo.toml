@@ -27,6 +27,10 @@ tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+p256 = { version = "0.13", features = ["ecdsa", "jwk"] }
+sha2 = "0.10"
+rand = "0.8"
 
 [patch.crates-io]
 notify-rust = { path = "../vendor/notify-rust" }
@@ -35,7 +39,9 @@ notify-rust = { path = "../vendor/notify-rust" }
 cocoa = "0.26"
 objc = "0.2"
 block = "0.1"
+keyring = { version = "3", features = ["apple-native"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "4.4", features = ["blocking"] }
 gtk = "0.18"
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }

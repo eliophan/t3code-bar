@@ -13,6 +13,7 @@ mod favicons;
 mod tray_status;
 mod updater_adapter;
 mod updates;
+mod relay;
 
 use bar_core::{
     attention::AttentionTracker,
@@ -20,6 +21,7 @@ use bar_core::{
     settings::{SettingKey, Settings, SettingsStore},
     threads, usage,
 };
+use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
@@ -36,6 +38,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, State,
 };
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 static VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static PANEL_HEIGHT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(560);
@@ -45,6 +48,7 @@ static PANEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 #[serde(rename_all = "camelCase")]
 struct ThreadItem {
     id: String,
+    environment_id: Option<String>,
     project_id: String,
     project_title: String,
     title: String,
@@ -233,6 +237,88 @@ type SharedState = Arc<RuntimeState>;
 fn now(state: &RuntimeState) -> DateTime<Utc> {
     state.frozen_now.unwrap_or_else(Utc::now)
 }
+fn relay_token_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new("com.t3code.bar.tauri.relay", "clerk-session").map_err(|_| "relay credential storage unavailable".into())
+}
+fn saved_relay_token() -> Result<Option<String>, String> {
+    match relay_token_entry()?.get_password() {
+        Ok(token) if !token.trim().is_empty() => {
+            #[derive(Deserialize)]
+            struct StoredToken { access_token: String, expires_at: Option<i64> }
+            if let Ok(stored) = serde_json::from_str::<StoredToken>(&token) {
+                let fresh = stored.expires_at.map(|at| at > Utc::now().timestamp() + 30).unwrap_or(true);
+                return Ok(fresh.then_some(stored.access_token));
+            }
+            Ok(Some(token))
+        }
+        Ok(_) => Ok(None),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(_) => Err("relay credential storage unavailable".into()),
+    }
+}
+fn save_relay_token(token: &str, expires_in: Option<u64>) -> Result<(), String> {
+    let expires_at = expires_in.map(|seconds| Utc::now().timestamp().saturating_add(seconds as i64));
+    let value = serde_json::json!({"access_token": token, "expires_at": expires_at}).to_string();
+    relay_token_entry()?.set_password(&value).map_err(|_| "could not save relay login".into())
+}
+fn relay_refresh_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new("com.t3code.bar.tauri.relay", "clerk-refresh").map_err(|_| "relay credential storage unavailable".into())
+}
+fn save_relay_refresh(token: &str) -> Result<(), String> {
+    relay_refresh_entry()?.set_password(token).map_err(|_| "could not save relay refresh token".into())
+}
+fn saved_relay_refresh() -> Result<Option<String>, String> {
+    match relay_refresh_entry()?.get_password() {
+        Ok(token) if !token.trim().is_empty() => Ok(Some(token)),
+        Ok(_) | Err(keyring::Error::NoEntry) => Ok(None),
+        Err(_) => Err("relay credential storage unavailable".into()),
+    }
+}
+async fn relay_access_token(client: &relay::RelayClient) -> Result<String, String> {
+    if let Some(token) = saved_relay_token()? { return Ok(token); }
+    let refresh = saved_relay_refresh()?.ok_or("Sign in to T3 Code before connecting a remote environment")?;
+    let refreshed = client.refresh_oauth_token(&refresh).await?;
+    save_relay_token(&refreshed.access_token, refreshed.expires_in)?;
+    if let Some(next) = refreshed.refresh_token.as_deref() { save_relay_refresh(next)?; }
+    Ok(refreshed.access_token)
+}
+fn relay_environment_entry(environment_id: &str) -> Result<keyring::Entry, String> {
+    let account = format!("environment:{environment_id}");
+    keyring::Entry::new("com.t3code.bar.tauri.relay-environment", &account).map_err(|_| "environment credential storage unavailable".into())
+}
+fn save_environment_credential(environment_id: &str, credential: &str) -> Result<(), String> {
+    relay_environment_entry(environment_id)?.set_password(credential).map_err(|_| "could not save environment credential".into())
+}
+fn relay_signing_key_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new("com.t3code.bar.tauri.relay", "dpop-signing-key").map_err(|_| "relay credential storage unavailable".into())
+}
+fn relay_client() -> Result<relay::RelayClient, String> {
+    if let Ok(encoded) = relay_signing_key_entry()?.get_password() {
+        if let Ok(bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(encoded) {
+            if let Ok(client) = relay::RelayClient::with_signing_key("https://relay.t3.codes", &bytes) { return Ok(client); }
+        }
+    }
+    let client = relay::RelayClient::new()?;
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(client.signing_key_bytes());
+    relay_signing_key_entry()?.set_password(&encoded).map_err(|_| "could not save relay signing key".to_string())?;
+    Ok(client)
+}
+async fn callback_code(listener: tokio::net::TcpListener, state: String) -> Result<String, String> {
+    let (mut stream, _) = listener.accept().await.map_err(|_| "cloud login callback failed")?;
+    let mut bytes = vec![0; 8192];
+    let count = stream.read(&mut bytes).await.map_err(|_| "cloud login callback failed")?;
+    let request = String::from_utf8_lossy(&bytes[..count]);
+    let path = request.lines().next().and_then(|line| line.split_whitespace().nth(1)).ok_or("cloud login callback was invalid")?;
+    let url = url::Url::parse(&format!("http://127.0.0.1{path}")).map_err(|_| "cloud login callback was invalid")?;
+    if url.query_pairs().find(|(key, value)| key == "state" && value.as_ref() == state).is_none() {
+        return Err("cloud login state did not match".into());
+    }
+    let code = url.query_pairs().find(|(key, _)| key == "code").map(|(_, value)| value.to_string()).ok_or("cloud login callback did not contain a code")?;
+    let body_text = "T3 Code Bar is connected. You can close this tab.";
+    let body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}", body_text.len(), body_text);
+    let _ = stream.write_all(body.as_bytes()).await;
+    Ok(code)
+}
 pub fn record(event: &str, value: serde_json::Value) {
     eprintln!("[bar:{event}] {}", value);
 }
@@ -250,6 +336,41 @@ async fn connect_environment(
     state: State<'_, SharedState>,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
+    let remote_record = {
+        let registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+        registry.record(&environment_id).cloned().ok_or("unknown environment")?
+    };
+    if !remote_record.endpoint.starts_with("http://127.0.0.1") && !remote_record.endpoint.starts_with("http://localhost") {
+        let client = relay_client()?;
+        let clerk_token = relay_access_token(&client).await?;
+        let (dpop_token, _) = client.exchange_dpop(&clerk_token).await?;
+        let connected = client.connect(&dpop_token, &environment_id).await?;
+        if connected.environment_id != environment_id || connected.endpoint.http_base_url != remote_record.endpoint {
+            return Err("relay returned a different environment endpoint".into());
+        }
+        save_environment_credential(&environment_id, &connected.credential)?;
+        let shell = client.shell_snapshot(&connected.endpoint, &connected.credential).await?;
+        let remote_threads = threads::remote::decode_shell_snapshot(&shell).map_err(|_| "remote shell response was invalid")?.into_iter().map(|thread| remote_thread_item(&environment_id, thread)).collect::<Vec<_>>();
+        let views = {
+            let mut registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+            registry.set_status(&environment_id, threads::environments::EnvironmentStatus::Reachable).map_err(|e| e.to_string())?;
+            environment_views(&registry)
+        };
+        if let Ok(mut snapshot) = state.snapshot.lock() {
+            snapshot.environments = views;
+            snapshot.selected_environment_id = Some(environment_id.clone());
+            snapshot.threads = remote_threads.clone();
+            snapshot.online = true;
+            snapshot.loading = false;
+            snapshot.thread_error = None;
+            snapshot.usage = None;
+            snapshot.usage_error = Some("Remote usage is not available from this environment API yet.".into());
+            snapshot.limits = None;
+        }
+        if let Ok(mut ids) = state.ids.lock() { *ids = remote_threads.iter().map(|thread| thread.id.clone()).collect(); }
+        emit_snapshot(&app, &state);
+        return Ok("reachable".into());
+    }
     let (result, status, views) = {
         let mut registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
         if registry.record(&environment_id).is_none() { return Err("unknown environment".into()); }
@@ -270,6 +391,44 @@ async fn connect_environment(
     refresh_limits(&app, &state, true);
     emit_snapshot(&app, &state);
     result
+}
+#[tauri::command]
+async fn login_cloud(
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let client = relay_client()?;
+    let pkce = relay::make_pkce_request();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.map_err(|_| "could not start cloud login callback")?;
+    let port = listener.local_addr().map_err(|_| "could not read cloud login callback address")?.port();
+    let callback = callback_code(listener, pkce.state.clone());
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(relay::RelayClient::authorization_url(&pkce.state, &pkce.challenge, port), None::<String>).map_err(|_| "could not open cloud login")?;
+    let code = callback.await?;
+    let token = client.exchange_oauth_code(&code, &pkce.verifier, port).await?;
+    save_relay_token(&token.access_token, token.expires_in)?;
+    if let Some(refresh) = token.refresh_token.as_deref() { save_relay_refresh(refresh)?; }
+    let environments = client.list_environments(&token.access_token).await?;
+    let records = environments.iter().map(|environment| threads::environments::EnvironmentRecord {
+        environment_id: environment.environment_id.clone(),
+        label: environment.label.clone(),
+        machine: "remote".into(),
+        endpoint: environment.endpoint.http_base_url.clone(),
+        enabled: true,
+    }).collect::<Vec<_>>();
+    threads::environments::save(&state.config.base_dir.join("bar-environments.json"), &records).map_err(|e| e.to_string())?;
+    let mut registry = threads::environments::EnvironmentRegistry::new(records).map_err(|e| e.to_string())?;
+    for environment in registry.records().to_owned() {
+        let _ = registry.attach(&environment.environment_id, threads::environments::UnsupportedRemoteTransport);
+    }
+    let views = environment_views(&registry);
+    if let Ok(mut current) = state.environment_registry.lock() { *current = registry; }
+    if let Ok(mut snapshot) = state.snapshot.lock() {
+        snapshot.environments = views;
+        snapshot.selected_environment_id = snapshot.environments.first().map(|environment| environment.environment_id.clone());
+    }
+    emit_snapshot(&app, &state);
+    Ok(())
 }
 #[tauri::command]
 fn select_environment(
@@ -297,6 +456,31 @@ fn environment_views(registry: &threads::environments::EnvironmentRegistry) -> V
         status: registry.status(&record.environment_id).map(|s| format!("{s:?}")).unwrap_or_else(|| "Disconnected".into()),
         enabled: record.enabled,
     }).collect()
+}
+async fn restore_remote_catalog(app: tauri::AppHandle, state: SharedState) {
+    let Ok(Some(token)) = saved_relay_token() else { return; };
+    let Ok(client) = relay_client() else { return; };
+    let Ok(environments) = client.list_environments(&token).await else { return; };
+    let records = environments.into_iter().map(|environment| threads::environments::EnvironmentRecord {
+        environment_id: environment.environment_id,
+        label: environment.label,
+        machine: "remote".into(),
+        endpoint: environment.endpoint.http_base_url,
+        enabled: true,
+    }).collect::<Vec<_>>();
+    let Ok(mut registry) = threads::environments::EnvironmentRegistry::new(records.clone()) else { return; };
+    for environment in &records {
+        let _ = registry.attach(&environment.environment_id, threads::environments::UnsupportedRemoteTransport);
+    }
+    let _ = threads::environments::save(&state.config.base_dir.join("bar-environments.json"), &records);
+    if let Ok(mut current) = state.environment_registry.lock() { *current = registry; }
+    if let Ok(mut snapshot) = state.snapshot.lock() {
+        snapshot.environments = environment_views(&state.environment_registry.lock().expect("environment registry lock"));
+        if snapshot.selected_environment_id.as_ref().is_none_or(|id| !snapshot.environments.iter().any(|e| &e.environment_id == id)) {
+            snapshot.selected_environment_id = snapshot.environments.first().map(|environment| environment.environment_id.clone());
+        }
+    }
+    emit_snapshot(&app, &state);
 }
 fn fixture_or_env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.trim().is_empty())
@@ -375,6 +559,7 @@ fn thread_item(t: threads::ThreadItem, state: &RuntimeState) -> ThreadItem {
     ThreadItem {
         project_favicon,
         id: t.id,
+        environment_id: None,
         project_id: t.project_id,
         project_title: t.project_title,
         title: t.title,
@@ -392,6 +577,28 @@ fn thread_item(t: threads::ThreadItem, state: &RuntimeState) -> ThreadItem {
         active_run_started_at: iso(t.active_run_started_at),
         usage_limit_reset_at: iso(t.usage_limit_reset_at),
         project_icon: t.project_icon_json,
+    }
+}
+fn remote_thread_item(environment_id: &str, t: threads::remote::RemoteThread) -> ThreadItem {
+    ThreadItem {
+        project_favicon: None,
+        id: format!("remote:{environment_id}:{}", t.id),
+        environment_id: Some(environment_id.to_owned()),
+        project_id: t.project_id,
+        project_title: t.project_title,
+        title: t.title,
+        status: t.status,
+        is_pinned: t.is_pinned,
+        providers: vec![],
+        branch: t.branch,
+        model_name: None,
+        pr_number: None,
+        updated_at: t.updated_at,
+        latest_user_message_at: t.latest_user_message_at,
+        latest_run_completed_at: t.latest_run_completed_at,
+        active_run_started_at: t.active_run_started_at,
+        usage_limit_reset_at: t.usage_limit_reset_at,
+        project_icon: None,
     }
 }
 fn provider_label(kind: &str) -> String {
@@ -865,10 +1072,21 @@ fn thread_action(
     {
         return Err("Unknown thread".into());
     }
-    let url = state
-        .config
-        .thread_url(&id, action == "browser")
-        .map_err(|e| e.to_string())?;
+    let url = if let Some(rest) = id.strip_prefix("remote:") {
+        let (environment_id, thread_id) = rest.split_once(':').ok_or("invalid remote thread identity")?;
+        let registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+        let record = registry.record(environment_id).ok_or("remote environment is no longer registered")?;
+        fn encode(value: &str) -> String {
+            value.bytes().map(|byte| if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) { (byte as char).to_string() } else { format!("%{byte:02X}") }).collect()
+        }
+        if action == "browser" {
+            format!("{}/{}/{}", record.endpoint.trim_end_matches('/'), encode(environment_id), encode(thread_id))
+        } else {
+            format!("t3code://threads/{}/{}", encode(environment_id), encode(thread_id))
+        }
+    } else {
+        state.config.thread_url(&id, action == "browser").map_err(|e| e.to_string())?
+    };
     match action.as_str() {
         "copy" => {
             use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -1201,6 +1419,7 @@ fn main() {
             quit_app,
             thread_action,
             connect_environment,
+            login_cloud,
             select_environment,
             new_thread,
             get_preview,
@@ -1258,6 +1477,9 @@ fn main() {
                 });
             }
             poller(app.handle().clone(), state.clone());
+            let restore_handle = app.handle().clone();
+            let restore_state = state.clone();
+            tauri::async_runtime::spawn(restore_remote_catalog(restore_handle, restore_state));
             Ok(())
         })
         .on_window_event(|window, event| {

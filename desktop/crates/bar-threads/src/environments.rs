@@ -112,6 +112,14 @@ impl EnvironmentRegistry {
         self.statuses.get(environment_id).copied()
     }
 
+    pub fn set_status(&mut self, environment_id: &str, status: EnvironmentStatus) -> Result<(), RegistryError> {
+        if !self.statuses.contains_key(environment_id) {
+            return Err(RegistryError::Invalid("environmentId is unknown".into()));
+        }
+        self.statuses.insert(environment_id.to_owned(), status);
+        Ok(())
+    }
+
     pub fn attach<T: EnvironmentTransport + 'static>(&mut self, environment_id: &str, transport: T) -> Result<(), RegistryError> {
         let record = self.records.iter().find(|r| r.environment_id == environment_id).ok_or_else(|| RegistryError::Invalid("environmentId is unknown".into()))?;
         if !record.enabled { return Err(RegistryError::Invalid("environment is disabled".into())); }

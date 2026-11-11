@@ -6,6 +6,7 @@ use std::{cmp::Ordering, path::PathBuf, time::Duration};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub mod environments;
+pub mod remote;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainError {
