@@ -28,8 +28,7 @@ const snapshot = (showsPreviews: boolean): AppSnapshot => ({
     activeRunStartedAt: null, usageLimitResetAt: null, projectIcon: null, projectFavicon: null,
   }],
   online: true, threadError: null, loading: false,
-  environments: [],
-  connection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null, linkedEnvironments: 0 },
+  connection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null },
   usage: null, usageError: null, usageLoading: false, usagePeriod: '24h', limits: null,
   settings: { notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },
   update: { status: 'idle', message: '', version: null, offerId: null, canInstall: false, busy: false }, version: 'test',
@@ -203,14 +202,6 @@ describe('new-install pairing', () => {
     expect(host.textContent).toContain('T3 Code offline');
   });
 
-  it('does not present linked environment cache rows as a Bar connection', async () => {
-    const value = snapshot(true);
-    value.connection = { ...value.connection, linkedEnvironments: 2 };
-    await renderSnapshot(value);
-    expect(host.textContent).toContain('2 linked environments');
-    expect(host.textContent).toContain('local server only');
-    expect(host.textContent).not.toContain('Connected to omarchy');
-  });
 });
 
 describe('settings state and actions', () => {

@@ -55,8 +55,7 @@ export interface LimitMember { label: string; remainingPercent: number; resetAt:
 export interface LimitRow { id: string; label: string; remainingPercent: number; usedPercent: number; resetAt: string | null; pace: string | null; members: LimitMember[] }
 export interface LimitGroup { driver: string; label: string; rows: LimitRow[] }
 export interface LimitsReport { groups: LimitGroup[]; notices: string[]; checkedAt: string | null; readFailed?: boolean; skippedFiles?: number; links: { label: string; url: string; message?: string | null; accounts?: string[] }[] }
-export interface ConnectionState { status: string; message: string; connected: boolean; paired: boolean; hasData: boolean; port: number; updatedAt: string | null; linkedEnvironments: number }
-export interface EnvironmentInfo { environmentId: string; label: string; machine: string; present: boolean; source: 'local' | 'linked' }
+export interface ConnectionState { status: string; message: string; connected: boolean; paired: boolean; hasData: boolean; port: number; updatedAt: string | null }
 export interface Settings { notificationsMuted: boolean; showsPreviews: boolean; automaticallyChecksForUpdates: boolean; installsWithoutAsking: boolean }
 export interface UpdateState { status: string; message: string; version: string | null; offerId: number | null; canInstall: boolean; busy: boolean }
 export interface AppSnapshot {
@@ -67,7 +66,6 @@ export interface AppSnapshot {
   threadError: string | null;
   loading: boolean;
   connection: ConnectionState;
-  environments: EnvironmentInfo[];
   usage: UsageReport | null;
   usageError: string | null;
   usageLoading: boolean;
