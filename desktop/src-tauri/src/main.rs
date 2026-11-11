@@ -193,6 +193,7 @@ struct ViewState {
 }
 struct RuntimeState {
     config: threads::Configuration,
+    environment_registry: Mutex<threads::environments::EnvironmentRegistry>,
     settings: Mutex<SettingsStore>,
     snapshot: Mutex<AppSnapshot>,
     view: Mutex<ViewState>,
@@ -228,6 +229,16 @@ fn record_failure(operation: &str, result: Result<(), String>) {
             json!({"operation":operation,"error":error}),
         );
     }
+}
+#[tauri::command]
+fn connect_environment(
+    environment_id: String,
+    state: State<'_, SharedState>,
+) -> Result<String, String> {
+    let mut registry = state.environment_registry.lock().map_err(|_| "environment registry unavailable")?;
+    if !registry.records().iter().any(|record| record.environment_id == environment_id) { return Err("unknown environment".into()); }
+    let result = registry.connect(&environment_id);
+    result.map(|_| "reachable".into()).map_err(|error| error.to_string())
 }
 fn fixture_or_env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|s| !s.trim().is_empty())
@@ -1057,8 +1068,19 @@ fn main() {
         }
     }
 
+    let environment_records = threads::environments::load(&base.join("bar-environments.json")).unwrap_or_default();
+    let mut environment_registry = threads::environments::EnvironmentRegistry::new(environment_records.clone()).unwrap_or_default();
+    for environment in environment_records {
+        let attach = if environment.endpoint.starts_with("http://127.0.0.1") || environment.endpoint.starts_with("http://localhost") {
+            environment_registry.attach(&environment.environment_id, threads::environments::LocalTransport)
+        } else {
+            environment_registry.attach(&environment.environment_id, threads::environments::UnsupportedRemoteTransport)
+        };
+        if let Err(error) = attach { record("environment_attach_error", json!({"error": error.to_string()})); }
+    }
     let state = Arc::new(RuntimeState {
         config: config.clone(),
+        environment_registry: Mutex::new(environment_registry),
         snapshot: Mutex::new(AppSnapshot {
             startup_error,
             settings: settings.value().clone(),
@@ -1101,6 +1123,7 @@ fn main() {
             set_setting,
             quit_app,
             thread_action,
+            connect_environment,
             new_thread,
             get_preview,
             open_limit_link,

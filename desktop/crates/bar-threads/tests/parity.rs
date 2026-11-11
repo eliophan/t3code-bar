@@ -254,3 +254,36 @@ fn environment_registry_rejects_duplicate_ids_and_non_http_endpoints() {
     let invalid = environments::EnvironmentRecord { environment_id: "one".into(), label: "one".into(), machine: "server".into(), endpoint: "ssh://example.test".into(), enabled: true };
     assert!(environments::save(&path, &[invalid]).is_err());
 }
+
+#[test]
+fn registry_updates_only_the_selected_environment_status() {
+    struct Reachable;
+    impl environments::EnvironmentTransport for Reachable {
+        fn connect(&self, record: &environments::EnvironmentRecord) -> Result<(), environments::TransportError> {
+            if record.environment_id == "server" { Ok(()) } else { Err(environments::TransportError::Unreachable) }
+        }
+        fn disconnect(&self, _environment_id: &str) {}
+    }
+    let records = vec![
+        environments::EnvironmentRecord { environment_id: "server".into(), label: "omarchy".into(), machine: "server".into(), endpoint: "https://example.test/server".into(), enabled: true },
+        environments::EnvironmentRecord { environment_id: "mini".into(), label: "omarchy".into(), machine: "mac-mini".into(), endpoint: "https://example.test/mini".into(), enabled: true },
+    ];
+    let mut registry = environments::EnvironmentRegistry::new(records).unwrap();
+    registry.attach("server", Reachable).unwrap();
+    registry.attach("mini", Reachable).unwrap();
+    registry.connect("server").unwrap();
+    assert_eq!(registry.status("server"), Some(environments::EnvironmentStatus::Reachable));
+    assert_eq!(registry.status("mini"), Some(environments::EnvironmentStatus::Disconnected));
+    assert_eq!(registry.connect("mini"), Err(environments::TransportError::Unreachable));
+    assert_eq!(registry.status("mini"), Some(environments::EnvironmentStatus::Offline));
+}
+
+#[test]
+fn unsupported_remote_transport_is_explicit() {
+    let record = environments::EnvironmentRecord { environment_id: "remote".into(), label: "omarchy".into(), machine: "server".into(), endpoint: "https://relay.example/remote".into(), enabled: true };
+    let mut registry = environments::EnvironmentRegistry::new(vec![record]).unwrap();
+    registry.attach("remote", environments::UnsupportedRemoteTransport).unwrap();
+    let result = registry.connect("remote");
+    assert_eq!(result, Err(environments::TransportError::Unsupported));
+    assert_eq!(registry.status("remote"), Some(environments::EnvironmentStatus::Unsupported));
+}
