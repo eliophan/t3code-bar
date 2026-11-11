@@ -1,10 +1,13 @@
+import type { EnvironmentId } from './generated-environments';
+import type { EnvironmentSelection, EnvironmentView, ThreadRef } from './generated-environments';
+export type { EnvironmentId, ThreadId, ThreadRef, EnvironmentSelection, EnvironmentMachineKind, EnvironmentAccess, EnvironmentView } from './generated-environments';
 export type Screen = 'threads' | 'usage' | 'settings';
 export type Metric = 'cost' | 'tokens' | 'limits';
 export type Period = '24h' | '7d' | '30d' | '90d';
 export type ThreadStatus = 'Working' | 'Goal' | 'Approval' | 'Input' | 'Request' | 'Woke' | 'Failed' | 'Waiting' | 'Limited' | 'Done' | 'Settled';
 
 export interface ThreadItem {
-  id: string;
+  thread: ThreadRef;
   projectId: string;
   projectTitle: string;
   title: string;
@@ -56,16 +59,22 @@ export interface LimitRow { id: string; label: string; remainingPercent: number;
 export interface LimitGroup { driver: string; label: string; rows: LimitRow[] }
 export interface LimitsReport { groups: LimitGroup[]; notices: string[]; checkedAt: string | null; readFailed?: boolean; skippedFiles?: number; links: { label: string; url: string; message?: string | null; accounts?: string[] }[] }
 export interface ConnectionState { status: string; message: string; connected: boolean; paired: boolean; hasData: boolean; port: number; updatedAt: string | null }
-export interface Settings { notificationsMuted: boolean; showsPreviews: boolean; automaticallyChecksForUpdates: boolean; installsWithoutAsking: boolean }
+export interface Settings { environmentSelection: EnvironmentSelection; notificationsMuted: boolean; showsPreviews: boolean; automaticallyChecksForUpdates: boolean; installsWithoutAsking: boolean }
 export interface UpdateState { status: string; message: string; version: string | null; offerId: number | null; canInstall: boolean; busy: boolean }
 export interface AppSnapshot {
+  revision: number;
+  environments: EnvironmentView[];
+  manualEnvironmentIds: EnvironmentId[];
   startupError?: string | null;
+  cloudStatus: 'signedOut' | 'signingIn' | 'signedIn' | 'recoveryRequired' | 'unavailable';
+  cloudError: string | null;
   now: string;
   threads: ThreadItem[];
   online: boolean;
   threadError: string | null;
   loading: boolean;
   connection: ConnectionState;
+  localConnection: ConnectionState;
   usage: UsageReport | null;
   usageError: string | null;
   usageLoading: boolean;
@@ -75,3 +84,6 @@ export interface AppSnapshot {
   update: UpdateState;
   version: string;
 }
+
+export type ConnectionInput = { kind: 'direct'; address: string } | { kind: 'ssh'; hostname: string; username: string | null; port: number | null };
+export interface ConnectionCandidate { environmentId: EnvironmentId; label: string; hasPairingKey: boolean; destination: string }

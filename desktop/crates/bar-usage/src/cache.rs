@@ -22,6 +22,8 @@ impl Error for CacheError {}
 pub struct Source {
     pub kind: String,
     pub directory: String,
+    #[serde(default)]
+    pub volume_id: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -169,6 +171,10 @@ pub fn decode_cache(bytes: &[u8]) -> Result<Dataset, CacheError> {
                 sources.push(Source {
                     kind: key.split('\0').next().unwrap_or(key).into(),
                     directory: dir.into(),
+                    volume_id: source
+                        .get("volumeId")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
                 });
             }
         }

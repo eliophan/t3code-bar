@@ -17,3 +17,7 @@ cargo test --manifest-path desktop/crates/bar-limits/Cargo.toml
 ```
 
 Real T3 account access, macOS Keychain state, Linux Secret Service state, packaged app workflows, and native UI acceptance remain separate gates.
+
+`LiveLimitsParser` accepts synthetic or decoded stream events and exposes a `LimitsContribution` for an `EnvironmentId`. `LimitsReader::contribution` exposes cached reports after `read`; `live_contribution` exposes the current live/cache choice. These reports contain account email and credential fingerprints, so callers must treat them as private domain data. Pass contributions and an `EnvironmentSelection` to `merge_contributions` before rendering `LimitsSnapshot::groups`. Unidentified hub accounts are scoped to their environment and source, because upstream source IDs are not known to be globally unique. This intentionally differs from upstream when the same unidentified hub ID appears in two environments.
+
+The account reconciliation and pool behavior derive from T3 Code's `packages/shared/src/usageLimits.ts`. T3 Code is distributed under the MIT license reproduced in `UPSTREAM-LICENSE`. The synthetic parity corpus is generated with `node scripts/generate-limits-parity.mjs` from the local upstream reference. The Rust integration test consumes that corpus.

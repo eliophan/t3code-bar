@@ -1,9 +1,11 @@
+use bar_identity::EnvironmentSelection;
 use serde::{Deserialize, Serialize};
 use std::{fs, io, path::PathBuf};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
+    pub environment_selection: EnvironmentSelection,
     pub notifications_muted: bool,
     pub shows_previews: bool,
     pub automatically_checks_for_updates: bool,
@@ -12,6 +14,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            environment_selection: EnvironmentSelection::All,
             notifications_muted: false,
             shows_previews: true,
             automatically_checks_for_updates: true,
@@ -81,6 +84,13 @@ impl SettingsStore {
         self.value = next;
         Ok(())
     }
+    pub fn set_environment_selection(&mut self, selection: EnvironmentSelection) -> io::Result<()> {
+        let mut next = self.value.clone();
+        next.environment_selection = selection;
+        self.persist(&next)?;
+        self.value = next;
+        Ok(())
+    }
     fn persist(&self, value: &Settings) -> io::Result<()> {
         if self.recovered {
             return Err(io::Error::new(
@@ -145,6 +155,65 @@ mod tests {
         assert!(!read.value().shows_previews);
         assert!(read.value().notifications_muted);
     }
+    #[test]
+    fn selection_defaults_and_survives_restart_with_other_preferences() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, br#"{"notificationsMuted":true}"#).unwrap();
+        let mut store = SettingsStore::load(path.clone()).unwrap();
+        assert_eq!(
+            store.value().environment_selection,
+            EnvironmentSelection::All
+        );
+        let selection =
+            EnvironmentSelection::One(bar_identity::EnvironmentId::new("remote-env").unwrap());
+        store.set_environment_selection(selection.clone()).unwrap();
+        let restored = SettingsStore::load(path).unwrap();
+        assert_eq!(restored.value().environment_selection, selection);
+        assert!(restored.value().notifications_muted);
+    }
+
+    #[test]
+    fn malformed_selection_preserves_original_and_recovery_cannot_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let contents = br#"{"environmentSelection":{"one":"  "}}"#;
+        fs::write(&path, contents).unwrap();
+        assert_eq!(
+            SettingsStore::load(path.clone()).err().unwrap().kind(),
+            io::ErrorKind::InvalidData
+        );
+        let mut store = SettingsStore::defaults(path.clone());
+        let selection = EnvironmentSelection::One(bar_identity::EnvironmentId::new("env").unwrap());
+        assert_eq!(
+            store
+                .set_environment_selection(selection)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            store.value().environment_selection,
+            EnvironmentSelection::All
+        );
+        assert_eq!(fs::read(path).unwrap(), contents);
+    }
+
+    #[test]
+    fn failed_selection_save_does_not_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut store = SettingsStore::load(path.clone()).unwrap();
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        let selection = EnvironmentSelection::One(bar_identity::EnvironmentId::new("env").unwrap());
+        assert!(store.set_environment_selection(selection).is_err());
+        assert_eq!(
+            store.value().environment_selection,
+            EnvironmentSelection::All
+        );
+    }
+
     #[test]
     fn malformed_preferences_are_not_silently_overwritten() {
         let dir = tempfile::tempdir().unwrap();

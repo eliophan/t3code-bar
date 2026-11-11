@@ -15,6 +15,7 @@ cargo-clippy = []
 tauri = { version = "2", features = ["tray-icon", "unstable"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 iana-time-zone = "0.1"
@@ -22,6 +23,7 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 bar-core = { path = "../crates/bar-core" }
+bar-identity = { path = "../crates/bar-identity" }
 bar-updater = { path = "../crates/bar-updater" }
 tauri-plugin-updater = "2.10"
 url = "2"
@@ -43,3 +45,10 @@ zbus = { version = "4.4", features = ["blocking"] }
 tray-icon = { version = "=0.25.1", default-features = false, features = ["ksni"] }
 gtk = "0.18"
 toml = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "sync", "time"] }
+tokio-tungstenite = "0.26"
+futures-util = { version = "0.3", features = ["sink"] }
+tempfile = "3"
+bar-connection = { path = "../crates/bar-connection" }

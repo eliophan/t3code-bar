@@ -31,6 +31,8 @@ A nonzero exit means the build failed. Packages are written under `desktop/src-t
 
 - `src/`: React views, presentation models and frontend tests.
 - `src-tauri/`: Tauri IPC, native panel/tray adapters, notifications and updater integration.
+- `crates/bar-identity`: environment and thread identity types, and the exported TypeScript contracts.
+- `crates/bar-connection`: remote environment discovery, routes, pairing credentials and transports.
 - `crates/bar-threads`: read-only thread data and previews.
 - `crates/bar-usage`: usage cache and local-provider readers.
 - `crates/bar-limits`: cached/live Limits and OS credential storage.
@@ -47,7 +49,7 @@ Run from the repository root:
 bash scripts/check.sh
 ```
 
-The script checks all five Rust crates, the Tauri host, the frontend tests and production frontend build using the pinned toolchain. Native Tauri dependencies must be installed even for host tests. Tests use synthetic state and disposable credential namespaces; do not substitute personal database or credential files.
+The script checks the install scripts, the frontend tests, that the generated TypeScript contracts match `bar-identity` (`npm run check:contracts`), the production frontend build, all seven Rust crates and the Tauri host using the pinned toolchain. Native Tauri dependencies must be installed even for host tests. Tests use synthetic state and disposable credential namespaces; do not substitute personal database or credential files.
 
 Run a development app from `desktop/`:
 

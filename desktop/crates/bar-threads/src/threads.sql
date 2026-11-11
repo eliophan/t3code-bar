@@ -132,6 +132,7 @@
         LEFT JOIN projection_projects p ON t.project_id = p.project_id
         WHERE t.thread_id NOT LIKE 'thread:%' AND t.deleted_at IS NULL AND t.archived_at IS NULL
           AND json_extract(t.payload_json, '$.settledAt') IS NULL
+          AND COALESCE(json_extract(t.payload_json, '$.settledOverride'), '') != 'settled'
           AND json_extract(t.payload_json, '$.delegatedFrom') IS NULL
           AND COALESCE(json_extract(t.payload_json, '$.lineage.sideChat'), 0) != 1
           AND COALESCE(json_extract(t.payload_json, '$.lineage.relationshipToParent'), '') != 'subagent'

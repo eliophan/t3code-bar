@@ -350,7 +350,7 @@ fn restore_storage_errors_are_explicit_and_do_not_fake_pairing() {
     assert_eq!(c.restore_saved(), Err(ConnectionError::Storage));
     assert_eq!(
         c.snapshot().status,
-        LiveStatus::Failed(ConnectionError::Storage.to_string())
+        LiveStatus::StorageUnavailable
     );
     assert!(!c.snapshot().has_credential);
 }
