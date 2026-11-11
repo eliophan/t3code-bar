@@ -9,6 +9,7 @@ cargo-clippy = []
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+bar-identity = { path = "../bar-identity" }
 bar-threads = { path = "../bar-threads" }
 bar-limits = { path = "../bar-limits" }
 bar-usage = { path = "../bar-usage" }

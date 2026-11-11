@@ -34,6 +34,7 @@ A nonzero exit means the build failed. Packages are written under `desktop/src-t
 - `crates/bar-threads`: read-only thread data and previews.
 - `crates/bar-usage`: usage cache and local-provider readers.
 - `crates/bar-limits`: cached/live Limits and OS credential storage.
+- `crates/bar-identity`: validated environment and thread identity types shared by the domain crates.
 - `crates/bar-core`: aggregate domain state and settings.
 - `crates/bar-updater`: update policy and signature helpers.
 - `tests/fixtures`: synthetic data and frozen expected outputs used by Rust tests.
@@ -47,7 +48,7 @@ Run from the repository root:
 bash scripts/check.sh
 ```
 
-The script checks all five Rust crates, the Tauri host, the frontend tests and production frontend build using the pinned toolchain. Native Tauri dependencies must be installed even for host tests. Tests use synthetic state and disposable credential namespaces; do not substitute personal database or credential files.
+The script checks all six Rust crates, the Tauri host, the frontend tests and production frontend build using the pinned toolchain. Native Tauri dependencies must be installed even for host tests. Tests use synthetic state and disposable credential namespaces; do not substitute personal database or credential files.
 
 Run a development app from `desktop/`:
 
