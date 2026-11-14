@@ -24,7 +24,12 @@ environment show that icon; the current local environment has no machine icon.
 The Bar shows the main sidebar list, excluding settled, snoozed, archived,
 deleted, delegated and side-chat threads from both local and remote sources.
 
-Linux and macOS discovery project the installed T3 desktop connection catalog.
+Linux and macOS discovery can project the installed T3 desktop connection catalog
+when **Import environments from T3 Code** is enabled in Settings. It is disabled
+by default, including for settings written before the preference existed. Local
+pairing, manual routes and T3 Connect discovery do not require this import.
+Disabling it preserves saved Bar grants; catalog-only routes require opting in
+again or adding an independent manual route to reconnect.
 Discovery provides metadata and routes; it does not authorize reads. Bar pairs with its
 own read grant for direct, public HTTPS tunnel and SSH routes. T3 Connect sign-in
 uses Bar's OAuth token to list linked environments and their public tunnel

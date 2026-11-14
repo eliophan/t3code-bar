@@ -4,6 +4,14 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ## Unreleased
 
+### Changed
+
+- Start onboarding with local pairing instructions and a single connection action. Settings shows a compact local status with a separate Manage connection page.
+- Exclude Local from remote pairing controls so an unpaired local server cannot submit through the remote-only pairing command.
+- Accept complete local pairing links and add an explicit Paste and connect action; reject links for other destinations before exchanging the code.
+- Make importing T3 Code's encrypted environment catalog opt-in; preserve Bar's own pairing credentials and independent manual and T3 Connect connections.
+- Distinguish a running local server from an authorized Bar connection instead of showing unpaired installations as connected.
+
 ### Maintenance
 
 - Add contribution, security, support, community, and issue-reporting guidance.
