@@ -4,6 +4,10 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ## Unreleased
 
+### Fixed
+
+- Threads from remote environments no longer resolve project icons from this computer's files. Remote project paths name files on the remote machine, so their threads show the default icon.
+
 ### Maintenance
 
 - Add contribution, security, support, community, and issue-reporting guidance.
