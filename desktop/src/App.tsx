@@ -48,6 +48,8 @@ export function App() {
   const [threadGeneration, setThreadGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<{ thread: ThreadItem } | null>(null);
+  const hasThreadAccess = snapshot !== null && (snapshot.localConnection.paired || snapshot.connection.paired || snapshot.environments.some(environment =>
+    !environment.isLocal && (environment.status === 'online' || snapshot.threads.some(thread => thread.thread.environmentId === environment.id))));
   const root = useRef<HTMLDivElement>(null);
   const act = useCallback(async (name: string, args?: Record<string, unknown>) => {
     try { setError(null); await invoke(name, args); }
@@ -65,12 +67,13 @@ export function App() {
   }, []);
   useEffect(() => { void act('set_view', { screen, metric, period }); }, [screen, metric, period, act]);
   useEffect(() => { if (screen !== 'settings') setConnectionSettings(false); }, [screen]);
+  useEffect(() => { if (snapshot && !hasThreadAccess) { setScreen('threads'); setConnectionSettings(false); } }, [snapshot, hasThreadAccess, screen]);
   useEffect(() => {
     const update = snapshot?.update;
-    if (screen === 'settings' && !connectionSettings && update?.canInstall && update.offerId != null && update.version) {
+    if (hasThreadAccess && screen === 'settings' && !connectionSettings && update?.canInstall && update.offerId != null && update.version) {
       void invoke('update_prompt_shown', { offerId: update.offerId, version: update.version });
     }
-  }, [screen, connectionSettings, snapshot?.update.offerId, snapshot?.update.version, snapshot?.update.canInstall]);
+  }, [hasThreadAccess, screen, connectionSettings, snapshot?.update.offerId, snapshot?.update.version, snapshot?.update.canInstall]);
   useEffect(() => {
     if (!root.current) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -93,14 +96,11 @@ export function App() {
     return () => window.removeEventListener('keydown', key);
   }, [screen, connectionSettings, context, act]);
 
-  const hasThreadAccess = snapshot !== null && (snapshot.localConnection.paired || snapshot.connection.paired || snapshot.environments.some(environment =>
-    !environment.isLocal && (environment.status === 'online' || snapshot.threads.some(thread => thread.thread.environmentId === environment.id))));
-
   return <div ref={root} className="app" onClick={() => setContext(null)}>
     {error && <div className="error-banner" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError(null)}>×</button></div>}
     {!snapshot ? <Empty title={error ? 'Could not load T3 Code Bar' : 'Reading T3 Code data…'}><button onClick={() => { void invoke<AppSnapshot>('get_snapshot').then(setSnapshot).catch(e => setError(String(e))); }}>Retry</button></Empty>
+    : !hasThreadAccess ? <div className="onboarding"><h1>Connect to T3 Code</h1><Notice>Paste a pairing link from the environment you want to connect. It can be on this computer or another machine.</Notice><PairingLinkConnection act={act} /></div>
     : screen === 'settings' ? <><header><button aria-label={connectionSettings ? 'Back to settings' : 'Back to threads'} onClick={() => connectionSettings ? setConnectionSettings(false) : setScreen('threads')}><Chevron /></button><strong>{connectionSettings ? 'Local connection' : 'Settings'}</strong></header>{connectionSettings ? <LocalConnectionSettings snapshot={snapshot} act={act} /> : <SettingsPage snapshot={snapshot} act={act} onManageConnection={() => setConnectionSettings(true)} />}</>
-    : !hasThreadAccess ? <div className="onboarding"><h1>Connect this computer</h1><Notice>Pair with T3 Code on this computer to see your threads, replies and usage. Remote environments and T3 Connect sign-in are optional in Settings.</Notice><Connection snapshot={snapshot} act={act} local /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
       <EnvironmentPicker snapshot={snapshot} act={act} />
       <main key={threadGeneration} className="threads scroll">
@@ -136,6 +136,24 @@ function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act 
 }
 
 type Act = (name: string, args?: Record<string, unknown>) => Promise<void>;
+function PairingLinkConnection({ act }: { act: Act }) {
+  const [link, setLink] = useState('');
+  const [pending, setPending] = useState(false);
+  return <div className="connection"><form aria-label="Connect with a pairing link" onSubmit={event => {
+    event.preventDefault();
+    if (pending) return;
+    const input = link.trim() || null;
+    setLink('');
+    setPending(true);
+    void act('connect_pairing_link', { link: input }).finally(() => setPending(false));
+  }}>
+    <div id="pairing-link-help" className="pairing-help"><ol><li>In the target T3 Code environment, open <strong>Settings → Sharing &amp; access</strong>.</li><li>Under <strong>Authorized clients</strong>, choose <strong>Create link</strong> with read-only permissions.</li><li>Choose <strong>Copy link</strong>, then paste it here.</li></ol></div>
+    <label className="sr-only" htmlFor="pairing-link">Pairing link</label><input id="pairing-link" type="password" value={link} disabled={pending} aria-describedby="pairing-link-help" autoComplete="off" spellCheck={false} placeholder="Paste pairing link" maxLength={8192} onChange={event => setLink(event.target.value)} />
+    <div className="connection-actions"><button className="primary-button" type="submit" disabled={pending}>{pending ? 'Connecting…' : link.trim() ? 'Connect' : 'Paste and connect'}</button></div>
+    <p className="notice">Clipboard access happens only when you choose Paste and connect.</p>
+  </form></div>;
+}
+
 function SettingsPage({ snapshot, act, onManageConnection }: { snapshot: AppSnapshot; act: Act; onManageConnection: () => void }) {
   const [pending, setPending] = useState(false);
   const unavailable = snapshot.update.status === 'unavailable';

@@ -893,10 +893,10 @@ fn refresh_cloud_directory(state: &RuntimeState) {
 fn merge_cloud_directory(
     entries: &mut Vec<EnvironmentMetadata>,
     directory: Vec<EnvironmentMetadata>,
-    local: &EnvironmentId,
+    local: Option<&EnvironmentId>,
 ) {
     for discovered in directory {
-        if &discovered.id == local {
+        if Some(&discovered.id) == local {
             continue;
         }
         if let Some(entry) = entries.iter_mut().find(|entry| entry.id == discovered.id) {
@@ -931,20 +931,19 @@ fn discover_sources(state: &RuntimeState) -> Result<(), String> {
 // The caller holds manual_connection_gate across metadata projection and publication.
 fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
     use bar_core::environments::DiscoveryState;
-    let local = local_environment(&state.config)?;
-    let mut primary = EnvironmentMetadata {
-        id: local.clone(),
+    let local = local_environment(&state.config).ok();
+    let primary: Vec<_> = local.iter().map(|id| EnvironmentMetadata {
+        id: id.clone(),
         label: "Local".into(),
         enabled: true,
-        routes: Vec::new(),
-    };
-    if let Ok(port) = state.config.server_port() {
-        primary.routes.push(Route::Primary {
+        routes: state.config.server_port().ok().map(|port| Route::Primary {
             http_base_url: format!("http://127.0.0.1:{port}"),
-        });
-    }
+        }).into_iter().collect(),
+    }).collect();
     let mut paths = HashMap::new();
-    paths.insert(local.clone(), state.config.clone());
+    if let Some(local) = &local {
+        paths.insert(local.clone(), state.config.clone());
+    }
     let imports_desktop_environments = state
         .hub
         .lock()
@@ -958,7 +957,7 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?
             .into_entries();
-            let mut metadata = vec![primary.clone()];
+            let mut metadata = primary.clone();
             let seed_codes = !state
                 .fixture_pairing_seeded
                 .swap(true, std::sync::atomic::Ordering::AcqRel);
@@ -991,16 +990,16 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
             }
             Ok(metadata)
         } else {
-            Ok(vec![primary.clone()])
+            Ok(primary.clone())
         }
-    } else if imports_desktop_environments {
+    } else if imports_desktop_environments && !primary.is_empty() {
         bar_core::connection::catalog::discover(
             &state.config.base_dir.join("connection-catalog.json"),
-            primary.clone(),
+            primary[0].clone(),
         )
         .map_err(|_| ())
     } else {
-        Ok(vec![primary.clone()])
+        Ok(primary.clone())
     };
     let directory = state.cloud_directory.lock().ok()
         .filter(|cache| cache.generation == state.cloud_generation.load(std::sync::atomic::Ordering::Acquire))
@@ -1017,19 +1016,19 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
         match entries {
             Ok(mut entries) => {
                 *catalog = entries.clone();
-                merge_cloud_directory(&mut entries, directory, &local);
+                merge_cloud_directory(&mut entries, directory, local.as_ref());
                 Ok(registry.merge(entries))
             }
             Err(_) if !registry.entries().is_empty() || !catalog.is_empty() => {
                 let mut known = catalog.clone();
-                known.retain(|entry| entry.id != local);
-                known.push(primary.clone());
-                merge_cloud_directory(&mut known, directory, &local);
+                known.retain(|entry| Some(&entry.id) != local.as_ref());
+                known.extend(primary.clone());
+                merge_cloud_directory(&mut known, directory, local.as_ref());
                 Ok(registry.merge(known))
             }
             Err(_) if !directory.is_empty() => {
-                let mut known = vec![primary.clone()];
-                merge_cloud_directory(&mut known, directory, &local);
+                let mut known = primary.clone();
+                merge_cloud_directory(&mut known, directory, local.as_ref());
                 Ok(registry.merge(known))
             }
             Err(error) => Err(error),
@@ -1037,7 +1036,7 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
     };
     let mut hub = state.hub.lock().map_err(|_| "environments unavailable")?;
     if matches!(hub.discovery_state(), DiscoveryState::Pending)
-        || (entries.is_err() && !hub.sources().contains_key(&local))
+        || (entries.is_err() && local.as_ref().is_some_and(|local| !hub.sources().contains_key(local)))
     {
         let mut known: Vec<_> = hub
             .sources()
@@ -1045,18 +1044,20 @@ fn discover_sources_locked(state: &RuntimeState) -> Result<(), String> {
             .filter(|source| source.present)
             .map(|source| source.metadata.clone())
             .collect();
-        known.push(primary);
+        known.extend(primary);
         hub.apply_discovery(Ok(known));
     }
     hub.apply_discovery(entries);
-    hub.set_machine(
-        &local,
-        Some(environment_metadata::local_machine(
-            &state.config.base_dir,
-            state.descriptor_machine.lock().ok().and_then(|m| *m),
-        )),
-        None,
-    );
+    if let Some(local) = &local {
+        hub.set_machine(
+            local,
+            Some(environment_metadata::local_machine(
+                &state.config.base_dir,
+                state.descriptor_machine.lock().ok().and_then(|m| *m),
+            )),
+            None,
+        );
+    }
     for id in paths.keys() {
         if hub
             .sources()
@@ -2283,13 +2284,18 @@ fn set_environment_selection(
     state: State<'_, SharedState>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    select_environment(&state, selection)?;
+    emit_snapshot(&app, &state);
+    Ok(())
+}
+
+fn select_environment(state: &RuntimeState, selection: EnvironmentSelection) -> Result<(), String> {
     let mut hub = state.hub.lock().map_err(|_| "settings unavailable")?;
     let mut snapshot = state.snapshot.lock().map_err(|_| "snapshot unavailable")?;
     snapshot.revision = hub.set_selection(selection).map_err(|e| e.to_string())?;
     snapshot.settings = hub.settings().clone();
     drop(snapshot);
     drop(hub);
-    emit_snapshot(&app, &state);
     Ok(())
 }
 #[tauri::command]
@@ -2577,19 +2583,76 @@ async fn connect(
     state: State<'_, SharedState>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let generation = begin_connection_operation(&state);
-    let port = state.config.server_port().map_err(|e| e.to_string())?;
-    let _gate = state.connection_gate.lock().await;
-    if !connection_operation_current(&state, generation) {
-        return Ok(());
-    }
-    let result = state
-        .connection
-        .connect(port, &token)
-        .await
-        .map_err(|e| e.to_string());
+    let result = connect_local(&state, &token).await;
     refresh_threads(&app, &state);
     result
+}
+
+async fn connect_local(state: &SharedState, token: &str) -> Result<(), String> {
+    let generation = begin_connection_operation(state);
+    let port = state.config.server_port().map_err(|e| e.to_string())?;
+    let _gate = state.connection_gate.lock().await;
+    if !connection_operation_current(state, generation) {
+        return Ok(());
+    }
+    state
+        .connection
+        .connect(port, token)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+enum PairingLinkConnection {
+    Local(EnvironmentId, bar_core::connection::manual::PairingKey),
+    Remote(EnvironmentId),
+}
+
+fn pair_link_environment(
+    state: &RuntimeState,
+    input: &bar_core::connection::manual::ConnectionInput,
+) -> Result<PairingLinkConnection, String> {
+    let code = bar_core::connection::manual::pairing_key_from_link(input)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| "Connection runtime unavailable")?;
+    let metadata = runtime.block_on(bar_core::connection::manual::probe(input, &state.ssh_options))?;
+    if local_environment(&state.config).ok().as_ref() == Some(&metadata.id) {
+        return Ok(PairingLinkConnection::Local(metadata.id, code));
+    }
+    save_manual_connection(state, input, &metadata.id, String::new())?;
+    Ok(PairingLinkConnection::Remote(metadata.id))
+}
+
+#[tauri::command]
+async fn connect_pairing_link(
+    link: Option<String>,
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let address = match link {
+        Some(link) => link,
+        None => app.clipboard().read_text().map_err(|_| "Could not read the clipboard. Paste the pairing link into the field instead.")?,
+    };
+    if address.trim().is_empty() {
+        return Err("Copy a pairing link from T3 Code first.".into());
+    }
+    let input = bar_core::connection::manual::ConnectionInput::Direct { address };
+    let worker_state = Arc::clone(&state);
+    let connection = tauri::async_runtime::spawn_blocking(move || pair_link_environment(&worker_state, &input))
+        .await.map_err(|_| "Could not connect to this environment")??;
+    let environment = match connection {
+        PairingLinkConnection::Local(environment, code) => {
+            connect_local(&state, code.as_str()).await?;
+            environment
+        }
+        PairingLinkConnection::Remote(environment) => environment,
+    };
+    select_environment(&state, EnvironmentSelection::One(environment))?;
+    emit_snapshot(&app, &state);
+    refresh_threads(&app, &state);
+    Ok(())
 }
 #[tauri::command]
 async fn connect_from_clipboard(
@@ -2620,7 +2683,7 @@ fn validate_connection_identity(
     environment: &EnvironmentId,
     route: &Route,
 ) -> Result<(), String> {
-    if local_environment(&state.config)? == *environment {
+    if local_environment(&state.config).ok().as_ref() == Some(environment) {
         return Err(
             "This is the Local environment. Use the Local T3 Code connection below.".into(),
         );
@@ -3213,6 +3276,7 @@ fn main() {
             install_update,
             update_prompt_shown,
             connect,
+            connect_pairing_link,
             connect_from_clipboard,
             reconnect,
             disconnect
@@ -3454,7 +3518,7 @@ mod tests {
             enabled: true,
             routes: vec![],
         }];
-        merge_cloud_directory(&mut entries, directory.clone(), &local);
+        merge_cloud_directory(&mut entries, directory.clone(), Some(&local));
         assert_eq!(entries.len(), 2);
         assert!(entries[0].routes.is_empty());
         assert_eq!(
@@ -3464,7 +3528,7 @@ mod tests {
         entries[1].label = "Desktop label".into();
         entries[1].enabled = false;
         entries[1].routes.push(Route::Relay);
-        merge_cloud_directory(&mut entries, directory, &local);
+        merge_cloud_directory(&mut entries, directory, Some(&local));
         assert!(!entries[1].enabled);
         assert_eq!(entries[1].label, "Desktop label");
         assert_eq!(entries[1].routes, vec![public]);
@@ -4602,6 +4666,89 @@ while True:
             .iter()
             .any(|environment| environment.id == id));
         assert!(!root.path().join("connection-catalog.json").exists());
+    }
+
+    #[test]
+    fn unified_link_pairs_remote_without_any_local_t3_installation() {
+        let root = tempfile::tempdir().unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("remote-only");
+        let input = bar_core::connection::manual::ConnectionInput::Direct {
+            address: format!("http://127.0.0.1:{}/pair#token=ABCD2345EFGH", server.port),
+        };
+        let result = pair_link_environment(&state, &input).unwrap();
+        let PairingLinkConnection::Remote(environment) = result else { panic!("Expected remote pairing") };
+        assert_eq!(environment.as_str(), "remote-only");
+        assert_eq!(server.exchanges.load(Ordering::SeqCst), 1);
+        assert!(!state.connection.snapshot().has_credential);
+        select_environment(&state, EnvironmentSelection::One(environment.clone())).unwrap();
+        assert_eq!(state.hub.lock().unwrap().settings().environment_selection, EnvironmentSelection::One(environment.clone()));
+        let route = state.remote_routes.lock().unwrap()[&environment][0].clone();
+        assert!(grant_with(&state, &runtime(), &environment, &route, None).is_ok());
+        let registry = std::fs::read_to_string(root.path().join("connections.json")).unwrap();
+        assert!(!registry.contains("ABCD2345EFGH"));
+        assert!(!registry.contains("#token"));
+        assert!(!root.path().join("environment-id").exists());
+    }
+
+    #[test]
+    fn unified_link_uses_verified_identity_for_local_pairing() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-link").unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("local-link");
+        std::fs::write(root.path().join("server-runtime.json"), format!(r#"{{"port":{}}}"#, server.port)).unwrap();
+        let input = bar_core::connection::manual::ConnectionInput::Direct {
+            address: format!("http://localhost:{}/pair#token=ABCD2345EFGH", server.port),
+        };
+        let result = pair_link_environment(&state, &input).unwrap();
+        let PairingLinkConnection::Local(environment, code) = result else { panic!("Expected local pairing") };
+        assert_eq!(environment.as_str(), "local-link");
+        assert_eq!(server.exchanges.load(Ordering::SeqCst), 0);
+        runtime().block_on(connect_local(&state, code.as_str())).unwrap();
+        assert!(state.connection.snapshot().has_credential);
+        assert_eq!(server.exchanges.load(Ordering::SeqCst), 1);
+        assert!(state.manual_connections.lock().unwrap().entries().is_empty());
+    }
+
+    #[test]
+    fn unified_link_never_falls_back_to_local_for_a_remote_environment() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("environment-id"), "local-present").unwrap();
+        let local = token_server("local-present");
+        let remote = token_server("remote-target");
+        std::fs::write(root.path().join("server-runtime.json"), format!(r#"{{"port":{}}}"#, local.port)).unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let input = bar_core::connection::manual::ConnectionInput::Direct {
+            address: format!("http://127.0.0.1:{}/pair#token=ABCD2345EFGH", remote.port),
+        };
+        assert!(matches!(pair_link_environment(&state, &input).unwrap(), PairingLinkConnection::Remote(environment) if environment.as_str() == "remote-target"));
+        assert_eq!(local.exchanges.load(Ordering::SeqCst), 0);
+        assert_eq!(remote.exchanges.load(Ordering::SeqCst), 1);
+        assert!(!state.connection.snapshot().has_credential);
+    }
+
+    #[test]
+    fn unified_link_never_sends_invalid_codes_or_reassigns_an_existing_route() {
+        let root = tempfile::tempdir().unwrap();
+        let state = ssh_state(root.path(), SshConnectOptions::default());
+        let server = token_server("changed-identity");
+        for suffix in ["/", "/pair#token=invalid"] {
+            let input = bar_core::connection::manual::ConnectionInput::Direct {
+                address: format!("http://127.0.0.1:{}{suffix}", server.port),
+            };
+            assert!(pair_link_environment(&state, &input).is_err());
+        }
+        let input = bar_core::connection::manual::ConnectionInput::Direct {
+            address: format!("http://127.0.0.1:{}/pair#token=ABCD2345EFGH", server.port),
+        };
+        state.remote_routes.lock().unwrap().insert(
+            EnvironmentId::new("previous-identity").unwrap(),
+            vec![bar_core::connection::manual::input_route(&input).unwrap()],
+        );
+        assert!(pair_link_environment(&state, &input).is_err());
+        assert_eq!(server.exchanges.load(Ordering::SeqCst), 0);
+        assert!(state.manual_connections.lock().unwrap().entries().is_empty());
     }
     #[test]
     fn forgetting_removes_only_that_environments_access_and_drops_its_session() {

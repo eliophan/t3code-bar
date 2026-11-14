@@ -15,6 +15,14 @@ The Tauri bundle identity and credential namespace differ from Swift v1. Existin
 
 ## Multiple environments on Linux and macOS
 
+First setup accepts a complete pairing link for either a local or a remote
+environment. Bar identifies the destination before exchanging its code, routes a
+matching local identity to the local credential store, and saves other identities
+as manual remote connections. Remote-only installations do not need a local
+environment ID, database or running T3 Code process. Bare codes and server origins
+are insufficient for this first-run flow. Settings becomes available after pairing;
+its existing manual address, SSH and T3 Connect controls remain available there.
+
 Settings selects All environments or one environment. The selection applies to
 threads, Usage, Limits and notifications, and survives restart. A missing
 selected environment stays selected. Thread actions use both environment and
