@@ -188,6 +188,49 @@ describe('thread preview lifecycle', () => {
 });
 
 describe('new-install pairing', () => {
+  it('submits a complete pairing link without displaying or retaining it', async () => {
+    const value = snapshot(true);
+    value.localConnection = { ...value.localConnection, connected: false, paired: false };
+    value.connection = { ...value.localConnection };
+    await renderSnapshot(value);
+    const link = 'http://127.0.0.1:3773/pair#token=ABCD2345EFGH';
+    const input = host.querySelector<HTMLInputElement>('input[type="password"]')!;
+    expect(host.querySelectorAll('form button')).toHaveLength(1);
+    expect(host.querySelector('form button')?.textContent).toBe('Paste and connect');
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, link);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(host.querySelectorAll('form button')).toHaveLength(1);
+    expect(host.querySelector('form button')?.textContent).toBe('Connect');
+    await act(async () => { host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+    expect(tauri.invoke).toHaveBeenCalledWith('connect', { token: link });
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'connect_from_clipboard')).toBe(false);
+    expect(input.value).toBe('');
+    expect(host.textContent).not.toContain('ABCD2345EFGH');
+  });
+
+  it('reads the clipboard only after an explicit click and keeps pairing failures visible', async () => {
+    const value = snapshot(true);
+    value.localConnection = { ...value.localConnection, connected: false, paired: false };
+    value.connection = { ...value.localConnection };
+    await renderSnapshot(value);
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'connect_from_clipboard')).toBe(false);
+    expect(host.textContent).toContain('Copy link');
+    expect(host.textContent).toContain('Copy code only');
+    let rejectClipboard!: (error: string) => void;
+    tauri.invoke.mockImplementation((name: string) => name === 'connect_from_clipboard'
+      ? new Promise((_resolve, reject) => { rejectClipboard = reject; }) : Promise.resolve(null));
+    const pasteButton = [...host.querySelectorAll('button')].find(button => button.textContent === 'Paste and connect')!;
+    await act(async () => pasteButton.click());
+    expect(tauri.invoke).toHaveBeenCalledWith('connect_from_clipboard', undefined);
+    expect(pasteButton.disabled).toBe(true);
+    await act(async () => rejectClipboard('This link does not match the running local T3 Code server.'));
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('does not match');
+    expect(pasteButton.disabled).toBe(false);
+    expect(host.querySelector('form')).not.toBeNull();
+  });
+
   it('uses local pairing state even when discovery reports an aggregate connection', async () => {
     const value = snapshot(true);
     value.connection = { ...value.connection, connected: true, paired: false };
@@ -228,7 +271,7 @@ describe('new-install pairing', () => {
     await renderSnapshot(value);
     expect(host.querySelector('.onboarding')).not.toBeNull();
     expect(host.querySelector('.thread-row')).toBeNull();
-    expect(host.querySelector('input[type="password"]')?.getAttribute('placeholder')).toBe('Local pairing key');
+    expect(host.querySelector('input[type="password"]')?.getAttribute('placeholder')).toBe('Paste pairing link or code');
     expect(host.textContent).not.toContain('Auto-Generate');
 
     const input = host.querySelector<HTMLInputElement>('input[type="password"]')!;
@@ -263,6 +306,50 @@ describe('new-install pairing', () => {
 });
 
 describe('settings state and actions', () => {
+  it('keeps onboarding out of Settings and pairs a needsAccess Local only through connect', async () => {
+    const value = snapshot(true);
+    value.localConnection = { ...value.localConnection, connected: false, paired: false, status: 'unpaired', message: 'Pair to give Bar read access.' };
+    value.connection = { ...value.localConnection };
+    value.environments = [{ id: 'local', label: 'Local', machine: 'laptop', status: 'needsAccess', access: 'direct', isLocal: true, canForgetAccess: false }];
+    await renderSnapshot(value);
+    expect(host.querySelector('.onboarding')).not.toBeNull();
+    act(() => button('Settings').click());
+    expect(host.querySelector('.onboarding')).toBeNull();
+    expect(host.querySelector('.pairing-help')).toBeNull();
+    expect(host.querySelectorAll('form')).toHaveLength(0);
+    expect(host.textContent).toContain('Preferences');
+    act(() => button('Manage connection').click());
+    expect(host.querySelectorAll('form')).toHaveLength(1);
+    expect(host.querySelectorAll('input[type="password"]')).toHaveLength(1);
+    expect(host.textContent).not.toContain('Preferences');
+    const input = host.querySelector<HTMLInputElement>('input[type="password"]')!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'ABCD2345EFGH');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => button('Connect').click());
+    expect(tauri.invoke).toHaveBeenCalledWith('connect', { token: 'ABCD2345EFGH' });
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'pair_environment')).toBe(false);
+    act(() => tauri.listeners.get('bar-opened')?.());
+    expect(host.querySelectorAll('form')).toHaveLength(1);
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Back to settings"]')!.click());
+    expect(host.querySelectorAll('form')).toHaveLength(0);
+    act(() => button('Manage connection').click());
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(host.querySelectorAll('form')).toHaveLength(0);
+    expect(host.textContent).toContain('Preferences');
+  });
+
+  it.each(['permissionDenied', 'restoring', 'credentialUnavailable'] as const)('keeps Local %s recovery out of remote controls', async status => {
+    const value = snapshot(true);
+    value.localConnection = { ...value.localConnection, connected: false, status, message: 'Local recovery is needed.' };
+    value.environments = [{ id: 'local', label: 'Local', machine: 'laptop', status, access: 'direct', isLocal: true, canForgetAccess: false }];
+    await openSettings(value);
+    expect(host.querySelector('.environment-access')).toBeNull();
+    expect(host.querySelectorAll('form')).toHaveLength(0);
+    expect(host.textContent).toContain('Local recovery is needed.');
+  });
+
   it('puts local pairing before remote settings and enables desktop imports only on request', async () => {
     await openSettings();
     expect(host.querySelector('.settings section h2')?.textContent).toBe('Local T3 Code connection');
@@ -325,6 +412,7 @@ describe('settings state and actions', () => {
   });
   it('hides pairing while connected and requires confirmation before removing the key', async () => {
     await openSettings();
+    act(() => button('Manage connection').click());
     expect(host.querySelector('input[type="password"]')).toBeNull();
     expect(host.textContent).toContain('Connected to T3 Code');
     act(() => button('Disconnect…').click());
@@ -348,6 +436,7 @@ describe('settings state and actions', () => {
     value.localConnection = { ...value.connection };
     await openSettings(value);
     expect(host.querySelector('input[type="password"]')).toBeNull();
+    act(() => button('Manage connection').click());
     await act(async () => button('Reconnect').click());
     expect(tauri.invoke).toHaveBeenCalledWith('reconnect', undefined);
     act(() => button('Pair again…').click());
@@ -425,8 +514,11 @@ describe('environment sources', () => {
     await renderSnapshot(value);
     act(() => [...host.querySelectorAll('button')].find(button => button.textContent === 'Settings')!.click());
     expect(host.textContent).toContain('Local T3 Code connection');
-    expect(host.querySelector('label[for="access-token"]')?.textContent).toBe('Local pairing key');
     expect(host.textContent).toContain('Remote Mac pairing key');
+    expect(host.querySelector('label[for="access-token"]')).toBeNull();
+    act(() => [...host.querySelectorAll('button')].find(button => button.textContent === 'Manage connection')!.click());
+    expect(host.querySelector('label[for="access-token"]')?.textContent).toBe('Local pairing link or code');
+    expect(host.textContent).not.toContain('Remote Mac pairing key');
   });
 
   it('routes needsAccess by route capability without leaking pairing forms', async () => {

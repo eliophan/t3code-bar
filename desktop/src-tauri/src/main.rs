@@ -2591,6 +2591,21 @@ async fn connect(
     refresh_threads(&app, &state);
     result
 }
+#[tauri::command]
+async fn connect_from_clipboard(
+    state: State<'_, SharedState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let token = app
+        .clipboard()
+        .read_text()
+        .map_err(|_| "Could not read the clipboard. Paste a pairing link or code into the field instead.")?;
+    if token.trim().is_empty() {
+        return Err("Copy a pairing link from T3 Code first.".into());
+    }
+    connect(token, state, app).await
+}
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConnectionCandidate {
@@ -3198,6 +3213,7 @@ fn main() {
             install_update,
             update_prompt_shown,
             connect,
+            connect_from_clipboard,
             reconnect,
             disconnect
         ]);

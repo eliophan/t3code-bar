@@ -42,6 +42,7 @@ function Chevron({ right = false }: { right?: boolean }) {
 export function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot | null>(null);
   const [screen, setScreen] = useState<Screen>('threads');
+  const [connectionSettings, setConnectionSettings] = useState(false);
   const [metric, setMetric] = useState<Metric>('cost');
   const [period, setPeriod] = useState<Period>('24h');
   const [threadGeneration, setThreadGeneration] = useState(0);
@@ -58,17 +59,18 @@ export function App() {
     const initial = invoke<AppSnapshot>('get_snapshot').then(s => { if (!disposed) { setSnapshot(s); if (s.startupError) setError(s.startupError); } }).catch(e => { if (!disposed) setError(String(e)); });
     const events = listen<AppSnapshot>('bar-snapshot', e => { if (!disposed) setSnapshot(e.payload); });
     const opened = listen('bar-opened', () => { setScreen(current => current === 'settings' ? current : 'threads'); setContext(null); setThreadGeneration(generation => generation + 1); });
-    const settings = listen('bar-settings', () => setScreen('settings'));
+    const settings = listen('bar-settings', () => { setConnectionSettings(false); setScreen('settings'); });
     void initial;
     return () => { disposed = true; void events.then(stop => stop()); void opened.then(stop => stop()); void settings.then(stop => stop()); };
   }, []);
   useEffect(() => { void act('set_view', { screen, metric, period }); }, [screen, metric, period, act]);
+  useEffect(() => { if (screen !== 'settings') setConnectionSettings(false); }, [screen]);
   useEffect(() => {
     const update = snapshot?.update;
-    if (screen === 'settings' && update?.canInstall && update.offerId != null && update.version) {
+    if (screen === 'settings' && !connectionSettings && update?.canInstall && update.offerId != null && update.version) {
       void invoke('update_prompt_shown', { offerId: update.offerId, version: update.version });
     }
-  }, [screen, snapshot?.update.offerId, snapshot?.update.version, snapshot?.update.canInstall]);
+  }, [screen, connectionSettings, snapshot?.update.offerId, snapshot?.update.version, snapshot?.update.canInstall]);
   useEffect(() => {
     if (!root.current) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -83,12 +85,13 @@ export function App() {
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (context) setContext(null);
+      else if (screen === 'settings' && connectionSettings) setConnectionSettings(false);
       else if (screen !== 'threads') setScreen('threads');
       else void act('hide_panel');
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [screen, context, act]);
+  }, [screen, connectionSettings, context, act]);
 
   const hasThreadAccess = snapshot !== null && (snapshot.localConnection.paired || snapshot.connection.paired || snapshot.environments.some(environment =>
     !environment.isLocal && (environment.status === 'online' || snapshot.threads.some(thread => thread.thread.environmentId === environment.id))));
@@ -96,7 +99,7 @@ export function App() {
   return <div ref={root} className="app" onClick={() => setContext(null)}>
     {error && <div className="error-banner" role="alert">{error}<button aria-label="Dismiss error" onClick={() => setError(null)}>×</button></div>}
     {!snapshot ? <Empty title={error ? 'Could not load T3 Code Bar' : 'Reading T3 Code data…'}><button onClick={() => { void invoke<AppSnapshot>('get_snapshot').then(setSnapshot).catch(e => setError(String(e))); }}>Retry</button></Empty>
-    : screen === 'settings' ? <><header><button aria-label="Back to threads" onClick={() => setScreen('threads')}><Chevron /></button><strong>Settings</strong></header><SettingsPage snapshot={snapshot} act={act} /></>
+    : screen === 'settings' ? <><header><button aria-label={connectionSettings ? 'Back to settings' : 'Back to threads'} onClick={() => connectionSettings ? setConnectionSettings(false) : setScreen('threads')}><Chevron /></button><strong>{connectionSettings ? 'Local connection' : 'Settings'}</strong></header>{connectionSettings ? <LocalConnectionSettings snapshot={snapshot} act={act} /> : <SettingsPage snapshot={snapshot} act={act} onManageConnection={() => setConnectionSettings(true)} />}</>
     : !hasThreadAccess ? <div className="onboarding"><h1>Connect this computer</h1><Notice>Pair with T3 Code on this computer to see your threads, replies and usage. Remote environments and T3 Connect sign-in are optional in Settings.</Notice><Connection snapshot={snapshot} act={act} local /><button className="subtle" onClick={() => setScreen('settings')}>Settings</button></div>
     : screen === 'threads' ? <>
       <EnvironmentPicker snapshot={snapshot} act={act} />
@@ -133,8 +136,7 @@ function EnvironmentPicker({ snapshot, act }: { snapshot: AppSnapshot; act: Act 
 }
 
 type Act = (name: string, args?: Record<string, unknown>) => Promise<void>;
-function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+function SettingsPage({ snapshot, act, onManageConnection }: { snapshot: AppSnapshot; act: Act; onManageConnection: () => void }) {
   const [pending, setPending] = useState(false);
   const unavailable = snapshot.update.status === 'unavailable';
   const updateBusy = snapshot.update.busy;
@@ -144,14 +146,13 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
   };
   const toggle = (label: string, key: Exclude<keyof Settings, 'environmentSelection'>, checked: boolean, disabled = false, invert = false) => <label className="toggle"><span>{label}</span><input type="checkbox" role="switch" checked={checked} disabled={disabled || pending} onChange={e => void change(key, invert ? !e.target.checked : e.target.checked)} /></label>;
   return <main className="settings scroll">
-    <section><h2>Local T3 Code connection</h2><Notice>Pairing here connects Bar to this computer. Add other machines separately below.</Notice><Connection snapshot={snapshot} act={act} local />
-      {snapshot.localConnection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
+    <section><h2>Local T3 Code connection</h2><Notice>{snapshot.localConnection.connected ? 'Connected to T3 Code' : snapshot.localConnection.message}</Notice><button onClick={onManageConnection}>Manage connection</button>
     </section>
     <section><h2>Environment</h2><EnvironmentSelectionOptions snapshot={snapshot} act={act} /><ManualConnections environments={snapshot.environments} savedIds={snapshot.manualEnvironmentIds} />
       <Notice>Optional: import saved environments instead of adding their addresses manually. This may ask to read T3 Code’s encrypted connection list using its Keychain or Secret Service entry. Importing only discovers environments; each still needs its own Bar pairing.</Notice>
       {toggle('Import environments from T3 Code', 'importsDesktopEnvironments', snapshot.settings.importsDesktopEnvironments)}
       <Notice>Turning import off stops discovery from that list. Your saved Bar pairing credentials are not deleted. Local pairing, manually added environments and T3 Connect work without this import.</Notice>
-      {snapshot.environments.map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}
+      {snapshot.environments.filter(environment => !environment.isLocal).map(environment => <EnvironmentAccess key={environment.id} environment={environment} cloudStatus={snapshot.cloudStatus} act={act} />)}
     </section>
     <section><h2>T3 Connect</h2><Notice>Sign in to find linked environments. Pair once with each environment to read through its public HTTPS tunnel. Tailscale is not required.</Notice>{snapshot.cloudError && <Notice>{snapshot.cloudError}</Notice>}{snapshot.cloudStatus === 'signedOut' && <button onClick={() => void act('begin_cloud_login')}>Sign in to T3 Connect</button>}{snapshot.cloudStatus === 'signingIn' && <button onClick={() => void act('cancel_cloud_login')}>Cancel</button>}{snapshot.cloudStatus === 'signedIn' && <button onClick={() => void act('disconnect_cloud')}>Sign out</button>}{snapshot.cloudStatus === 'recoveryRequired' && <><Notice>Saved T3 Connect credentials need recovery. Restore access to your system keyring, then retry sign out. Some saved credentials may remain until cleanup succeeds.</Notice><button onClick={() => void act('disconnect_cloud')}>Retry sign out</button></>}{snapshot.cloudStatus === 'unavailable' && <Notice>T3 Connect unavailable</Notice>}</section>
     <section><h2>Preferences</h2>
@@ -166,6 +167,14 @@ function SettingsPage({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
     </section>
     <div className="settings-bottom"><button onClick={() => void act('quit_app')}>Quit T3 Code Bar</button><span className="version">v{snapshot.version}</span></div>
   </main>;
+}
+
+function LocalConnectionSettings({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [pending, setPending] = useState(false);
+  return <main className="settings scroll"><section><Connection snapshot={snapshot} act={act} local />
+    {snapshot.localConnection.paired && (confirmDisconnect ? <div className="disconnect-confirmation" role="group" aria-label="Confirm disconnect"><p>Disconnect and remove the saved pairing key? You will need a new key to connect again.</p><div className="settings-actions"><button autoFocus disabled={pending} onClick={() => setConfirmDisconnect(false)}>Cancel</button><button className="danger-button" disabled={pending} onClick={async () => { setPending(true); try { await act('disconnect'); setConfirmDisconnect(false); } finally { setPending(false); } }}>{pending ? 'Disconnecting…' : 'Disconnect and remove key'}</button></div></div> : <button className="secondary-button" onClick={() => setConfirmDisconnect(true)}>Disconnect…</button>)}
+  </section></main>;
 }
 
 function EnvironmentSelectionOptions({ snapshot, act }: { snapshot: AppSnapshot; act: Act }) {
@@ -260,7 +269,7 @@ function Connection({ snapshot, act, compact: minimal = false, local = false }: 
   const busy = pending || restoring || ['connecting', 'retrying'].includes(connection.status);
   useEffect(() => { if (connection.connected) { setToken(''); setExpanded(false); } }, [connection.connected]);
   useEffect(() => { if (!connection.paired && !minimal) setExpanded(true); }, [connection.paired, minimal]);
-  const connect = async (name: 'connect' | 'reconnect') => {
+  const connect = async (name: 'connect' | 'reconnect' | 'connect_from_clipboard') => {
     const input = token;
     setToken('');
     setPending(true);
@@ -273,10 +282,10 @@ function Connection({ snapshot, act, compact: minimal = false, local = false }: 
       {storageUnavailable && <button disabled={pending} onClick={() => void connect('reconnect')}>Retry saved access</button>}
       {!storageUnavailable && !restoring && connection.paired && <div className="settings-actions"><button disabled={busy} onClick={() => void connect('reconnect')}>{busy ? 'Reconnecting…' : 'Reconnect'}</button><button className="text-button" disabled={busy} onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Cancel' : 'Pair again…'}</button></div>}
       {!storageUnavailable && !restoring && !connection.paired && minimal && <button className="text-button" onClick={() => { setExpanded(!expanded); setToken(''); }}>{expanded ? 'Hide connection' : 'Connect T3 Code…'}</button>}
-      {!storageUnavailable && !restoring && expanded && <form onSubmit={e => { e.preventDefault(); if (token.trim() && !busy) void connect('connect'); }}>
-        {local && <div id="local-pairing-help" className="pairing-help"><ol><li>In T3 Code, open <strong>Settings → Sharing &amp; access</strong>.</li><li>Under <strong>Authorized clients</strong>, choose <strong>Create link</strong> with read-only permissions.</li><li>Copy the one-time pairing code and paste it below.</li></ol><p>Bar saves its own pairing credential in your OS credential store for reconnects. Local pairing does not need access to T3 Code’s saved environment key.</p></div>}
-        <label className="sr-only" htmlFor="access-token">Local pairing key</label><input id="access-token" type="password" value={token} disabled={busy} aria-describedby={local ? 'local-pairing-help' : undefined} autoComplete="off" spellCheck={false} placeholder="Local pairing key" maxLength={16384} onChange={e => setToken(e.target.value)} />
-        <div className="connection-actions"><button className="primary-button" type="submit" disabled={!token.trim() || busy}>{busy ? 'Connecting…' : 'Connect'}</button></div>
+      {!storageUnavailable && !restoring && expanded && <form onSubmit={e => { e.preventDefault(); if (!busy && (local || token.trim())) void connect(token.trim() ? 'connect' : 'connect_from_clipboard'); }}>
+        {local && <div id="local-pairing-help" className="pairing-help"><ol><li>In T3 Code, open <strong>Settings → Sharing &amp; access</strong>.</li><li>Under <strong>Authorized clients</strong>, choose <strong>Create link</strong> with read-only permissions.</li><li>Choose <strong>Copy link</strong>, then <strong>Paste and connect</strong> here.</li></ol><p>Or paste a link or use <strong>Copy code only</strong> below.</p><p>Clipboard access happens only on click. Bar saves its own access for reconnects.</p></div>}
+        <label className="sr-only" htmlFor="access-token">Local pairing link or code</label><input id="access-token" type="password" value={token} disabled={busy} aria-describedby={local ? 'local-pairing-help' : undefined} autoComplete="off" spellCheck={false} placeholder="Paste pairing link or code" maxLength={16384} onChange={e => setToken(e.target.value)} />
+        <div className="connection-actions"><button className="primary-button" type="submit" disabled={busy || (!local && !token.trim())}>{busy ? 'Connecting…' : local && !token.trim() ? 'Paste and connect' : 'Connect'}</button></div>
       </form>}
     </>}
   </div>;

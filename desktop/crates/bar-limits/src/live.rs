@@ -36,10 +36,80 @@ fn is_pairing_code(token: &str) -> bool {
             .all(|c| PAIRING_ALPHABET.contains(c.to_ascii_uppercase()))
 }
 
+fn local_pairing_input(port: u16, input: &str) -> Result<String, ConnectionError> {
+    Credential::new(port, input)?.validate()?;
+    let input = input.trim();
+    if !input.contains("://")
+        && !input.starts_with("http:")
+        && !input.starts_with("https:")
+        && !input.starts_with("t3code:")
+    {
+        return Ok(input.to_owned());
+    }
+    let mut url = url::Url::parse(input).map_err(|_| ConnectionError::InvalidPairingLink)?;
+    if url.scheme() == "t3code" {
+        if url.host_str() != Some("pair")
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.port().is_some()
+            || !matches!(url.path(), "" | "/")
+            || url.fragment().is_some()
+        {
+            return Err(ConnectionError::InvalidPairingLink);
+        }
+        let fields: Vec<_> = url.query_pairs().collect();
+        if fields.len() != 1 || fields[0].0 != "pairingUrl" {
+            return Err(ConnectionError::InvalidPairingLink);
+        }
+        url = url::Url::parse(&fields[0].1).map_err(|_| ConnectionError::InvalidPairingLink)?;
+    }
+    if url.scheme() == "https" && url.host_str() == Some("app.t3.codes") && url.path() == "/pair" {
+        if !url.username().is_empty() || url.password().is_some() || url.port().is_some() {
+            return Err(ConnectionError::InvalidPairingLink);
+        }
+        let fields: Vec<_> = url.query_pairs().collect();
+        if fields.len() != 1 || fields[0].0 != "host" {
+            return Err(ConnectionError::InvalidPairingLink);
+        }
+        let mut destination =
+            url::Url::parse(&fields[0].1).map_err(|_| ConnectionError::InvalidPairingLink)?;
+        if !matches!(destination.path(), "" | "/")
+            || destination.query().is_some()
+            || destination.fragment().is_some()
+        {
+            return Err(ConnectionError::InvalidPairingLink);
+        }
+        destination.set_path("/pair");
+        destination.set_fragment(url.fragment());
+        url = destination;
+    }
+    if url.scheme() != "http"
+        || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+        || url.port_or_known_default() != Some(port)
+    {
+        return Err(ConnectionError::PairingDestination);
+    }
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/pair"
+        || url.query().is_some()
+    {
+        return Err(ConnectionError::InvalidPairingLink);
+    }
+    let fields: Vec<_> =
+        url::form_urlencoded::parse(url.fragment().unwrap_or_default().as_bytes()).collect();
+    if fields.len() != 1 || fields[0].0 != "token" || !is_pairing_code(&fields[0].1) {
+        return Err(ConnectionError::InvalidPairingLink);
+    }
+    Ok(fields[0].1.to_ascii_uppercase())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnectionError {
     Destination,
     InvalidToken,
+    InvalidPairingLink,
+    PairingDestination,
     Authorization,
     PairingRejected,
     Expired,
@@ -53,6 +123,8 @@ impl fmt::Display for ConnectionError {
         f.write_str(match self {
             Self::Destination => "Enter a local T3 Code port from 1 to 65535.",
             Self::InvalidToken => "Enter a T3 Code access token of up to 16 KiB.",
+            Self::InvalidPairingLink => "This pairing link is incomplete or invalid. Copy a fresh link from T3 Code, or use Copy code only.",
+            Self::PairingDestination => "This link does not match the running local T3 Code server. Create a link for this computer, or use Add environment for another machine. No pairing code was sent.",
             Self::Authorization => "The access token was rejected by T3 Code.",
             Self::PairingRejected => "T3 Code rejected this pairing key. It may have expired or already been used. Create a new pairing key and try again.",
             Self::Expired => {
@@ -478,10 +550,10 @@ impl LimitsConnection {
         Ok(())
     }
     pub async fn connect(&self, port: u16, token: &str) -> Result<(), ConnectionError> {
-        Credential::new(port, token)?.validate()?;
+        let token = local_pairing_input(port, token)?;
         let access_token = timeout(
             Duration::from_secs(15),
-            self.transport.exchange_pairing(port, token),
+            self.transport.exchange_pairing(port, &token),
         )
         .await
         .map_err(|_| ConnectionError::Transport)??;

@@ -6,6 +6,60 @@ use std::{
 };
 
 #[test]
+fn local_pairing_links_accept_only_the_configured_loopback_destination() {
+    let port = 3773;
+    for address in ["127.0.0.1", "localhost", "[::1]"] {
+        let link = format!(" http://{address}:{port}/pair#token=abcd2345efgh ");
+        assert_eq!(local_pairing_input(port, &link).unwrap(), "ABCD2345EFGH");
+    }
+    let direct = "http://127.0.0.1:3773/pair#token=ABCD2345EFGH";
+    let desktop = format!(
+        "t3code://pair?pairingUrl={}",
+        url::form_urlencoded::byte_serialize(direct.as_bytes()).collect::<String>()
+    );
+    let hosted = "https://app.t3.codes/pair?host=http%3A%2F%2F127.0.0.1%3A3773#token=ABCD2345EFGH";
+    for link in [&desktop, hosted] {
+        assert_eq!(local_pairing_input(port, link).unwrap(), "ABCD2345EFGH");
+    }
+    for input in ["ABCD2345EFGH", "existing-access-token"] {
+        assert_eq!(local_pairing_input(port, input).unwrap(), input);
+    }
+    for link in [
+        "http://127.0.0.1:3774/pair#token=ABCD2345EFGH",
+        "https://127.0.0.1:3773/pair#token=ABCD2345EFGH",
+        "https://remote.example/pair#token=ABCD2345EFGH",
+        "http://localhost.example:3773/pair#token=ABCD2345EFGH",
+        "https://app.t3.codes/pair?host=https%3A%2F%2Fremote.example#token=ABCD2345EFGH",
+    ] {
+        assert_eq!(
+            local_pairing_input(port, link),
+            Err(ConnectionError::PairingDestination)
+        );
+    }
+}
+
+#[test]
+fn malformed_pairing_links_are_rejected_without_echoing_the_code() {
+    for link in [
+        "http://127.0.0.1:3773/pair",
+        "http://127.0.0.1:3773/pair?token=ABCD2345EFGH",
+        "http://127.0.0.1:3773/pair#token=ABCD2345EFGH&token=ABCD2345EFGH",
+        "http://127.0.0.1:3773/pair#token=invalid",
+        "http://127.0.0.1:3773/oauth/token#token=ABCD2345EFGH",
+        "http://user:password@127.0.0.1:3773/pair#token=ABCD2345EFGH",
+        "t3code://pair?pairingUrl=invalid",
+        "t3code://pair?pairingUrl=one&pairingUrl=two",
+        "https://app.t3.codes/pair?host=http%3A%2F%2F127.0.0.1%3A3773&host=other#token=ABCD2345EFGH",
+        "https://app.t3.codes/pair?host=http%3A%2F%2F127.0.0.1%3A3773%2Fother#token=ABCD2345EFGH",
+        "http://",
+    ] {
+        let error = local_pairing_input(3773, link).unwrap_err();
+        assert_eq!(error, ConnectionError::InvalidPairingLink);
+        assert!(!error.to_string().contains("ABCD2345EFGH"));
+    }
+}
+
+#[test]
 fn pairing_code_shape_matches_t3_code_and_bearer_tokens_pass_through() {
     assert!(is_pairing_code("ABCD2345EFGH"));
     assert!(is_pairing_code("abcd2345efgh"));
@@ -200,15 +254,20 @@ fn write_frame(s: &mut std::net::TcpStream, value: &str) {
 }
 #[test]
 fn loopback_bootstrap_subscribe_ack_and_snapshot() {
-    loopback_connection(false);
+    loopback_connection(false, false);
 }
 
 #[test]
 fn loopback_pairing_saves_access_token_and_streams_limits() {
-    loopback_connection(true);
+    loopback_connection(true, false);
 }
 
-fn loopback_connection(pairing: bool) {
+#[test]
+fn loopback_pairing_link_saves_only_the_exchanged_access_token() {
+    loopback_connection(true, true);
+}
+
+fn loopback_connection(pairing: bool, link: bool) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let server = std::thread::spawn(move || {
@@ -273,9 +332,12 @@ fn loopback_connection(pairing: bool) {
     runtime().block_on(async {
         let store = Arc::new(Memory::default());
         let c = LimitsConnection::with_default_transport(store.clone());
+        let pairing_link = format!("http://127.0.0.1:{port}/pair#token=ABCD2345EFGH");
         c.connect(
             port,
-            if pairing {
+            if link {
+                &pairing_link
+            } else if pairing {
                 "ABCD2345EFGH"
             } else {
                 "test-token"
@@ -348,10 +410,7 @@ fn saved_pairing_is_restored_offline_without_a_transport_request() {
 fn restore_storage_errors_are_explicit_and_do_not_fake_pairing() {
     let c = LimitsConnection::with_default_transport(Arc::new(BrokenStore));
     assert_eq!(c.restore_saved(), Err(ConnectionError::Storage));
-    assert_eq!(
-        c.snapshot().status,
-        LiveStatus::StorageUnavailable
-    );
+    assert_eq!(c.snapshot().status, LiveStatus::StorageUnavailable);
     assert!(!c.snapshot().has_credential);
 }
 struct Mock {
@@ -424,6 +483,16 @@ fn invalid_replacement_preserves_active_connection_and_saved_key() {
         };
 
         assert_eq!(c.connect(43, "").await, Err(ConnectionError::InvalidToken));
+        assert_eq!(
+            c.connect(43, "http://127.0.0.1:44/pair#token=ABCD2345EFGH")
+                .await,
+            Err(ConnectionError::PairingDestination)
+        );
+        assert_eq!(
+            c.connect(43, "http://127.0.0.1:43/pair#token=invalid")
+                .await,
+            Err(ConnectionError::InvalidPairingLink)
+        );
         assert_eq!(
             c.connect(43, "ABCD2345EFGH").await,
             Err(ConnectionError::PairingRejected)
