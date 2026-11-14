@@ -113,3 +113,18 @@ curl -fsSL https://eliophan.github.io/t3code-bar/install.sh | bash
 ```
 
 This command becomes usable after the version in `tauri.conf.json` has matching GitHub Release assets. Changing that version before publishing its packages makes the installer stop at the missing release.
+
+## Write release notes
+
+Update [CHANGELOG.md](../CHANGELOG.md), [Compatibility](../docs/COMPATIBILITY.md), and the supported release in [Security](../SECURITY.md) before publishing. Verify that package versions, installer defaults, README links, and the Homebrew cask agree.
+
+Use this structure for every release. Describe behavior users can observe rather than pasting a commit list.
+
+- Added or changed behavior.
+- Fixed user problems.
+- Tested T3 Code version or commit and release channel. If not tested, say so.
+- Exact Bar revision, package, OS, architecture, and checks completed.
+- Breaking changes, migration steps, and known limitations. Write "None" only when verified.
+- Download links, checksum instructions, and applicable signing or notarization limitations.
+
+Keep evidence claims bounded to the packages and environments actually tested. Do not turn source inspection or CI success into a native compatibility claim.

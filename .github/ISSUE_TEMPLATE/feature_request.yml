@@ -1,0 +1,23 @@
+name: Feature request
+description: Describe a user problem and a proposed improvement.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem do you need to solve?
+      description: Describe your workflow and what is difficult today. Avoid private data.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful change in T3 Code Bar.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and scope
+      description: Include workarounds, relevant platforms, and compatibility needs. Bar is independent and must not require changes to T3 Code.

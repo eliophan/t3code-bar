@@ -67,3 +67,7 @@ Reads local T3 Code data without modifying it. No telemetry or direct provider A
 [Usage](docs/USAGE.md) · [Development](docs/DEVELOPMENT.md) · [Compatibility](docs/COMPATIBILITY.md) · [Release guide](desktop/RELEASE.md)
 
 [MIT](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md). Independent companion, not affiliated with T3 Tools.
+
+## Contributing and support
+
+Read [Contributing](CONTRIBUTING.md) for setup and PR guidance, [Support](docs/SUPPORT.md) for product scope, and [Changelog](CHANGELOG.md) for release changes. Community participation follows the [Code of conduct](CODE_OF_CONDUCT.md). Report vulnerabilities through the private channel in [Security](SECURITY.md).
