@@ -106,3 +106,14 @@ offline retention and selection across a separate process. Real cloud consent,
 OpenSSH agent and host-key behavior, OS credential persistence, native
 notification destination navigation, and packaged multi-environment acceptance
 remain separate checks.
+
+## T3 Code version evidence
+
+Record exact upstream versions separately from build and native acceptance. An inspected source checkout is not a tested compatibility claim.
+
+| Bar revision or release | T3 Code version or commit | Evidence | Status |
+| --- | --- | --- | --- |
+| `v2.0.0-alpha.3` | Not recorded in the published release notes | [Release notes](https://github.com/eliophan/t3code-bar/releases/tag/v2.0.0-alpha.3) record macOS 15 and Ubuntu 24.04 CI for `21310daf0d310ed54bf41685ff149d403357f348` | Exact upstream compatibility not established |
+| Documentation baseline, 2026-11-14 | Local desktop manifest `0.1.7`, source commit `60514be91175f648634a7b8dd00fe45a3483feee` | Local upstream revision and manifest inspected while adding this record | Source identification only; no compatibility tests run against this revision |
+
+For each compatibility validation, append the date, exact Bar revision, T3 Code release channel and version or commit, OS and architecture, tested features, evidence reference, and unresolved limits. Distinguish synthetic contract checks, native app checks, and packaged installation checks. Keep private captures outside the public repository. A passing row covers only its listed features and environment.

@@ -63,3 +63,9 @@ To install the local pre-push check, run `bash scripts/setup_hooks.sh`. Build ou
 ## Native verification
 
 Automated tests do not establish native GUI or release acceptance. Test the actual packaged app for tray actions, panel visibility, hover, pairing, relaunch/reconnect, disconnect, settings persistence and notification routing. On macOS include Spaces and fullscreen; on Linux include tray loss and compositor-specific behavior. Keep private captures and receipts locally.
+
+## Repository checks on main
+
+The active `main-protection` GitHub ruleset requires `test-and-build (macos-15)` and `test-and-build (ubuntu-24.04)` from GitHub Actions. Both checks must pass against a branch updated with the current base. Keep the required-check names in sync with the CI matrix when renaming jobs or runner targets. The ruleset also blocks branch deletion and force-pushes.
+
+These are GitHub repository settings, not rules installed by cloning the source. See [Contributing](../CONTRIBUTING.md) for the submission process.
