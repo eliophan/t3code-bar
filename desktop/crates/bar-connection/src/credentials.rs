@@ -422,7 +422,7 @@ pub fn forget_saved_access(
         | Route::Bearer {
             http_base_url: Some(http_base_url),
             ..
-        } => CredentialScope::new(environment, crate::validated_base(http_base_url)?.as_str()),
+        } => CredentialScope::new(environment, crate::grant_origin(http_base_url)?.as_str()),
         Route::Ssh {
             target: Some(target),
             ..
@@ -620,6 +620,33 @@ mod tests {
     }
 
     #[test]
+    fn forgetting_a_tailnet_route_does_not_require_a_reachable_peer() {
+        // A tailnet peer that left the tailnet, or a stopped Tailscale daemon,
+        // must not strand the grant saved while the peer was verified.
+        let store = MemoryCredentialStore::default();
+        let id = EnvironmentId::new("env-a").unwrap();
+        for origin in [
+            "http://100.64.0.1:3773/",
+            "http://[fd7a:115c:a1e0::1]:3773/",
+        ] {
+            let mut ep = endpoint("env-a", "http://127.0.0.1:3773/");
+            ep.base = url::Url::parse(origin).unwrap();
+            store
+                .save(
+                    &ep.credential_scope(),
+                    &envelope("env-a", ep.base.as_str(), future()),
+                )
+                .unwrap();
+            assert!(ep.load_saved_grant(&store).unwrap().is_some());
+            let route = Route::Primary {
+                http_base_url: origin.trim_end_matches('/').into(),
+            };
+            forget_saved_access(&id, &route, &store).unwrap();
+            assert!(ep.load_saved_grant(&store).unwrap().is_none(), "{origin}");
+        }
+    }
+
+    #[test]
     fn forgetting_rejects_routes_that_have_no_direct_grant_scope() {
         let store = MemoryCredentialStore::default();
         let id = EnvironmentId::new("env-a").unwrap();
@@ -631,6 +658,9 @@ mod tests {
             },
             Route::Primary {
                 http_base_url: "http://example.com/".into(),
+            },
+            Route::Primary {
+                http_base_url: "http://192.168.1.20:3773/".into(),
             },
             Route::Primary {
                 http_base_url: "https://user:secret@example.com/".into(),

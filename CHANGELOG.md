@@ -4,6 +4,10 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ## Unreleased
 
+### Fixed
+
+- Forget access and Remove connection work for a Tailscale HTTP route after its peer leaves the tailnet or Tailscale stops, instead of failing and leaving the saved grant in the credential store.
+
 ### Maintenance
 
 - Add contribution, security, support, community, and issue-reporting guidance.

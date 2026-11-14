@@ -344,6 +344,26 @@ fn validated_base(route: &str) -> Result<Url, ConnectionError> {
     Ok(base)
 }
 
+/// The origin a direct grant was saved under, checked by syntax alone. Tailnet
+/// peer verification guards connecting, not forgetting: a grant must stay
+/// removable after its peer leaves the tailnet or Tailscale stops.
+fn grant_origin(route: &str) -> Result<Url, ConnectionError> {
+    let base = normalized_origin(route)?;
+    if base.scheme() == "http"
+        && !base.host().is_some_and(|host| {
+            let ip = match host {
+                url::Host::Ipv4(ip) => IpAddr::V4(ip),
+                url::Host::Ipv6(ip) => IpAddr::V6(ip),
+                url::Host::Domain(_) => return false,
+            };
+            ip.is_loopback() || tailscale::is_tailnet_address(ip)
+        })
+    {
+        return Err(ConnectionError::InvalidRoute);
+    }
+    Ok(base)
+}
+
 fn valid_secret(s: &str) -> bool {
     !s.is_empty() && s.len() <= 16384 && !s.bytes().any(|b| b < 33 || b == 127)
 }
