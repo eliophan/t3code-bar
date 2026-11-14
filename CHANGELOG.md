@@ -4,6 +4,12 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ## Unreleased
 
+### Changed
+
+- Start onboarding with local pairing instructions and put the local connection first in Settings.
+- Make importing T3 Code's encrypted environment catalog opt-in; preserve Bar's own pairing credentials and independent manual and T3 Connect connections.
+- Distinguish a running local server from an authorized Bar connection instead of showing unpaired installations as connected.
+
 ### Maintenance
 
 - Add contribution, security, support, community, and issue-reporting guidance.

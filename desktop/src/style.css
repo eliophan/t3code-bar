@@ -95,6 +95,8 @@ h2 small { font-size: var(--bar-font-10, 10px); margin-left: auto; color: #8b8b9
 .empty { padding: 24px 10px; text-align: center; color: #a1a1aa; font-size: var(--bar-font-12, 12px); }.empty strong { font-weight: 500; }.empty p { color: #8b8b94; font-size: var(--bar-font-11, 11px); line-height: var(--bar-font-17, 17px); margin-bottom: 0; }
 .stale { opacity: .45; }.onboarding { padding: 16px; }.onboarding h1 { margin-bottom: 12px; }
 .connection input { width: 100%; }.connection form { display: flex; flex-direction: column; gap: 8px; }.connection-actions { display: flex; gap: 6px; }.connection-actions button { font-size: var(--bar-font-10, 10px); padding: 6px; }.connection-actions button:last-child { flex: 1; }
+.pairing-help { color: var(--linux-muted, #a3a3a3); font-size: var(--bar-font-11, 11px); line-height: var(--bar-font-17, 17px); }
+.pairing-help ol { margin: 0; padding-left: 18px; }.pairing-help li + li { margin-top: 4px; }.pairing-help p { margin: 8px 0 0; }
 .text-button { border: 0; padding: 0; color: #a5b4fc; background: none; text-align: left; }.text-button:hover { background: none; color: #d0d6ff; }.subtle { color: #a1a1aa; margin-top: 12px; }
 .settings { padding: 0 16px 14px; max-height: 516px; }.version { color: #8b8b94; margin-left: auto; font-size: var(--bar-font-10, 10px); }.toggle { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 38px; font-size: var(--bar-font-11_5, 11.5px); line-height: var(--bar-font-16, 16px); }.settings section { padding: 14px 0; margin: 0; border-top: 1px solid #191919; }
 .settings section:first-child { border-top: 0; padding-top: 4px; }

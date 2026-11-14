@@ -32,7 +32,7 @@ const snapshot = (showsPreviews: boolean): AppSnapshot => ({
   localConnection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null },
   connection: { status: 'connected', message: 'Connected', connected: true, paired: true, hasData: true, port: 0, updatedAt: null },
   usage: null, usageError: null, usageLoading: false, usagePeriod: '24h', limits: null,
-  settings: { environmentSelection: 'all', notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },
+  settings: { environmentSelection: 'all', importsDesktopEnvironments: false, notificationsMuted: false, showsPreviews, automaticallyChecksForUpdates: false, installsWithoutAsking: false },
   update: { status: 'idle', message: '', version: null, offerId: null, canInstall: false, busy: false }, version: 'test',
 });
 
@@ -188,6 +188,39 @@ describe('thread preview lifecycle', () => {
 });
 
 describe('new-install pairing', () => {
+  it('uses local pairing state even when discovery reports an aggregate connection', async () => {
+    const value = snapshot(true);
+    value.connection = { ...value.connection, connected: true, paired: false };
+    value.localConnection = { ...value.connection, connected: false, status: 'unpaired', message: 'T3 Code is running. Pair to give Bar read access.' };
+    value.environments = [{ id: 'local', label: 'Local', machine: 'laptop', status: 'online', access: 'direct', isLocal: true, canForgetAccess: false }];
+    await renderSnapshot(value);
+    expect(host.querySelector('.onboarding')).not.toBeNull();
+    expect(host.textContent).toContain('Connect this computer');
+    expect(host.textContent).toContain('Settings → Sharing & access');
+    expect(host.textContent).toContain('Authorized clients');
+    expect(host.textContent).toContain('Create link');
+    expect(host.textContent).not.toContain('Connected to T3 Code');
+    const input = host.querySelector<HTMLInputElement>('input[type="password"]');
+    expect(input?.getAttribute('aria-describedby')).toBe('local-pairing-help');
+    expect(host.querySelectorAll('form')).toHaveLength(1);
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'begin_cloud_login')).toBe(false);
+    expect(tauri.invoke).not.toHaveBeenCalledWith('set_setting', expect.anything());
+  });
+
+  it('keeps a paired local installation out of onboarding when an unpaired remote is selected', async () => {
+    const value = snapshot(true);
+    value.connection = { ...value.connection, connected: false, paired: false };
+    value.settings.environmentSelection = { one: 'remote' };
+    value.environments = [
+      { id: 'local', label: 'Local', machine: 'laptop', status: 'online', access: 'direct', isLocal: true, canForgetAccess: false },
+      { id: 'remote', label: 'Remote', machine: 'server', status: 'needsAccess', access: 'direct', isLocal: false, canForgetAccess: false },
+    ];
+    value.threads = [];
+    await renderSnapshot(value);
+    expect(host.querySelector('.onboarding')).toBeNull();
+    expect(host.querySelector('[aria-label="Environment selector"]')).not.toBeNull();
+  });
+
   it('requires a pairing key even when T3 Code already has cached data', async () => {
     const value = snapshot(true);
     value.connection = { ...value.connection, connected: false, paired: false, status: 'cacheOnly' };
@@ -230,6 +263,23 @@ describe('new-install pairing', () => {
 });
 
 describe('settings state and actions', () => {
+  it('puts local pairing before remote settings and enables desktop imports only on request', async () => {
+    await openSettings();
+    expect(host.querySelector('.settings section h2')?.textContent).toBe('Local T3 Code connection');
+    const importToggle = [...host.querySelectorAll<HTMLLabelElement>('label')].find(label => label.textContent === 'Import environments from T3 Code')!.querySelector<HTMLInputElement>('input')!;
+    expect(importToggle.checked).toBe(false);
+    expect(host.textContent).toContain('each still needs its own Bar pairing');
+    expect(tauri.invoke).not.toHaveBeenCalledWith('set_setting', expect.anything());
+    await act(async () => importToggle.click());
+    expect(tauri.invoke).toHaveBeenCalledWith('set_setting', { key: 'importsDesktopEnvironments', value: true });
+    act(() => tauri.listeners.get('bar-snapshot')?.({ payload: { ...snapshot(true), settings: { ...snapshot(true).settings, importsDesktopEnvironments: true } } }));
+    expect(importToggle.checked).toBe(true);
+    await act(async () => importToggle.click());
+    expect(tauri.invoke).toHaveBeenLastCalledWith('set_setting', { key: 'importsDesktopEnvironments', value: false });
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'disconnect')).toBe(false);
+    expect(tauri.invoke.mock.calls.some(([name]) => name === 'forget_environment_access')).toBe(false);
+  });
+
   it('keeps an environment form and its failure visible when the panel reopens', async () => {
     await openSettings();
     act(() => button('Add environment').click());
@@ -311,7 +361,9 @@ describe('settings state and actions', () => {
     await openSettings(value);
     expect(button('Check for Updates…').disabled).toBe(true);
     expect(host.textContent).toContain('Updates unavailable in this build');
-    expect([...host.querySelectorAll<HTMLInputElement>('[role="switch"]')].slice(2).every(input => input.disabled)).toBe(true);
+    const updateSwitches = host.querySelectorAll<HTMLInputElement>('.settings section:last-of-type [role="switch"]');
+    expect(updateSwitches).toHaveLength(2);
+    expect([...updateSwitches].every(input => input.disabled)).toBe(true);
   });
 });
 

@@ -1,6 +1,10 @@
 # Usage
 
-Start T3 Code, then launch the Bar. Enter a pairing key from T3 Code to connect. The key is saved in the Bar's own OS credential namespace for later reconnects.
+Start T3 Code, then launch the Bar. In T3 Code, open **Settings → Sharing & access → Authorized clients → Create link** and choose read-only permissions. Copy its one-time pairing code into **Local pairing key** in the Bar, then click **Connect**. The Bar saves its own pairing credential in its OS credential namespace for later reconnects. OS permission approval and discovering a running T3 Code server do not complete pairing.
+
+Local setup does not require T3 Connect sign-in or access to T3 Code's saved environment key. Settings puts **Local T3 Code connection** first. Add a remote environment manually by address or SSH host, or sign in to T3 Connect to find linked environments.
+
+**Import environments from T3 Code** in Settings is optional and off by default, including after upgrading from a version without this preference. Turn it on only if you want the Bar to discover T3 Code's saved connections. Reading that encrypted list may require approval for T3 Code's Keychain or Secret Service entry; it discovers metadata and routes, not read authorization. Pair separately with each environment. Turning import off stops catalog discovery without deleting Bar's saved credentials. Imported-only environments may become unavailable until you turn import back on or add their route manually. Manual connections and T3 Connect discovery are independent of this preference.
 
 ## Threads and usage
 
