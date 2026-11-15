@@ -12,6 +12,10 @@ This log records user-visible changes. GitHub releases contain package downloads
 - Make importing T3 Code's encrypted environment catalog opt-in; preserve Bar's own pairing credentials and independent manual and T3 Connect connections.
 - Distinguish a running local server from an authorized Bar connection instead of showing unpaired installations as connected.
 
+### Fixed
+
+- Forget access and Remove connection work for a Tailscale HTTP route after its peer leaves the tailnet or Tailscale stops, instead of failing and leaving the saved grant in the credential store.
+
 ### Maintenance
 
 - Add contribution, security, support, community, and issue-reporting guidance.

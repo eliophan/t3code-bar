@@ -20,7 +20,7 @@ struct Peer {
     ips: Vec<IpAddr>,
 }
 
-fn is_tailnet_address(ip: IpAddr) -> bool {
+pub(crate) fn is_tailnet_address(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => u32::from(ip) & 0xffc00000 == 0x64400000,
         IpAddr::V6(ip) => ip.segments()[..3] == [0xfd7a, 0x115c, 0xa1e0],
