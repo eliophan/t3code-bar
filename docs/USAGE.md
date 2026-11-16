@@ -1,6 +1,14 @@
 # Usage
 
-Start T3 Code, then launch the Bar. Enter a pairing key from T3 Code to connect. The key is saved in the Bar's own OS credential namespace for later reconnects.
+Launch the Bar. In the T3 Code environment you want to connect, open **Settings → Sharing & access → Authorized clients → Create link** and choose read-only permissions. Choose **Copy link**, then **Paste and connect** in the Bar. Alternatively, paste the complete link into **Pairing link** and click **Connect**. The same entry connects this computer or a remote machine; a remote connection does not require a local T3 Code installation. The clipboard is read only after an explicit action, never in the background. Bar saves its own grant for later reconnects.
+
+Bar validates the destination and identifies the environment before exchanging the code. A verified local identity uses the local connection; other identities are paired and saved as remote environments. Bar selects the connected environment automatically. Remote addresses must be reachable and follow the existing HTTPS, loopback or verified Tailscale transport policy. A localhost link copied from another computer still points to this computer: create a link with that server's reachable address. Supported formats include direct `/pair#token=…` links, `t3code://pair?pairingUrl=…` wrappers, and hosted `https://app.t3.codes/pair?host=…#token=…` links. Link format evidence: T3 Code v0.1.9, `apps/web/src/components/settings/pairingUrls.ts`.
+
+First setup has one action: **Paste and connect** when the field is empty, or **Connect** after entering a link. A bare pairing code is insufficient here because it does not identify the target. Settings is available after pairing, not during first setup. Previously paired installations keep recovery and Settings available while offline.
+
+Local setup does not require T3 Connect sign-in or access to T3 Code's saved environment key. Settings shows a compact **Local T3 Code connection** status. Choose **Manage connection** to open its dedicated pairing, reconnect and disconnect page; the back button returns to Settings. Local never appears in the remote pairing controls. Add a remote environment manually by address or SSH host, or sign in to T3 Connect to find linked environments.
+
+**Import environments from T3 Code** in Settings is optional and off by default, including after upgrading from a version without this preference. Turn it on only if you want the Bar to discover T3 Code's saved connections. Reading that encrypted list may require approval for T3 Code's Keychain or Secret Service entry; it discovers metadata and routes, not read authorization. Pair separately with each environment. Turning import off stops catalog discovery without deleting Bar's saved credentials. Imported-only environments may become unavailable until you turn import back on or add their route manually. Manual connections and T3 Connect discovery are independent of this preference.
 
 ## Threads and usage
 

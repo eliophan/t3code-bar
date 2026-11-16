@@ -48,6 +48,15 @@ pub fn input_has_pairing_key(input: &ConnectionInput) -> Result<bool, String> {
     Ok(parse_input(input)?.code.is_some())
 }
 
+pub fn pairing_key_from_link(input: &ConnectionInput) -> Result<PairingKey, String> {
+    let parsed = parse_input(input)?;
+    let code = parsed.code.ok_or("Copy a complete pairing link from T3 Code, including its one-time code.")?;
+    if code.len() != 12 || !code.chars().all(|character| "23456789ABCDEFGHJKLMNPQRSTUVWXYZ".contains(character.to_ascii_uppercase())) {
+        return Err("This pairing link has an invalid code. Create and copy a fresh link in T3 Code.".into());
+    }
+    Ok(PairingKey::new(code.to_ascii_uppercase()))
+}
+
 struct ParsedInput {
     route: Route,
     code: Option<Zeroizing<String>>,
@@ -130,6 +139,9 @@ fn parse_input(input: &ConnectionInput) -> Result<ParsedInput, String> {
                 url.set_path("/");
             }
             url.set_fragment(None);
+            if url.scheme() == "http" && url.host_str() == Some("localhost") {
+                url.set_host(Some("127.0.0.1")).map_err(|_| invalid_input())?;
+            }
             let base = crate::normalized_origin(url.as_str()).map_err(|_| invalid_input())?;
             Ok(ParsedInput {
                 route: Route::Bearer {
@@ -735,6 +747,27 @@ mod tests {
             port: None
         })
         .is_err());
+    }
+
+    #[test]
+    fn unified_pairing_requires_a_complete_link_and_normalizes_localhost() {
+        for address in [
+            "https://remote.example/",
+            "https://remote.example/pair#token=invalid",
+            "https://remote.example/pair#token=ABCD2345EFGH&token=ABCD2345EFGH",
+            "ABCD2345EFGH",
+        ] {
+            let input = ConnectionInput::Direct { address: address.into() };
+            assert!(pairing_key_from_link(&input).is_err());
+        }
+        for address in [
+            "http://localhost:3773/pair#token=abcd2345efgh",
+            "t3code://pair?pairingUrl=http%3A%2F%2Flocalhost%3A3773%2Fpair%23token%3DABCD2345EFGH",
+        ] {
+            let input = ConnectionInput::Direct { address: address.into() };
+            assert_eq!(pairing_key_from_link(&input).unwrap().as_str(), "ABCD2345EFGH");
+            assert_eq!(destination_label(&input_route(&input).unwrap()), "http://127.0.0.1:3773/");
+        }
     }
 
     #[test]

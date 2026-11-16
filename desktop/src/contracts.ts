@@ -59,7 +59,7 @@ export interface LimitRow { id: string; label: string; remainingPercent: number;
 export interface LimitGroup { driver: string; label: string; rows: LimitRow[] }
 export interface LimitsReport { groups: LimitGroup[]; notices: string[]; checkedAt: string | null; readFailed?: boolean; skippedFiles?: number; links: { label: string; url: string; message?: string | null; accounts?: string[] }[] }
 export interface ConnectionState { status: string; message: string; connected: boolean; paired: boolean; hasData: boolean; port: number; updatedAt: string | null }
-export interface Settings { environmentSelection: EnvironmentSelection; notificationsMuted: boolean; showsPreviews: boolean; automaticallyChecksForUpdates: boolean; installsWithoutAsking: boolean }
+export interface Settings { environmentSelection: EnvironmentSelection; importsDesktopEnvironments: boolean; notificationsMuted: boolean; showsPreviews: boolean; automaticallyChecksForUpdates: boolean; installsWithoutAsking: boolean }
 export interface UpdateState { status: string; message: string; version: string | null; offerId: number | null; canInstall: boolean; busy: boolean }
 export interface AppSnapshot {
   revision: number;
