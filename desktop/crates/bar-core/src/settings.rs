@@ -6,6 +6,7 @@ use std::{fs, io, path::PathBuf};
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub environment_selection: EnvironmentSelection,
+    pub imports_desktop_environments: bool,
     pub notifications_muted: bool,
     pub shows_previews: bool,
     pub automatically_checks_for_updates: bool,
@@ -15,6 +16,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             environment_selection: EnvironmentSelection::All,
+            imports_desktop_environments: false,
             notifications_muted: false,
             shows_previews: true,
             automatically_checks_for_updates: true,
@@ -26,6 +28,7 @@ impl Default for Settings {
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SettingKey {
+    ImportsDesktopEnvironments,
     NotificationsMuted,
     ShowsPreviews,
     AutomaticallyChecksForUpdates,
@@ -73,6 +76,7 @@ impl SettingsStore {
     pub fn set(&mut self, key: SettingKey, enabled: bool) -> io::Result<()> {
         let mut next = self.value.clone();
         match key {
+            SettingKey::ImportsDesktopEnvironments => next.imports_desktop_environments = enabled,
             SettingKey::NotificationsMuted => next.notifications_muted = enabled,
             SettingKey::ShowsPreviews => next.shows_previews = enabled,
             SettingKey::AutomaticallyChecksForUpdates => {
@@ -150,10 +154,32 @@ mod tests {
         let mut store = SettingsStore::load(path.clone()).unwrap();
         assert!(store.value().notifications_muted);
         assert!(store.value().shows_previews);
+        assert!(!store.value().imports_desktop_environments);
         store.set(SettingKey::ShowsPreviews, false).unwrap();
         let read = SettingsStore::load(path).unwrap();
         assert!(!read.value().shows_previews);
         assert!(read.value().notifications_muted);
+    }
+    #[test]
+    fn desktop_environment_import_is_opt_in_and_survives_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut store = SettingsStore::load(path.clone()).unwrap();
+        assert!(!store.value().imports_desktop_environments);
+        store
+            .set(SettingKey::ImportsDesktopEnvironments, true)
+            .unwrap();
+        let mut restored = SettingsStore::load(path.clone()).unwrap();
+        assert!(restored.value().imports_desktop_environments);
+        restored
+            .set(SettingKey::ImportsDesktopEnvironments, false)
+            .unwrap();
+        assert!(
+            !SettingsStore::load(path)
+                .unwrap()
+                .value()
+                .imports_desktop_environments
+        );
     }
     #[test]
     fn selection_defaults_and_survives_restart_with_other_preferences() {

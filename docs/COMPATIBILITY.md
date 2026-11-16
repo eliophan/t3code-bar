@@ -15,6 +15,14 @@ The Tauri bundle identity and credential namespace differ from Swift v1. Existin
 
 ## Multiple environments on Linux and macOS
 
+First setup accepts a complete pairing link for either a local or a remote
+environment. Bar identifies the destination before exchanging its code, routes a
+matching local identity to the local credential store, and saves other identities
+as manual remote connections. Remote-only installations do not need a local
+environment ID, database or running T3 Code process. Bare codes and server origins
+are insufficient for this first-run flow. Settings becomes available after pairing;
+its existing manual address, SSH and T3 Connect controls remain available there.
+
 Settings selects All environments or one environment. The selection applies to
 threads, Usage, Limits and notifications, and survives restart. A missing
 selected environment stays selected. Thread actions use both environment and
@@ -24,7 +32,12 @@ environment show that icon; the current local environment has no machine icon.
 The Bar shows the main sidebar list, excluding settled, snoozed, archived,
 deleted, delegated and side-chat threads from both local and remote sources.
 
-Linux and macOS discovery project the installed T3 desktop connection catalog.
+Linux and macOS discovery can project the installed T3 desktop connection catalog
+when **Import environments from T3 Code** is enabled in Settings. It is disabled
+by default, including for settings written before the preference existed. Local
+pairing, manual routes and T3 Connect discovery do not require this import.
+Disabling it preserves saved Bar grants; catalog-only routes require opting in
+again or adding an independent manual route to reconnect.
 Discovery provides metadata and routes; it does not authorize reads. Bar pairs with its
 own read grant for direct, public HTTPS tunnel and SSH routes. T3 Connect sign-in
 uses Bar's OAuth token to list linked environments and their public tunnel

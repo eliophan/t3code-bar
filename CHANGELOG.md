@@ -4,6 +4,14 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ## Unreleased
 
+### Changed
+
+- Start onboarding with one pairing-link entry for local or remote environments and show Settings after pairing. Settings shows a compact local status with a separate Manage connection page.
+- Exclude Local from remote pairing controls so an unpaired local server cannot submit through the remote-only pairing command.
+- Identify the link's environment before pairing, select it after connecting, and support remote-only installations without local T3 Code state.
+- Make importing T3 Code's encrypted environment catalog opt-in; preserve Bar's own pairing credentials and independent manual and T3 Connect connections.
+- Distinguish a running local server from an authorized Bar connection instead of showing unpaired installations as connected.
+
 ### Fixed
 
 - Forget access and Remove connection work for a Tailscale HTTP route after its peer leaves the tailnet or Tailscale stops, instead of failing and leaving the saved grant in the credential store.
