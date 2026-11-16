@@ -17,5 +17,6 @@ Include screenshots or a recording for UI changes, with private data removed. Ot
 ## Contribution checks
 
 - [ ] No personal database, pairing key, token, credential, or unredacted private data is included.
+- [ ] Works with a released, unmodified T3 Code and needs no upstream changes. T3 Code version or commit relied on: ___
 - [ ] User-visible changes and compatibility limits are documented where applicable.
 - [ ] New dependencies, copied code, and artwork have compatible licenses and required attribution.
