@@ -8,6 +8,16 @@ Follow [Development](docs/DEVELOPMENT.md) for prerequisites, setup, native build
 
 Use synthetic fixtures. Never submit personal databases, pairing keys, tokens, credentials, environment files, or unredacted logs and screenshots. Follow [Security](SECURITY.md) for sensitive reports.
 
+## Work with T3 Code as it ships
+
+Bar must work with a released, unmodified T3 Code. A change that needs a new T3 Code endpoint, field, route, scheme or setting is out of scope, even if you could contribute that upstream change separately.
+
+- Build only on interfaces T3 Code already ships, and name the T3 Code version or commit that provides them. Internal routes, unexported source and unreleased builds do not count.
+- Bar reads T3 Code state and links back to it. It does not create, edit, run or delete T3 Code threads, tasks or settings.
+- When T3 Code does not expose what a feature needs, deliver the part that works and document the limitation. Do not invent deep links or fall back silently to other behavior.
+
+See [Support](docs/SUPPORT.md) for product scope and [Compatibility](docs/COMPATIBILITY.md) for the interfaces Bar uses today.
+
 ## Submit a change
 
 1. Search existing issues and PRs. Discuss large features or compatibility changes in an issue first.
