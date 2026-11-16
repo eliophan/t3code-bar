@@ -376,18 +376,28 @@ fn environment_cache_path(settings: &Path) -> PathBuf {
 fn iso(d: Option<DateTime<Utc>>) -> Option<String> {
     d.map(|v| v.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
 }
+/// Project paths name files on the machine that reported them. Only a local
+/// environment's paths are this machine's, so a remote thread never makes Bar
+/// read local files for an icon.
+fn project_favicon(
+    favicons: &favicons::Favicons,
+    t: &threads::ThreadItem,
+    local: bool,
+) -> Option<String> {
+    local
+        .then(|| favicons.resolve(t.workspace_root.as_deref(), t.project_favicon_path.as_deref()))
+        .flatten()
+}
 fn thread_item(
     t: threads::ThreadItem,
     environment_id: &EnvironmentId,
+    local: bool,
     state: &RuntimeState,
 ) -> Option<ThreadItem> {
     let project_favicon = if state.fixture {
         None
     } else {
-        state.favicons.resolve(
-            t.workspace_root.as_deref(),
-            t.project_favicon_path.as_deref(),
-        )
+        project_favicon(&state.favicons, &t, local)
     };
     Some(ThreadItem {
         project_favicon,
@@ -685,7 +695,11 @@ fn view_snapshot(state: &RuntimeState) -> Result<AppSnapshot, String> {
     }
     snapshot.threads = hub
         .selected_threads()
-        .filter_map(|t| thread_item(t.item().clone(), &t.reference().environment_id, state))
+        .filter_map(|t| {
+            let environment_id = &t.reference().environment_id;
+            let local = local_sources.contains_key(environment_id);
+            thread_item(t.item().clone(), environment_id, local, state)
+        })
         .collect();
     let selected_sources: Vec<_> = hub.selected_sources().collect();
     let selected: Vec<_> = selected_sources
@@ -4944,6 +4958,36 @@ while True:
             1,
             "polling does not re-pair"
         );
+    }
+
+    #[test]
+    fn only_local_threads_resolve_project_favicons_from_this_machine() {
+        let project = tempfile::tempdir().unwrap();
+        std::fs::write(project.path().join("favicon.svg"), "<svg/>").unwrap();
+        let explicit = project.path().join("icon.svg");
+        std::fs::write(&explicit, "<svg/>").unwrap();
+        let item = |root: Option<&Path>, favicon: Option<&Path>| -> threads::ThreadItem {
+            serde_json::from_value(json!({
+                "id":"t", "projectId":"p", "projectTitle":"p", "title":"t",
+                "createdAt":"2024-01-01T00:00:00Z", "updatedAt":"2024-01-01T00:00:00Z",
+                "pendingUserInputCount":0, "pendingApprovalCount":0, "providers":[],
+                "hasGoal":false, "isPinned":false, "isSettled":false, "isSnoozed":false,
+                "isWoke":false, "pendingGuestMessageCount":0, "isBlockedOnThreadWait":false,
+                "hasRuns":false, "status":"Approval", "priority":0, "isRunning":false,
+                "isAttention":true, "showsLabelInMenuBar":true,
+                "workspaceRoot": root.map(|p| p.to_str().unwrap()),
+                "projectFaviconPath": favicon.map(|p| p.to_str().unwrap()),
+            }))
+            .unwrap()
+        };
+        let by_root = item(Some(project.path()), None);
+        let by_path = item(None, Some(&explicit));
+        let favicons = favicons::Favicons::default();
+        assert!(project_favicon(&favicons, &by_root, true).is_some());
+        assert!(project_favicon(&favicons, &by_path, true).is_some());
+        let remote = favicons::Favicons::default();
+        assert_eq!(project_favicon(&remote, &by_root, false), None);
+        assert_eq!(project_favicon(&remote, &by_path, false), None);
     }
 
     #[test]

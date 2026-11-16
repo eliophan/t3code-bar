@@ -14,6 +14,7 @@ This log records user-visible changes. GitHub releases contain package downloads
 
 ### Fixed
 
+- Threads from remote environments no longer resolve project icons from this computer's files. Remote project paths name files on the remote machine, so their threads show the default icon.
 - Forget access and Remove connection work for a Tailscale HTTP route after its peer leaves the tailnet or Tailscale stops, instead of failing and leaving the saved grant in the credential store.
 
 ### Maintenance
